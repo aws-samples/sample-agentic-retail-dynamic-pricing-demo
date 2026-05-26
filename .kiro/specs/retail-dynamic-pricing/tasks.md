@@ -61,7 +61,7 @@ Key technical constraints:
 - [x] 2. Checkpoint - Verify CDK synthesizes successfully
   - Run `cdk synth` and ensure all stacks synthesize without errors. Ask the user if questions arise.
 
-- [ ] 3. Data models and shared utilities
+- [x] 3. Data models and shared utilities
   - [x] 3.1 Create Pricing Scenario data model and JSON schema
     - Define Python dataclass/Pydantic model for PricingScenario with all fields from design
     - Implement JSON serialization preserving 4 decimal places for monetary values
@@ -102,74 +102,74 @@ Key technical constraints:
     - Return adjustment recommendation when thresholds breached
     - _Requirements: 9.3_
 
-  - [ ] 3.7 Write property tests for guardrails engine
+  - [x] 3.7 Write property tests for guardrails engine
     - **Property 11: Below-cost guardrail rejects correctly**
     - **Property 12: MAP guardrail rejects correctly**
     - **Property 13: Geographic bias guardrail flags correctly**
     - **Validates: Requirements 8.1, 8.2, 8.3**
 
-  - [ ] 3.8 Write property tests for risk classification
+  - [x] 3.8 Write property tests for risk classification
     - **Property 9: Risk classification follows threshold rules**
     - **Validates: Requirements 7.4**
 
-  - [ ] 3.9 Write property tests for scenario ranking
+  - [x] 3.9 Write property tests for scenario ranking
     - **Property 1: Scenario ranking is contiguous and ordered by composite score**
     - **Validates: Requirements 1.3, 3.2**
 
-  - [ ] 3.10 Write property tests for serialization round trip
+  - [x] 3.10 Write property tests for serialization round trip
     - **Property 15: Pricing Scenario serialization round trip**
     - **Property 16: Schema validation rejects invalid payloads**
     - **Validates: Requirements 14.5, 14.2, 14.3**
 
-  - [ ] 3.11 Write property tests for confidence scores and scenario count
+  - [x] 3.11 Write property tests for confidence scores and scenario count
     - **Property 5: Confidence scores are valid integers**
     - **Property 4: Scenario count within bounds**
     - **Validates: Requirements 3.3, 3.1, 3.6**
 
-- [ ] 4. Checkpoint - Verify data models and business logic
+- [x] 4. Checkpoint - Verify data models and business logic
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. MCP Servers (Lambda functions with randomized demo data)
-  - [ ] 5.1 Implement Competitor API MCP Server
+- [x] 5. MCP Servers (Lambda functions with randomized demo data)
+  - [x] 5.1 Implement Competitor API MCP Server
     - Create Lambda handler with MCP tool definitions: `get_competitor_prices`, `get_price_history`, `get_market_position`
     - Implement randomized data generation within ±10% variance from baseline
     - Return JSON response with `status` and `data` fields conforming to MCP Response Schema
     - Include `metadata` with timestamp, source, and latencyMs
     - _Requirements: 2.1, 2.5, 2.6_
 
-  - [ ] 5.2 Implement ERP/POS MCP Server
+  - [x] 5.2 Implement ERP/POS MCP Server
     - Create Lambda handler with MCP tool definitions: `get_sales_history`, `get_pos_realtime`, `get_inventory_levels`, `get_elasticity_data`
     - Implement randomized data generation within ±20% variance for demand volumes
     - Return JSON response conforming to MCP Response Schema
     - _Requirements: 2.2, 2.5, 2.6_
 
-  - [ ] 5.3 Implement Market Signals MCP Server
+  - [x] 5.3 Implement Market Signals MCP Server
     - Create Lambda handler with MCP tool definitions: `get_market_trends`, `get_consumer_sentiment`, `get_macro_indicators`
     - Implement randomized sentiment scores varying between invocations
     - Return JSON response conforming to MCP Response Schema
     - _Requirements: 2.3, 2.5, 2.6_
 
-  - [ ] 5.4 Implement Cost & Finance MCP Server
+  - [x] 5.4 Implement Cost & Finance MCP Server
     - Create Lambda handler with MCP tool definitions: `get_cost_structure`, `get_margin_targets`, `get_financial_constraints`
     - Implement randomized cost inputs within ±5% variance from baseline
     - Return JSON response conforming to MCP Response Schema
     - _Requirements: 2.4, 2.5, 2.6_
 
-  - [ ] 5.5 Write property tests for MCP Server responses
+  - [x] 5.5 Write property tests for MCP Server responses
     - **Property 2: MCP Server responses conform to schema**
     - **Property 3: MCP Server data within variance bounds**
     - **Validates: Requirements 2.5, 2.6**
 
-  - [ ] 5.6 Write integration tests for MCP Servers
+  - [x] 5.6 Write integration tests for MCP Servers
     - Test each MCP Server with at least 2 known inputs (nominal + error case)
     - Validate response schema conformance
     - _Requirements: 12.3_
 
-- [ ] 6. Checkpoint - Verify MCP Servers
+- [x] 6. Checkpoint - Verify MCP Servers
   - Deploy MCP Server Lambda functions and verify each returns valid responses. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Individual agents (Strands Agents SDK on AgentCore)
-  - [ ] 7.1 Implement Competitive Intelligence Agent
+- [x] 7. Individual agents (Strands Agents SDK on AgentCore)
+  - [x] 7.1 Implement Competitive Intelligence Agent
     - Define agent with Strands SDK using model `us.anthropic.claude-sonnet-4-6`
     - Configure MCP client connection to Competitor API Server
     - Write system prompt for competitive analysis (channel-level analysis, sentiment detection)
@@ -177,21 +177,21 @@ Key technical constraints:
     - Implement AgentCore Browser fallback logic (use MCP when Browser unavailable)
     - _Requirements: 1.7, 2.1, 2.10_
 
-  - [ ] 7.2 Implement Demand Forecasting Agent
+  - [x] 7.2 Implement Demand Forecasting Agent
     - Define agent with Strands SDK using model `us.anthropic.claude-sonnet-4-6`
     - Configure MCP client connection to ERP/POS Server
     - Write system prompt for demand analysis (sales history, POS data, inventory, elasticity)
     - Define structured output schema for demand factors
     - _Requirements: 1.7, 2.2_
 
-  - [ ] 7.3 Implement Market Intelligence Agent
+  - [x] 7.3 Implement Market Intelligence Agent
     - Define agent with Strands SDK using model `us.anthropic.claude-sonnet-4-6`
     - Configure MCP client connection to Market Signals Server
     - Write system prompt for market analysis (cross-product, market structure, opportunity detection)
     - Define structured output schema for market factors
     - _Requirements: 1.7, 2.3_
 
-  - [ ] 7.4 Implement Strategy Synthesis Agent
+  - [x] 7.4 Implement Strategy Synthesis Agent
     - Define agent with Strands SDK using model `us.anthropic.claude-opus-4-7`
     - Configure MCP client connection to Cost & Finance Server
     - Write system prompt for strategy synthesis (combine inputs, apply guardrails, generate 50-200 scenarios)
@@ -200,41 +200,41 @@ Key technical constraints:
     - Assign confidence scores (0-100) and status labels based on risk classification
     - _Requirements: 1.6, 3.1, 3.2, 3.3, 3.4, 3.5, 3.7_
 
-  - [ ] 7.5 Implement Implementation Monitoring Agent
+  - [x] 7.5 Implement Implementation Monitoring Agent
     - Define agent with Strands SDK using model `us.anthropic.claude-sonnet-4-6`
     - Implement price update execution across sales channels
     - Implement KPI tracking (revenue, conversion rate, margin vs. projected)
     - Implement variance detection and adjustment recommendation generation
     - _Requirements: 1.4, 9.1, 9.2, 9.3, 9.4_
 
-  - [ ] 7.6 Create SigV4 HTTP utility for AgentCore invocations
+  - [x] 7.6 Create SigV4 HTTP utility for AgentCore invocations
     - Implement SigV4 request signing for Bedrock AgentCore Runtime API
     - Create helper function for InvokeAgentRuntime calls
     - Handle response streaming and error cases
     - _Requirements: 11.7_
 
-  - [ ] 7.7 Create agent testing harness for individual invocation
+  - [x] 7.7 Create agent testing harness for individual invocation
     - Write test script to invoke each agent individually via InvokeAgentRuntime (SigV4)
     - Include sample request payloads and expected response schemas per agent
     - Validate response conforms to agent's defined output schema within 30 seconds
     - Document testing guide with sample payloads
     - _Requirements: 12.1, 12.2, 12.4_
 
-  - [ ] 7.8 Write property tests for Strategy Synthesis Agent output
+  - [x] 7.8 Write property tests for Strategy Synthesis Agent output
     - **Property 6: Guardrail-violating scenarios excluded from output**
     - **Property 7: Each scenario references all three intelligence agents**
     - **Property 8: Status label matches risk classification**
     - **Validates: Requirements 3.4, 3.5, 3.7, 8.6**
 
-  - [ ] 7.9 Write property tests for approval routing
+  - [x] 7.9 Write property tests for approval routing
     - **Property 10: Approval routing matches risk level**
     - **Validates: Requirements 7.1, 7.2, 7.3**
 
-  - [ ] 7.10 Write property tests for variance detection
+  - [x] 7.10 Write property tests for variance detection
     - **Property 14: Variance detection triggers adjustment correctly**
     - **Validates: Requirements 9.3**
 
-- [ ] 8. Checkpoint - Verify individual agents
+- [x] 8. Checkpoint - Verify individual agents
   - Test each agent individually via InvokeAgentRuntime. Ensure all agents return valid responses within 30 seconds. Ask the user if questions arise.
 
 - [ ] 9. Orchestrator agent (wire the pipeline)
