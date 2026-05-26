@@ -7,6 +7,9 @@ The orchestrator accepts a pricing cycle request, invokes the 3 intelligence
 agents in parallel via invoke_agent_runtime, passes results to Strategy
 Synthesis, and returns ranked scenarios.
 
+Integrates with:
+- AgentCore Memory: Persistent memory for tracking pricing cycle state
+
 Usage:
     python -m backend.agents.agentcore.orchestrator_runtime
 """
@@ -23,6 +26,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 import boto3
+
+from backend.agents.agentcore.memory_config import create_session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -240,9 +245,15 @@ def invoke(payload: dict) -> dict:
         cycle_id = str(uuid.uuid4())
         cycle_start = time.time()
 
+        # Configure AgentCore Memory for cycle state tracking
+        session_manager = create_session_manager(
+            session_id=session_id, actor_id="orchestrator"
+        )
+
         logger.info(
-            "Starting pricing cycle %s for group '%s' with objectives %s",
+            "Starting pricing cycle %s for group '%s' with objectives %s (memory=%s)",
             cycle_id, pricing_group, objectives,
+            "enabled" if session_manager else "disabled",
         )
 
         # Build the analysis prompt for intelligence agents

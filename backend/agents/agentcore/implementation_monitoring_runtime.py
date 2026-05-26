@@ -6,6 +6,9 @@ POST /invocations and GET /ping endpoints for AgentCore Runtime deployment.
 The Implementation Monitoring Agent expects scenario data and projected
 metrics in the payload context for tracking post-implementation KPIs.
 
+Integrates with:
+- AgentCore Memory: Persistent memory for tracking implementation outcomes
+
 Usage:
     python -m backend.agents.agentcore.implementation_monitoring_runtime
 """
@@ -17,14 +20,11 @@ import logging
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-from backend.agents.implementation_monitoring import create_implementation_monitoring_agent
+from backend.agents.agentcore.memory_config import create_session_manager
 
 logger = logging.getLogger(__name__)
 
 app = BedrockAgentCoreApp()
-
-# Create the agent instance at module level for reuse across invocations
-agent = create_implementation_monitoring_agent()
 
 
 @app.entrypoint
@@ -34,6 +34,8 @@ def invoke(payload: dict) -> dict:
     Expected payload:
         {
             "prompt": "Implement and monitor approved scenario",
+            "session_id": "optional-session-id",
+            "actor_id": "optional-actor-id",
             "context": {
                 "scenario_id": "...",
                 "cycle_id": "...",
@@ -63,6 +65,8 @@ def invoke(payload: dict) -> dict:
     try:
         prompt = payload.get("prompt", "Monitor implementation performance")
         context = payload.get("context", {})
+        session_id = payload.get("session_id")
+        actor_id = payload.get("actor_id", "pricing-system")
 
         # Build the full prompt with scenario and metrics context
         full_prompt = prompt
@@ -90,6 +94,34 @@ def invoke(payload: dict) -> dict:
                 full_prompt = f"{prompt}\n\n" + "\n\n".join(context_parts)
             else:
                 full_prompt = f"{prompt}\n\nContext:\n{json.dumps(context, indent=2)}"
+
+        # Configure AgentCore Memory session manager
+        session_manager = create_session_manager(
+            session_id=session_id, actor_id=actor_id
+        )
+
+        # Create the agent with memory support
+        # We import tools from the module and construct the agent with session_manager
+        from backend.agents.implementation_monitoring import (
+            IMPLEMENTATION_MONITORING_SYSTEM_PROMPT,
+            execute_price_update,
+            track_kpis,
+            detect_performance_variance,
+            generate_adjustment,
+        )
+        from strands import Agent
+
+        agent = Agent(
+            model="us.anthropic.claude-sonnet-4-6",
+            system_prompt=IMPLEMENTATION_MONITORING_SYSTEM_PROMPT,
+            tools=[
+                execute_price_update,
+                track_kpis,
+                detect_performance_variance,
+                generate_adjustment,
+            ],
+            session_manager=session_manager,
+        )
 
         result = agent(full_prompt)
 

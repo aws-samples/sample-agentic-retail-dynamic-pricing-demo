@@ -44,4 +44,4 @@ ENV AGENT_ENTRYPOINT=${AGENT_ENTRYPOINT}
 
 EXPOSE 8080
 
-CMD python -m uvicorn backend.agents.agentcore.${AGENT_ENTRYPOINT}:app --host 0.0.0.0 --port 8080
+CMD opentelemetry-instrument python -m uvicorn backend.agents.agentcore.${AGENT_ENTRYPOINT}:app --host 0.0.0.0 --port 8080

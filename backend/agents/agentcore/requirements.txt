@@ -7,3 +7,6 @@ boto3>=1.35.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 urllib3>=2.0.0
+
+# Observability - OpenTelemetry auto-instrumentation
+aws-opentelemetry-distro>=0.10.1
