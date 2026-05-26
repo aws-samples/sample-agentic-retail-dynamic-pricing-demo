@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import ProductCatalog from './pages/ProductCatalog';
 
 function App() {
   return (
@@ -27,19 +28,7 @@ function App() {
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Routes>
-            <Route
-              path="/"
-              element={
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-semibold text-gray-700">
-                    Product Catalog
-                  </h2>
-                  <p className="mt-2 text-gray-500">
-                    Browse our products with live dynamic pricing.
-                  </p>
-                </div>
-              }
-            />
+            <Route path="/" element={<ProductCatalog />} />
             <Route
               path="/products/:id"
               element={

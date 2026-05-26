@@ -334,14 +334,14 @@ Key technical constraints:
     - Configure environment variables for API Gateway URL and Cognito settings
     - _Requirements: 4.5_
 
-  - [ ] 13.2 Implement Cognito authentication flow
+  - [x] 13.2 Implement Cognito authentication flow
     - Integrate Amazon Cognito Hosted UI or Amplify Auth library
     - Implement login/logout flow with JWT token management
     - Redirect to login on auth failure with error message
     - Protect all Dashboard routes with auth guard
     - _Requirements: 4.6, 4.7_
 
-  - [ ] 13.3 Implement Pricing Request Form
+  - [-] 13.3 Implement Pricing Request Form
     - Build form with Pricing Group dropdown (product family, sub-category, category)
     - Add strategic objectives multi-select (revenue maximization, margin protection, market share growth, competitive positioning)
     - Add business constraints inputs (min margin %, max price change %, channel restrictions)
@@ -349,21 +349,21 @@ Key technical constraints:
     - Submit to POST /pricing-cycles endpoint
     - _Requirements: 4.9, 5.1_
 
-  - [ ] 13.4 Implement Agent Status Panel
+  - [-] 13.4 Implement Agent Status Panel
     - Display status of each agent (idle, running, completed, failed)
     - Poll GET /agents/status every 5 seconds
     - Show step-by-step visual flow with agent names and execution order
     - Display progress indicators and intermediate results
     - _Requirements: 4.1, 5.2, 5.3_
 
-  - [ ] 13.5 Implement Scenario List and Detail View
+  - [-] 13.5 Implement Scenario List and Detail View
     - Display paginated scenario list (20/page) sorted by rank
     - Show rank, confidence score, status label, projected P&L impact per scenario
     - Display top 3 scenarios with contributing factors breakdown
     - Show data sources consulted and confidence score rationale
     - _Requirements: 4.2, 5.4_
 
-  - [ ] 13.6 Implement Approval Workflow UI
+  - [-] 13.6 Implement Approval Workflow UI
     - Add approve/reject/modify buttons per scenario
     - Require free-text comment on all actions
     - Enforce ≥50 character justification for HIGH risk approvals
@@ -371,21 +371,21 @@ Key technical constraints:
     - Display rejection reason and scenario status updates
     - _Requirements: 4.3, 7.3, 7.6_
 
-  - [ ] 13.7 Implement AI Sidebar (rationale and process flow)
+  - [-] 13.7 Implement AI Sidebar (rationale and process flow)
     - Display AI rationale for recommendations
     - Show visual process flow of agent interactions
     - Display agent interaction logs with timing data (millisecond precision)
     - Show at least 100 most recent log entries per Pricing Cycle
     - _Requirements: 4.4, 13.5_
 
-  - [ ] 13.8 Implement Continuous Monitoring Panel
+  - [-] 13.8 Implement Continuous Monitoring Panel
     - Display actual vs. projected performance for active implementations
     - Show trend visualization charts
     - Display variance alerts and recommended corrective actions
     - Allow approval of corrective actions
     - _Requirements: 9.6, 9.4, 9.5_
 
-  - [ ] 13.9 Implement demo flow error handling
+  - [-] 13.9 Implement demo flow error handling
     - Display error indication for failed/timed-out agents
     - Allow restart of demo from beginning on failure
     - Handle API timeout with retry button
@@ -402,7 +402,7 @@ Key technical constraints:
     - Configure environment variables for API Gateway URL
     - _Requirements: 6.4_
 
-  - [ ] 15.2 Implement Product Catalog page
+  - [x] 15.2 Implement Product Catalog page
     - Display product grid with image, description, and pricing
     - Fetch products from GET /products endpoint
     - Show visual change indicator for prices updated in last 24 hours
@@ -410,7 +410,7 @@ Key technical constraints:
     - Display "temporarily unavailable" message on persistent failure
     - _Requirements: 6.1, 6.2, 6.3, 6.5, 6.6_
 
-  - [ ] 15.3 Implement Product Detail page
+  - [x] 15.3 Implement Product Detail page
     - Display single product with full details
     - Fetch from GET /products/{id} endpoint
     - Show price history and change indicator

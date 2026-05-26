@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getToken } from './auth';
+import { getToken, removeToken } from './auth';
 
 /**
  * Axios instance configured with the API Gateway base URL.
@@ -32,8 +32,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid — redirect to login
-      window.location.href = '/login';
+      // Token expired or invalid — clear token and redirect to login with error
+      removeToken();
+      window.location.href = '/login?error=session_expired';
     }
     return Promise.reject(error);
   },
