@@ -237,8 +237,8 @@ Key technical constraints:
 - [x] 8. Checkpoint - Verify individual agents
   - Test each agent individually via InvokeAgentRuntime. Ensure all agents return valid responses within 30 seconds. Ask the user if questions arise.
 
-- [ ] 9. Orchestrator agent (wire the pipeline)
-  - [ ] 9.1 Implement Orchestrator Agent
+- [x] 9. Orchestrator agent (wire the pipeline)
+  - [x] 9.1 Implement Orchestrator Agent
     - Define orchestrator with Strands SDK using model `us.anthropic.claude-opus-4-7`
     - Write system prompt for orchestration (delegate, coordinate, assemble)
     - Implement parallel invocation of 3 intelligence agents
@@ -246,41 +246,41 @@ Key technical constraints:
     - Implement handoff to Implementation Monitoring Agent after approval
     - _Requirements: 1.1, 1.2, 1.3_
 
-  - [ ] 9.2 Implement session management and data isolation
+  - [x] 9.2 Implement session management and data isolation
     - Create AgentCore session scoped to Pricing_Group level
     - Enforce data isolation between concurrent sessions
     - Configure short-term memory (24h TTL) for session-bound data
     - Configure long-term memory (100 cycles) for historical learning via AgentCore Memory
     - _Requirements: 1.9, 1.10, 10.1, 10.2, 10.4_
 
-  - [ ] 9.3 Implement timeout, retry, and graceful degradation logic
+  - [x] 9.3 Implement timeout, retry, and graceful degradation logic
     - Enforce 120-second timeout per sub-agent
     - Implement retry up to 2 times per failed agent
     - Implement graceful degradation (proceed with available outputs, flag incomplete)
     - Handle MCP Server timeout (30s) with single retry after 2s wait
     - _Requirements: 1.5, 1.8, 2.7, 2.8, 2.9_
 
-  - [ ] 9.4 Implement DynamoDB persistence for pricing cycles
+  - [x] 9.4 Implement DynamoDB persistence for pricing cycles
     - Write pricing cycle initiation to PricingCycles table
     - Update agent statuses during execution
     - Store generated scenarios to PricingScenarios table
     - Write guardrail audit trail to AuditTrail table
     - _Requirements: 8.5, 11.2_
 
-  - [ ] 9.5 Implement observability and logging
+  - [x] 9.5 Implement observability and logging
     - Log all agent interactions to CloudWatch (timestamp, agentId, action, input/output summary, duration)
     - Integrate AgentCore Observability for end-to-end trace correlation
     - Emit CloudWatch metrics on agent errors (agent identifier + error category)
     - Configure CloudWatch alarm for error rate threshold (5 errors per 1-minute window)
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
-  - [ ] 9.6 Implement historical memory query for scenario generation
+  - [x] 9.6 Implement historical memory query for scenario generation
     - Query long-term memory for past outcomes of same product/category
     - Pass historical data to Strategy Synthesis Agent context
     - Persist approved scenario outcomes to long-term memory within 60 seconds
     - _Requirements: 10.3, 10.5_
 
-- [ ] 10. Checkpoint - Verify orchestrator end-to-end
+- [x] 10. Checkpoint - Verify orchestrator end-to-end
   - Run a full pricing cycle through the orchestrator. Verify parallel agent execution, scenario generation, and DynamoDB persistence. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 11. API Gateway Lambda handlers
