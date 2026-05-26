@@ -1,0 +1,30 @@
+# Base image for all AgentCore agent containers
+# Provides shared dependencies and project structure
+#
+# Build: docker build --platform=linux/arm64 -f Dockerfile.base -t retail-pricing-agent-base ../../..
+# (context must be the project root)
+
+FROM --platform=linux/arm64 python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY backend/agents/agentcore/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy shared business logic modules
+COPY shared/ /app/shared/
+
+# Copy backend agents and MCP servers
+COPY backend/ /app/backend/
+
+# Copy pyproject.toml for package metadata (editable install)
+COPY pyproject.toml /app/pyproject.toml
+RUN pip install --no-cache-dir -e /app
+
+EXPOSE 8080

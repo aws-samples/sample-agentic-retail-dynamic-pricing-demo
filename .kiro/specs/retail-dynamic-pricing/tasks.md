@@ -440,6 +440,14 @@ Key technical constraints:
 - [x] 18. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
+- [x] 19. AgentCore Runtime Deployment
+  - [x] 19.1 Create AgentCore runtime entrypoints for all 5 agents
+  - [x] 19.2 Create Dockerfiles for agent containers
+  - [x] 19.3 Add ECR repositories and IAM roles to CDK
+  - [x] 19.4 Create deployment script for AgentCore registration
+  - [x] 19.5 Refactor orchestrator to invoke agents via AgentCore Runtime API
+  - [x] 19.6 Create deployment verification script
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP

@@ -1,0 +1,22 @@
+{
+  "competitive-intelligence": {
+    "arn": "",
+    "module": "competitive_intelligence_runtime"
+  },
+  "demand-forecasting": {
+    "arn": "",
+    "module": "demand_forecasting_runtime"
+  },
+  "market-intelligence": {
+    "arn": "",
+    "module": "market_intelligence_runtime"
+  },
+  "strategy-synthesis": {
+    "arn": "",
+    "module": "strategy_synthesis_runtime"
+  },
+  "implementation-monitoring": {
+    "arn": "",
+    "module": "implementation_monitoring_runtime"
+  }
+}

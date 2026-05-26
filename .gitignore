@@ -38,6 +38,7 @@ frontend/storefront/dist/
 .env
 .env.local
 .env.*.local
+scripts/agent_arns.env
 
 # OS
 .DS_Store

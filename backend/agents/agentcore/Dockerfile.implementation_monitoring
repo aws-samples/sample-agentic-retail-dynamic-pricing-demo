@@ -1,0 +1,23 @@
+# Dockerfile for Implementation Monitoring Agent
+# AgentCore Runtime container — linux/arm64, port 8080
+#
+# Build (standalone, without base):
+#   docker build --platform=linux/arm64 \
+#     -f backend/agents/agentcore/Dockerfile.implementation_monitoring \
+#     -t implementation-monitoring-agent .
+#
+# Build (using base image):
+#   docker build --platform=linux/arm64 \
+#     -f backend/agents/agentcore/Dockerfile.implementation_monitoring \
+#     --build-arg BASE_IMAGE=retail-pricing-agent-base \
+#     -t implementation-monitoring-agent .
+
+ARG BASE_IMAGE=retail-pricing-agent-base
+
+FROM --platform=linux/arm64 ${BASE_IMAGE}
+
+WORKDIR /app
+
+EXPOSE 8080
+
+CMD ["python", "-m", "uvicorn", "backend.agents.agentcore.implementation_monitoring_runtime:app", "--host", "0.0.0.0", "--port", "8080"]
