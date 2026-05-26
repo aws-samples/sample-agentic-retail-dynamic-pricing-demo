@@ -2,6 +2,8 @@
 
 from constructs import Construct
 import aws_cdk as cdk
+from aws_cdk import aws_budgets as budgets
+from aws_cdk import aws_cloudwatch as cloudwatch
 
 from stacks.cognito import CognitoAuth
 from stacks.dynamodb import DynamoDBTables
@@ -45,4 +47,39 @@ class RetailDynamicPricingStack(cdk.Stack):
             "ApiHandlers",
             dynamodb_tables=self.dynamodb,
             cognito_auth=self.cognito,
+        )
+
+        # --- AWS Budget Alarm for Bedrock Spend ---
+        # Triggers notification when monthly Bedrock spend exceeds $50
+        budgets.CfnBudget(
+            self,
+            "BedrockSpendBudget",
+            budget=budgets.CfnBudget.BudgetDataProperty(
+                budget_name="RetailDynamicPricing-BedrockSpend",
+                budget_type="COST",
+                time_unit="MONTHLY",
+                budget_limit=budgets.CfnBudget.SpendProperty(
+                    amount=50,
+                    unit="USD",
+                ),
+                cost_filters={
+                    "Service": ["Amazon Bedrock"],
+                },
+            ),
+            notifications_with_subscribers=[
+                budgets.CfnBudget.NotificationWithSubscribersProperty(
+                    notification=budgets.CfnBudget.NotificationProperty(
+                        comparison_operator="GREATER_THAN",
+                        notification_type="ACTUAL",
+                        threshold=80,
+                        threshold_type="PERCENTAGE",
+                    ),
+                    subscribers=[
+                        budgets.CfnBudget.SubscriberProperty(
+                            address="admin@example.com",
+                            subscription_type="EMAIL",
+                        ),
+                    ],
+                ),
+            ],
         )

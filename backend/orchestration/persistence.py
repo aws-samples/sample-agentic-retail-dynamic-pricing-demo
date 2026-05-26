@@ -122,6 +122,12 @@ def create_pricing_cycle(
     table = resource.Table(table_name)
 
     now = _iso_now()
+
+    # TTL: auto-expire stuck cycles after 1 hour (3600 seconds)
+    # Cycles that complete successfully have their TTL removed in update_cycle_status
+    import time
+    ttl_epoch = int(time.time()) + 3600
+
     item = {
         "cycleId": cycle_id,
         "status": "INITIATED",
@@ -132,6 +138,7 @@ def create_pricing_cycle(
         "scenarioCount": 0,
         "requestedBy": requested_by,
         "createdAt": now,
+        "ttl": ttl_epoch,
     }
 
     table.put_item(Item=item)
@@ -197,6 +204,12 @@ def update_cycle_status(
 
     if status == "COMPLETE":
         new_item["completedAt"] = _iso_now()
+        # Remove TTL — completed cycles should not auto-expire
+        new_item.pop("ttl", None)
+
+    if status == "FAILED":
+        # Keep TTL on failed cycles — they'll auto-expire after the original 1h window
+        pass
 
     table.put_item(Item=new_item)
 

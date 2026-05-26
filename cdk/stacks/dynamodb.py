@@ -33,6 +33,7 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl",
         )
 
         self.pricing_scenarios_table = dynamodb.Table(
