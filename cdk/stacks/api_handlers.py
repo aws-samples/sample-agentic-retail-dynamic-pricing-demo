@@ -106,21 +106,10 @@ class ApiHandlersConstruct(Construct):
                 "PRICING_CYCLES_TABLE": dynamodb_tables.pricing_cycles_table.table_name,
                 "PRICING_SCENARIOS_TABLE": dynamodb_tables.pricing_scenarios_table.table_name,
                 "AWS_REGION_NAME": cdk.Aws.REGION,
-                # AgentCore Runtime ARNs for orchestrator agent invocation
-                "COMPETITIVE_INTELLIGENCE_AGENT_ARN": os.environ.get(
-                    "COMPETITIVE_INTELLIGENCE_AGENT_ARN", ""
-                ),
-                "DEMAND_FORECASTING_AGENT_ARN": os.environ.get(
-                    "DEMAND_FORECASTING_AGENT_ARN", ""
-                ),
-                "MARKET_INTELLIGENCE_AGENT_ARN": os.environ.get(
-                    "MARKET_INTELLIGENCE_AGENT_ARN", ""
-                ),
-                "STRATEGY_SYNTHESIS_AGENT_ARN": os.environ.get(
-                    "STRATEGY_SYNTHESIS_AGENT_ARN", ""
-                ),
-                "IMPLEMENTATION_MONITORING_AGENT_ARN": os.environ.get(
-                    "IMPLEMENTATION_MONITORING_AGENT_ARN", ""
+                # Orchestrator Agent ARN — the Lambda invokes only the orchestrator,
+                # which in turn coordinates the other 5 agents on AgentCore.
+                "ORCHESTRATOR_AGENT_ARN": os.environ.get(
+                    "ORCHESTRATOR_AGENT_ARN", ""
                 ),
             },
         )

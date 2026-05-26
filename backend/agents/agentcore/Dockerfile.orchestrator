@@ -1,0 +1,23 @@
+# Dockerfile for Orchestrator Agent
+# AgentCore Runtime container — linux/arm64, port 8080
+#
+# Build (standalone, without base):
+#   docker build --platform=linux/arm64 \
+#     -f backend/agents/agentcore/Dockerfile.orchestrator \
+#     -t orchestrator-agent .
+#
+# Build (using base image):
+#   docker build --platform=linux/arm64 \
+#     -f backend/agents/agentcore/Dockerfile.orchestrator \
+#     --build-arg BASE_IMAGE=retail-pricing-agent-base \
+#     -t orchestrator-agent .
+
+ARG BASE_IMAGE=retail-pricing-agent-base
+
+FROM --platform=linux/arm64 ${BASE_IMAGE}
+
+WORKDIR /app
+
+EXPOSE 8080
+
+CMD ["python", "-m", "uvicorn", "backend.agents.agentcore.orchestrator_runtime:app", "--host", "0.0.0.0", "--port", "8080"]

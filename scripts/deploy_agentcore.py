@@ -69,6 +69,13 @@ AGENTS = [
         "module": "implementation_monitoring_runtime",
         "description": "Executes price updates and monitors KPI performance",
     },
+    {
+        "name": "orchestrator",
+        "runtime_name": "retail-pricing-orchestrator",
+        "ecr_repo": "retail-pricing/orchestrator",
+        "module": "orchestrator_runtime",
+        "description": "Coordinates pricing cycles by delegating to intelligence agents and synthesizing results",
+    },
 ]
 
 CONFIG_FILE = Path(__file__).parent.parent / "backend" / "agents" / "agentcore" / "agent_config.json"
@@ -321,6 +328,7 @@ def save_env_file(agent_arns: dict[str, str]) -> None:
         "market-intelligence": "MARKET_INTELLIGENCE_AGENT_ARN",
         "strategy-synthesis": "STRATEGY_SYNTHESIS_AGENT_ARN",
         "implementation-monitoring": "IMPLEMENTATION_MONITORING_AGENT_ARN",
+        "orchestrator": "ORCHESTRATOR_AGENT_ARN",
     }
 
     for agent in AGENTS:
@@ -340,6 +348,7 @@ def print_env_export(agent_arns: dict[str, str]) -> None:
         "market-intelligence": "MARKET_INTELLIGENCE_AGENT_ARN",
         "strategy-synthesis": "STRATEGY_SYNTHESIS_AGENT_ARN",
         "implementation-monitoring": "IMPLEMENTATION_MONITORING_AGENT_ARN",
+        "orchestrator": "ORCHESTRATOR_AGENT_ARN",
     }
 
     print("\n# Export these environment variables for orchestrator configuration:")

@@ -5,21 +5,19 @@ Handles:
 - GET /pricing-cycles/{id}: Get cycle status and scenarios
 - GET /pricing-cycles/{id}/scenarios: List scenarios (paginated)
 
+This Lambda is a thin wrapper: validate request → write to DynamoDB →
+call orchestrator on AgentCore → return 202.
+
 Requirements: 4.9, 1.1
 """
 
 import json
 import logging
 import os
-import threading
 import uuid
 from typing import Any
 
 import boto3
-from botocore.auth import SigV4Auth
-from botocore.awsrequest import AWSRequest
-from botocore.credentials import Credentials
-import urllib3
 
 from backend.orchestration.persistence import (
     create_pricing_cycle,
@@ -27,30 +25,84 @@ from backend.orchestration.persistence import (
     get_scenarios,
     update_cycle_status,
 )
-from backend.agents.orchestrator import run_pricing_cycle, PricingCycleRequest
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 PRICING_CYCLES_TABLE = os.environ.get("PRICING_CYCLES_TABLE", "PricingCycles")
 PRICING_SCENARIOS_TABLE = os.environ.get("PRICING_SCENARIOS_TABLE", "PricingScenarios")
-AGENTCORE_ENDPOINT = os.environ.get("AGENTCORE_ENDPOINT", "")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 
-def _sign_request(method: str, url: str, body: str = "") -> dict[str, str]:
-    """Sign an HTTP request with SigV4 for AgentCore invocations.
+def _require_env(var_name: str) -> str:
+    """Read a required environment variable or raise a clear error."""
+    value = os.environ.get(var_name)
+    if not value:
+        raise EnvironmentError(
+            f"Required environment variable '{var_name}' is not set. "
+            f"There is no local execution fallback."
+        )
+    return value
 
-    Returns headers dict containing the Authorization and other SigV4 headers.
+
+ORCHESTRATOR_AGENT_ARN = _require_env("ORCHESTRATOR_AGENT_ARN")
+
+# Minimum session ID length required by AgentCore Runtime
+_MIN_SESSION_ID_LENGTH = 33
+
+
+def _ensure_session_id(session_id: str | None = None) -> str:
+    """Ensure the session ID meets AgentCore's minimum length requirement (33+ chars)."""
+    if not session_id:
+        session_id = f"pricing-cycle-{uuid.uuid4().hex}"
+    if len(session_id) < _MIN_SESSION_ID_LENGTH:
+        padding = uuid.uuid4().hex
+        session_id = f"{session_id}-{padding}"
+    return session_id[:128]
+
+
+def _invoke_orchestrator(
+    pricing_group: str,
+    objectives: list[str],
+    constraints: dict[str, Any],
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Invoke the Orchestrator Agent via AgentCore Runtime API.
+
+    Args:
+        pricing_group: The product group to analyze.
+        objectives: Strategic objectives for the cycle.
+        constraints: Business constraints for the cycle.
+        session_id: Optional session ID for AgentCore Runtime scoping.
+
+    Returns:
+        Parsed response from the orchestrator agent.
     """
-    session = boto3.Session()
-    credentials = session.get_credentials().get_frozen_credentials()
+    client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
 
-    request = AWSRequest(method=method, url=url, data=body)
-    request.headers["Content-Type"] = "application/json"
+    payload = json.dumps({
+        "prompt": json.dumps({
+            "pricing_group": pricing_group,
+            "objectives": objectives,
+            "constraints": constraints,
+        })
+    }).encode()
 
-    SigV4Auth(credentials, "bedrock", AWS_REGION).add_auth(request)
-    return dict(request.headers)
+    runtime_session_id = _ensure_session_id(session_id)
+
+    response = client.invoke_agent_runtime(
+        agentRuntimeArn=ORCHESTRATOR_AGENT_ARN,
+        runtimeSessionId=runtime_session_id,
+        payload=payload,
+        qualifier="DEFAULT",
+    )
+
+    response_body = response["response"].read()
+
+    try:
+        return json.loads(response_body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return {"raw_output": response_body.decode("utf-8", errors="replace")}
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -82,7 +134,7 @@ def _create_pricing_cycle(event: dict[str, Any]) -> dict[str, Any]:
 
     Parses the request body for pricingGroup (required), objectives (list),
     and constraints (dict). Validates required fields, persists the cycle
-    to DynamoDB, starts the orchestrator asynchronously, and returns 202
+    to DynamoDB, calls the orchestrator on AgentCore, and returns 202
     with the cycleId and initial status.
 
     Requirements: 4.9, 1.1
@@ -141,7 +193,7 @@ def _create_pricing_cycle(event: dict[str, Any]) -> dict[str, Any]:
         logger.error("Failed to persist pricing cycle %s: %s", cycle_id, e)
         return _response(500, {"error": "Failed to create pricing cycle"})
 
-    # Start the orchestrator asynchronously via a background thread
+    # Invoke the orchestrator agent on AgentCore (async — fire and forget)
     _start_orchestrator_async(cycle_id, pricing_group, objectives, constraints)
 
     logger.info(
@@ -161,11 +213,11 @@ def _start_orchestrator_async(
     objectives: list[str],
     constraints: dict[str, Any],
 ) -> None:
-    """Start the orchestrator agent in a background thread.
+    """Invoke the orchestrator agent on AgentCore Runtime.
 
-    This allows the API to return 202 immediately while the pricing cycle
-    runs asynchronously. The orchestrator updates the cycle status in
-    DynamoDB as it progresses.
+    This calls invoke_agent_runtime with the ORCHESTRATOR_AGENT_ARN.
+    The Lambda returns 202 immediately; the orchestrator runs asynchronously
+    on AgentCore and updates DynamoDB as it progresses.
 
     Args:
         cycle_id: The unique pricing cycle identifier.
@@ -173,58 +225,38 @@ def _start_orchestrator_async(
         objectives: Strategic objectives for the cycle.
         constraints: Business constraints for the cycle.
     """
+    try:
+        logger.info("Invoking orchestrator agent on AgentCore for cycle %s", cycle_id)
 
-    def _run():
+        # Update status to ANALYZING
+        update_cycle_status(
+            cycle_id=cycle_id,
+            status="ANALYZING",
+            table_name=PRICING_CYCLES_TABLE,
+        )
+
+        # Invoke orchestrator via AgentCore Runtime
+        _invoke_orchestrator(
+            pricing_group=pricing_group,
+            objectives=objectives,
+            constraints=constraints,
+            session_id=f"cycle-{cycle_id}",
+        )
+
+        logger.info("Orchestrator invoked for cycle %s", cycle_id)
+
+    except Exception as e:
+        logger.exception("Failed to invoke orchestrator for cycle %s: %s", cycle_id, e)
         try:
-            logger.info("Orchestrator starting for cycle %s", cycle_id)
-
-            # Update status to ANALYZING
             update_cycle_status(
                 cycle_id=cycle_id,
-                status="ANALYZING",
+                status="FAILED",
                 table_name=PRICING_CYCLES_TABLE,
             )
-
-            # Build the request and run the pricing cycle
-            request = PricingCycleRequest(
-                pricing_group=pricing_group,
-                objectives=objectives,
-                constraints=constraints,
+        except Exception:
+            logger.exception(
+                "Failed to update cycle %s status to FAILED", cycle_id
             )
-
-            result = run_pricing_cycle(request=request)
-
-            # Update cycle status based on result
-            final_status = result.status  # COMPLETE, DEGRADED, or FAILED
-            update_cycle_status(
-                cycle_id=cycle_id,
-                status=final_status,
-                scenario_count=len(result.ranked_scenarios),
-                table_name=PRICING_CYCLES_TABLE,
-            )
-
-            logger.info(
-                "Orchestrator completed cycle %s with status %s (%d scenarios)",
-                cycle_id,
-                final_status,
-                len(result.ranked_scenarios),
-            )
-
-        except Exception as e:
-            logger.exception("Orchestrator failed for cycle %s: %s", cycle_id, e)
-            try:
-                update_cycle_status(
-                    cycle_id=cycle_id,
-                    status="FAILED",
-                    table_name=PRICING_CYCLES_TABLE,
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to update cycle %s status to FAILED", cycle_id
-                )
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
 
 
 def _get_pricing_cycle(cycle_id: str) -> dict[str, Any]:

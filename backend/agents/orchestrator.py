@@ -5,9 +5,9 @@ to specialized intelligence agents in parallel, feeds combined outputs to the
 Strategy Synthesis Agent, and hands off approved scenarios to the Implementation
 Monitoring Agent.
 
-Uses Amazon Bedrock AgentCore Runtime API (invoke_agent_runtime) for agent
-invocation when agent ARNs are configured, with fallback to in-process
-execution for local development.
+Uses Amazon Bedrock AgentCore Runtime API (invoke_agent_runtime) exclusively
+for agent invocation. All agents run on AgentCore — there is no local
+execution mode.
 
 Architecture:
     1. Receive pricing request (product group, objectives, constraints)
@@ -32,25 +32,12 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import boto3
 from strands import Agent
 
-from backend.agents.competitive_intelligence import (
-    create_competitive_intelligence_agent,
-    CompetitiveFactors,
-)
-from backend.agents.demand_forecasting import create_demand_forecasting_agent
-from backend.agents.market_intelligence import create_market_intelligence_agent
-from backend.agents.strategy_synthesis import (
-    create_strategy_synthesis_agent,
-    synthesize_pricing_strategies,
-)
-from backend.agents.implementation_monitoring import (
-    create_implementation_monitoring_agent,
-)
+from backend.agents.strategy_synthesis import synthesize_pricing_strategies
 
 logger = logging.getLogger(__name__)
 
@@ -61,16 +48,32 @@ ORCHESTRATOR_MODEL = "us.anthropic.claude-opus-4-7"
 AGENT_TIMEOUT_SECONDS = 120
 MAX_RETRIES = 2
 
+
 # ---------------------------------------------------------------------------
 # AgentCore Runtime configuration (environment variables)
-# When set, agents are invoked via AgentCore Runtime API instead of in-process.
-# If not set, falls back to in-process execution (local dev mode).
+# All ARNs are REQUIRED. If missing, the system raises a clear error when
+# the agent is invoked. There is no local execution fallback.
 # ---------------------------------------------------------------------------
-COMPETITIVE_INTELLIGENCE_AGENT_ARN = os.environ.get("COMPETITIVE_INTELLIGENCE_AGENT_ARN")
-DEMAND_FORECASTING_AGENT_ARN = os.environ.get("DEMAND_FORECASTING_AGENT_ARN")
-MARKET_INTELLIGENCE_AGENT_ARN = os.environ.get("MARKET_INTELLIGENCE_AGENT_ARN")
-STRATEGY_SYNTHESIS_AGENT_ARN = os.environ.get("STRATEGY_SYNTHESIS_AGENT_ARN")
-IMPLEMENTATION_MONITORING_AGENT_ARN = os.environ.get("IMPLEMENTATION_MONITORING_AGENT_ARN")
+
+
+def _require_env(var_name: str) -> str:
+    """Read a required environment variable or raise a clear error.
+
+    Called at invocation time to validate that the ARN is configured.
+    """
+    value = os.environ.get(var_name)
+    if not value:
+        raise EnvironmentError(
+            f"Required environment variable '{var_name}' is not set. "
+            f"All agent ARNs must be configured for AgentCore Runtime. "
+            f"There is no local execution fallback."
+        )
+    return value
+
+
+def _get_agent_arn(var_name: str) -> str:
+    """Get an agent ARN from environment, raising if not set."""
+    return _require_env(var_name)
 
 # Minimum session ID length required by AgentCore Runtime
 _MIN_SESSION_ID_LENGTH = 33
@@ -220,7 +223,6 @@ def _ensure_session_id(session_id: str | None) -> str:
         session_id = f"pricing-cycle-{uuid.uuid4().hex}"
 
     if len(session_id) < _MIN_SESSION_ID_LENGTH:
-        # Pad with UUID suffix to meet minimum length
         padding = uuid.uuid4().hex
         session_id = f"{session_id}-{padding}"
 
@@ -284,101 +286,58 @@ def _invoke_agent_runtime(
     return result
 
 
-def _is_agentcore_mode() -> bool:
-    """Check if AgentCore Runtime mode is enabled.
-
-    Returns True if at least the intelligence agent ARNs are configured,
-    indicating we should use AgentCore Runtime API for invocations.
-    """
-    return bool(
-        COMPETITIVE_INTELLIGENCE_AGENT_ARN
-        and DEMAND_FORECASTING_AGENT_ARN
-        and MARKET_INTELLIGENCE_AGENT_ARN
-    )
-
-
 # ---------------------------------------------------------------------------
 # Agent invocation helpers
 # ---------------------------------------------------------------------------
 
 
 def _invoke_agent_with_retry(
-    agent_factory: callable,
+    agent_arn: str,
     prompt: str,
     agent_name: str,
     max_retries: int = MAX_RETRIES,
     timeout_seconds: int = AGENT_TIMEOUT_SECONDS,
-    agent_arn: str | None = None,
     session_id: str | None = None,
 ) -> AgentResult:
-    """Invoke an agent with timeout and retry logic.
-
-    If agent_arn is provided and AgentCore mode is enabled, invokes via
-    AgentCore Runtime API. Otherwise, falls back to in-process execution
-    using the agent_factory.
+    """Invoke an agent via AgentCore Runtime with timeout and retry logic.
 
     Args:
-        agent_factory: Callable that creates the agent instance (fallback).
+        agent_arn: The AgentCore Runtime ARN for the agent.
         prompt: The prompt to send to the agent.
         agent_name: Human-readable name for logging.
         max_retries: Maximum number of retries on failure.
         timeout_seconds: Timeout per invocation attempt in seconds.
-        agent_arn: Optional AgentCore Runtime ARN for remote invocation.
         session_id: Optional session ID for AgentCore Runtime scoping.
 
     Returns:
         AgentResult with success/failure status and data.
     """
-    use_agentcore = bool(agent_arn) and _is_agentcore_mode()
-    runtime_session_id = _ensure_session_id(session_id) if use_agentcore else None
-
+    runtime_session_id = _ensure_session_id(session_id)
     retries_used = 0
 
     for attempt in range(1 + max_retries):
         start_time = time.time()
         try:
-            if use_agentcore:
-                # Invoke via AgentCore Runtime API
-                logger.info(
-                    "Invoking %s via AgentCore Runtime (attempt %d/%d)",
-                    agent_name,
-                    attempt + 1,
-                    1 + max_retries,
-                )
-                output_data = _invoke_agent_runtime(
-                    agent_arn=agent_arn,
-                    prompt=prompt,
-                    session_id=runtime_session_id,
-                    timeout_seconds=timeout_seconds,
-                )
-            else:
-                # Fallback: in-process invocation (local dev)
-                logger.info(
-                    "Invoking %s in-process (attempt %d/%d)",
-                    agent_name,
-                    attempt + 1,
-                    1 + max_retries,
-                )
-                agent = agent_factory()
-                result = agent(prompt)
-                response_text = str(result)
-                output_data = _parse_agent_output(response_text, agent_name)
+            logger.info(
+                "Invoking %s via AgentCore Runtime (attempt %d/%d)",
+                agent_name,
+                attempt + 1,
+                1 + max_retries,
+            )
+            output_data = _invoke_agent_runtime(
+                agent_arn=agent_arn,
+                prompt=prompt,
+                session_id=runtime_session_id,
+                timeout_seconds=timeout_seconds,
+            )
 
             duration_ms = int((time.time() - start_time) * 1000)
 
-            # Check if we exceeded the timeout (for in-process mode)
-            if not use_agentcore and duration_ms > timeout_seconds * 1000:
-                raise TimeoutError(
-                    f"{agent_name} exceeded {timeout_seconds}s timeout "
-                    f"(took {duration_ms}ms)"
-                )
-
             logger.info(
-                "%s completed in %dms (attempt %d)%s",
+                "%s completed in %dms (attempt %d) [AgentCore]",
                 agent_name,
                 duration_ms,
                 attempt + 1,
-                " [AgentCore]" if use_agentcore else " [in-process]",
             )
 
             return AgentResult(
@@ -425,38 +384,6 @@ def _invoke_agent_with_retry(
         error="Unexpected: exhausted all retry attempts",
         retries_used=max_retries,
     )
-
-
-def _parse_agent_output(response_text: str, agent_name: str) -> dict[str, Any]:
-    """Parse agent response text into structured data.
-
-    Attempts to extract JSON from the agent's response. Falls back to
-    wrapping the raw text in a dict if JSON parsing fails.
-
-    Args:
-        response_text: Raw text output from the agent.
-        agent_name: Agent name for logging context.
-
-    Returns:
-        Parsed dictionary of agent output.
-    """
-    import json
-
-    # Try to find JSON in the response
-    json_start = response_text.find("{")
-    json_end = response_text.rfind("}") + 1
-
-    if json_start >= 0 and json_end > json_start:
-        try:
-            return json.loads(response_text[json_start:json_end])
-        except json.JSONDecodeError:
-            pass
-
-    # Fallback: return raw text wrapped in a dict
-    logger.warning(
-        "Could not parse JSON from %s response, using raw text", agent_name
-    )
-    return {"raw_output": response_text, "agent_name": agent_name}
 
 
 # ---------------------------------------------------------------------------
@@ -631,12 +558,9 @@ def _run_parallel_intelligence_agents(
 ) -> list[AgentResult]:
     """Run the three intelligence agents in parallel using ThreadPoolExecutor.
 
-    Each agent is invoked with the same analysis prompt. If AgentCore Runtime
-    ARNs are configured, agents are invoked via the Runtime API. Otherwise,
-    falls back to in-process execution.
-
-    Agents that timeout (>120s) or fail are retried up to 2 times before
-    being marked as degraded.
+    Each agent is invoked via AgentCore Runtime API with the same analysis
+    prompt. Agents that timeout (>120s) or fail are retried up to 2 times
+    before being marked as degraded.
 
     Args:
         prompt: The analysis prompt to send to each agent.
@@ -647,19 +571,16 @@ def _run_parallel_intelligence_agents(
     """
     agent_configs = [
         {
-            "factory": create_competitive_intelligence_agent,
             "name": "Competitive Intelligence",
-            "arn": COMPETITIVE_INTELLIGENCE_AGENT_ARN,
+            "arn": _get_agent_arn("COMPETITIVE_INTELLIGENCE_AGENT_ARN"),
         },
         {
-            "factory": create_demand_forecasting_agent,
             "name": "Demand Forecasting",
-            "arn": DEMAND_FORECASTING_AGENT_ARN,
+            "arn": _get_agent_arn("DEMAND_FORECASTING_AGENT_ARN"),
         },
         {
-            "factory": create_market_intelligence_agent,
             "name": "Market Intelligence",
-            "arn": MARKET_INTELLIGENCE_AGENT_ARN,
+            "arn": _get_agent_arn("MARKET_INTELLIGENCE_AGENT_ARN"),
         },
     ]
 
@@ -669,12 +590,11 @@ def _run_parallel_intelligence_agents(
         futures = {
             executor.submit(
                 _invoke_agent_with_retry,
-                agent_factory=config["factory"],
+                agent_arn=config["arn"],
                 prompt=prompt,
                 agent_name=config["name"],
                 max_retries=MAX_RETRIES,
                 timeout_seconds=AGENT_TIMEOUT_SECONDS,
-                agent_arn=config["arn"],
                 session_id=session_id,
             ): config["name"]
             for config in agent_configs
@@ -750,13 +670,10 @@ def trigger_implementation(
     """Trigger the Implementation Monitoring Agent for an approved scenario.
 
     After a pricing scenario is approved, this function invokes the
-    Implementation Monitoring Agent to:
+    Implementation Monitoring Agent via AgentCore Runtime to:
     1. Execute price updates across all sales channels
     2. Begin tracking actual KPIs against projected values
     3. Monitor for variance and generate adjustment recommendations
-
-    If IMPLEMENTATION_MONITORING_AGENT_ARN is set, invokes via AgentCore
-    Runtime API. Otherwise, falls back to in-process execution.
 
     Args:
         scenario: The approved pricing scenario dict containing priceChanges,
@@ -790,24 +707,16 @@ def trigger_implementation(
     )
 
     try:
-        if IMPLEMENTATION_MONITORING_AGENT_ARN and _is_agentcore_mode():
-            # Invoke via AgentCore Runtime API
-            runtime_session_id = _ensure_session_id(session_id)
-            logger.info(
-                "Invoking Implementation Monitoring Agent via AgentCore Runtime"
-            )
-            agent_response = _invoke_agent_runtime(
-                agent_arn=IMPLEMENTATION_MONITORING_AGENT_ARN,
-                prompt=prompt,
-                session_id=runtime_session_id,
-                timeout_seconds=AGENT_TIMEOUT_SECONDS,
-            )
-            response_text = json.dumps(agent_response)
-        else:
-            # Fallback: in-process invocation (local dev)
-            agent = create_implementation_monitoring_agent()
-            result = agent(prompt)
-            response_text = str(result)
+        runtime_session_id = _ensure_session_id(session_id)
+        logger.info(
+            "Invoking Implementation Monitoring Agent via AgentCore Runtime"
+        )
+        agent_response = _invoke_agent_runtime(
+            agent_arn=_get_agent_arn("IMPLEMENTATION_MONITORING_AGENT_ARN"),
+            prompt=prompt,
+            session_id=runtime_session_id,
+            timeout_seconds=AGENT_TIMEOUT_SECONDS,
+        )
 
         logger.info(
             "Implementation triggered successfully for scenario %s",
@@ -819,7 +728,7 @@ def trigger_implementation(
             "scenario_id": scenario_id,
             "cycle_id": cycle_id,
             "price_changes_count": len(price_changes),
-            "agent_response": response_text,
+            "agent_response": json.dumps(agent_response),
         }
 
     except Exception as e:
