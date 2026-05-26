@@ -283,21 +283,21 @@ Key technical constraints:
 - [x] 10. Checkpoint - Verify orchestrator end-to-end
   - Run a full pricing cycle through the orchestrator. Verify parallel agent execution, scenario generation, and DynamoDB persistence. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. API Gateway Lambda handlers
-  - [ ] 11.1 Implement POST /pricing-cycles handler
+- [x] 11. API Gateway Lambda handlers
+  - [x] 11.1 Implement POST /pricing-cycles handler
     - Parse request body (pricingGroup, objectives, constraints)
     - Validate required fields
     - Invoke Orchestrator Agent via SigV4 HTTP
     - Return cycleId and initial status
     - _Requirements: 4.9, 1.1_
 
-  - [ ] 11.2 Implement GET /pricing-cycles/{id} and GET /pricing-cycles/{id}/scenarios handlers
+  - [x] 11.2 Implement GET /pricing-cycles/{id} and GET /pricing-cycles/{id}/scenarios handlers
     - Query PricingCycles table for cycle status and agent statuses
     - Query PricingScenarios table for scenarios (paginated, 20/page, sorted by rank)
     - Return structured response with cycle metadata and scenario list
     - _Requirements: 4.1, 4.2_
 
-  - [ ] 11.3 Implement POST /approvals handler
+  - [x] 11.3 Implement POST /approvals handler
     - Parse approval action (approve/reject), comment, and scenario ID
     - Validate HIGH risk requires ≥50 character justification
     - Write approval record to Approvals table
@@ -306,28 +306,28 @@ Key technical constraints:
     - Update product prices in Products table on approval
     - _Requirements: 4.3, 7.1, 7.2, 7.3, 7.5_
 
-  - [ ] 11.4 Implement GET /agents/status and GET /monitoring/{scenarioId} handlers
+  - [x] 11.4 Implement GET /agents/status and GET /monitoring/{scenarioId} handlers
     - Return real-time agent execution status from PricingCycles table
     - Return monitoring metrics (actual vs. projected) for approved scenarios
     - _Requirements: 4.1, 9.6_
 
-  - [ ] 11.5 Implement GET /products and GET /products/{id} handlers (public)
+  - [x] 11.5 Implement GET /products and GET /products/{id} handlers (public)
     - Query Products table for full catalog or single product
     - No authentication required (storefront endpoints)
     - Include price change indicator for products updated in last 24 hours
     - _Requirements: 6.1, 6.2, 6.5_
 
-  - [ ] 11.6 Seed Products table with demo data
+  - [x] 11.6 Seed Products table with demo data
     - Create seed script to populate Products table with sample retail products
     - Include varied categories, sub-categories, product families
     - Set baseline prices, costs, MAP prices, channels, and regions
     - _Requirements: 6.1_
 
-- [ ] 12. Checkpoint - Verify API endpoints
+- [x] 12. Checkpoint - Verify API endpoints
   - Test all API Gateway endpoints with sample requests. Verify Cognito auth on protected endpoints and public access on storefront endpoints. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 13. Dashboard frontend application
-  - [ ] 13.1 Initialize Dashboard app with Vite, React, TypeScript, Tailwind CSS
+  - [x] 13.1 Initialize Dashboard app with Vite, React, TypeScript, Tailwind CSS
     - Scaffold Vite + React + TypeScript project in `frontend/dashboard/`
     - Configure Tailwind CSS
     - Set up Axios instance with base URL and Cognito JWT interceptor
@@ -395,7 +395,7 @@ Key technical constraints:
   - Build Dashboard app successfully. Verify all views render correctly with mock data. Ensure Cognito auth flow works. Ask the user if questions arise.
 
 - [ ] 15. Storefront frontend application
-  - [ ] 15.1 Initialize Storefront app with Vite, React, TypeScript, Tailwind CSS
+  - [x] 15.1 Initialize Storefront app with Vite, React, TypeScript, Tailwind CSS
     - Scaffold Vite + React + TypeScript project in `frontend/storefront/`
     - Configure Tailwind CSS
     - Set up Axios instance with base URL (no auth)
