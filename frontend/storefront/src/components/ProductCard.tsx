@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Product } from '../types/product';
 
 interface ProductCardProps {
@@ -9,7 +10,10 @@ export default function ProductCard({ product }: ProductCardProps) {
   const priceIncreased = product.currentPrice > product.previousPrice;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+    <Link
+      to={`/products/${product.productId}`}
+      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow block"
+    >
       <div className="aspect-square bg-gray-100 overflow-hidden">
         <img
           src={product.imageUrl}
@@ -54,6 +58,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

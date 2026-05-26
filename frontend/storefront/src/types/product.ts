@@ -9,4 +9,7 @@ export interface Product {
   previousPrice: number;
   priceUpdatedAt: string;
   recentlyUpdated: boolean;
+  productFamily?: string;
+  channels?: string[];
+  regions?: string[];
 }

@@ -326,7 +326,7 @@ Key technical constraints:
 - [x] 12. Checkpoint - Verify API endpoints
   - Test all API Gateway endpoints with sample requests. Verify Cognito auth on protected endpoints and public access on storefront endpoints. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 13. Dashboard frontend application
+- [x] 13. Dashboard frontend application
   - [x] 13.1 Initialize Dashboard app with Vite, React, TypeScript, Tailwind CSS
     - Scaffold Vite + React + TypeScript project in `frontend/dashboard/`
     - Configure Tailwind CSS
@@ -341,7 +341,7 @@ Key technical constraints:
     - Protect all Dashboard routes with auth guard
     - _Requirements: 4.6, 4.7_
 
-  - [-] 13.3 Implement Pricing Request Form
+  - [x] 13.3 Implement Pricing Request Form
     - Build form with Pricing Group dropdown (product family, sub-category, category)
     - Add strategic objectives multi-select (revenue maximization, margin protection, market share growth, competitive positioning)
     - Add business constraints inputs (min margin %, max price change %, channel restrictions)
@@ -349,21 +349,21 @@ Key technical constraints:
     - Submit to POST /pricing-cycles endpoint
     - _Requirements: 4.9, 5.1_
 
-  - [-] 13.4 Implement Agent Status Panel
+  - [x] 13.4 Implement Agent Status Panel
     - Display status of each agent (idle, running, completed, failed)
     - Poll GET /agents/status every 5 seconds
     - Show step-by-step visual flow with agent names and execution order
     - Display progress indicators and intermediate results
     - _Requirements: 4.1, 5.2, 5.3_
 
-  - [-] 13.5 Implement Scenario List and Detail View
+  - [x] 13.5 Implement Scenario List and Detail View
     - Display paginated scenario list (20/page) sorted by rank
     - Show rank, confidence score, status label, projected P&L impact per scenario
     - Display top 3 scenarios with contributing factors breakdown
     - Show data sources consulted and confidence score rationale
     - _Requirements: 4.2, 5.4_
 
-  - [-] 13.6 Implement Approval Workflow UI
+  - [x] 13.6 Implement Approval Workflow UI
     - Add approve/reject/modify buttons per scenario
     - Require free-text comment on all actions
     - Enforce ≥50 character justification for HIGH risk approvals
@@ -371,30 +371,30 @@ Key technical constraints:
     - Display rejection reason and scenario status updates
     - _Requirements: 4.3, 7.3, 7.6_
 
-  - [-] 13.7 Implement AI Sidebar (rationale and process flow)
+  - [x] 13.7 Implement AI Sidebar (rationale and process flow)
     - Display AI rationale for recommendations
     - Show visual process flow of agent interactions
     - Display agent interaction logs with timing data (millisecond precision)
     - Show at least 100 most recent log entries per Pricing Cycle
     - _Requirements: 4.4, 13.5_
 
-  - [-] 13.8 Implement Continuous Monitoring Panel
+  - [x] 13.8 Implement Continuous Monitoring Panel
     - Display actual vs. projected performance for active implementations
     - Show trend visualization charts
     - Display variance alerts and recommended corrective actions
     - Allow approval of corrective actions
     - _Requirements: 9.6, 9.4, 9.5_
 
-  - [-] 13.9 Implement demo flow error handling
+  - [x] 13.9 Implement demo flow error handling
     - Display error indication for failed/timed-out agents
     - Allow restart of demo from beginning on failure
     - Handle API timeout with retry button
     - _Requirements: 5.5, 4.7_
 
-- [ ] 14. Checkpoint - Verify Dashboard
+- [x] 14. Checkpoint - Verify Dashboard
   - Build Dashboard app successfully. Verify all views render correctly with mock data. Ensure Cognito auth flow works. Ask the user if questions arise.
 
-- [ ] 15. Storefront frontend application
+- [x] 15. Storefront frontend application
   - [x] 15.1 Initialize Storefront app with Vite, React, TypeScript, Tailwind CSS
     - Scaffold Vite + React + TypeScript project in `frontend/storefront/`
     - Configure Tailwind CSS
@@ -416,28 +416,28 @@ Key technical constraints:
     - Show price history and change indicator
     - _Requirements: 6.5_
 
-- [ ] 16. Checkpoint - Verify Storefront
+- [x] 16. Checkpoint - Verify Storefront
   - Build Storefront app successfully. Verify product catalog renders with demo data. Ensure no authentication is required. Ask the user if questions arise.
 
-- [ ] 17. Integration testing and demo flow
-  - [ ] 17.1 Write end-to-end integration test for pricing cycle
+- [x] 17. Integration testing and demo flow
+  - [x] 17.1 Write end-to-end integration test for pricing cycle
     - Test full flow: submit request → agents execute → scenarios generated → approval → price update
     - Verify DynamoDB records at each stage
     - Verify Storefront price update within 60 seconds of approval
     - _Requirements: 1.1, 6.2_
 
-  - [ ] 17.2 Write escalation and timeout handling tests
+  - [x] 17.2 Write escalation and timeout handling tests
     - Test 48-hour escalation deadline logic
     - Test agent timeout and retry behavior
     - Test graceful degradation with partial agent failures
     - _Requirements: 7.7, 1.5, 1.8_
 
-  - [ ] 17.3 Verify CDK deployment end-to-end
+  - [x] 17.3 Verify CDK deployment end-to-end
     - Run `cdk deploy` and verify all resources provisioned
     - Verify automatic rollback on failure
     - _Requirements: 11.1, 11.8_
 
-- [ ] 18. Final checkpoint - Ensure all tests pass
+- [x] 18. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
