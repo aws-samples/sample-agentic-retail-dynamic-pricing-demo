@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# CDK
+cdk.out/
+.cdk.staging/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Node (frontends)
+node_modules/
+frontend/dashboard/dist/
+frontend/storefront/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
