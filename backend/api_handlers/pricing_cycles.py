@@ -1088,18 +1088,54 @@ def _reset_demo(event: dict[str, Any]) -> dict[str, Any]:
                 batch.delete_item(Key={"cycleId": item["cycleId"], "scenarioId": item["scenarioId"]})
                 scenarios_deleted += 1
 
-    # 3. Reset product prices to original seed values
+    # 3. Reset ALL product prices to original seed values
+    # This ensures a full reset regardless of how many price changes occurred
     products_table = resource.Table(os.environ.get("PRODUCTS_TABLE", "Products"))
-    products_scan = products_table.scan()
     products_reset = 0
-    for item in products_scan.get("Items", []):
-        # If previousPrice exists and differs from current, revert
-        prev = item.get("previousPrice")
-        if prev is not None:
+
+    # Original seed prices (productId -> {currentPrice, previousPrice})
+    original_prices = {
+        "prod-elec-001": {"currentPrice": Decimal("79.99"), "previousPrice": Decimal("89.99")},
+        "prod-elec-002": {"currentPrice": Decimal("49.99"), "previousPrice": Decimal("54.99")},
+        "prod-elec-003": {"currentPrice": Decimal("199.99"), "previousPrice": Decimal("219.99")},
+        "prod-elec-004": {"currentPrice": Decimal("249.99"), "previousPrice": Decimal("279.99")},
+        "prod-elec-005": {"currentPrice": Decimal("149.99"), "previousPrice": Decimal("149.99")},
+        "prod-elec-006": {"currentPrice": Decimal("39.99"), "previousPrice": Decimal("44.99")},
+        "prod-groc-001": {"currentPrice": Decimal("4.49"), "previousPrice": Decimal("3.99")},
+        "prod-groc-002": {"currentPrice": Decimal("12.99"), "previousPrice": Decimal("11.99")},
+        "prod-groc-003": {"currentPrice": Decimal("5.99"), "previousPrice": Decimal("5.49")},
+        "prod-groc-004": {"currentPrice": Decimal("6.49"), "previousPrice": Decimal("5.99")},
+        "prod-groc-005": {"currentPrice": Decimal("5.29"), "previousPrice": Decimal("4.79")},
+        "prod-groc-006": {"currentPrice": Decimal("7.99"), "previousPrice": Decimal("7.49")},
+        "prod-home-001": {"currentPrice": Decimal("89.99"), "previousPrice": Decimal("99.99")},
+        "prod-home-002": {"currentPrice": Decimal("299.99"), "previousPrice": Decimal("349.99")},
+        "prod-home-003": {"currentPrice": Decimal("179.99"), "previousPrice": Decimal("199.99")},
+        "prod-home-004": {"currentPrice": Decimal("129.99"), "previousPrice": Decimal("139.99")},
+        "prod-home-005": {"currentPrice": Decimal("119.99"), "previousPrice": Decimal("129.99")},
+        "prod-home-006": {"currentPrice": Decimal("59.99"), "previousPrice": Decimal("64.99")},
+        "prod-home-007": {"currentPrice": Decimal("44.99"), "previousPrice": Decimal("49.99")},
+    }
+
+    products_scan = products_table.scan(ProjectionExpression="productId")
+    all_products = products_scan.get("Items", [])
+    while "LastEvaluatedKey" in products_scan:
+        products_scan = products_table.scan(
+            ProjectionExpression="productId",
+            ExclusiveStartKey=products_scan["LastEvaluatedKey"],
+        )
+        all_products.extend(products_scan.get("Items", []))
+
+    for item in all_products:
+        product_id = item["productId"]
+        if product_id in original_prices:
+            orig = original_prices[product_id]
             products_table.update_item(
-                Key={"productId": item["productId"]},
-                UpdateExpression="SET currentPrice = :p REMOVE previousPrice, priceUpdatedAt",
-                ExpressionAttributeValues={":p": prev},
+                Key={"productId": product_id},
+                UpdateExpression="SET currentPrice = :cp, previousPrice = :pp REMOVE priceUpdatedAt",
+                ExpressionAttributeValues={
+                    ":cp": orig["currentPrice"],
+                    ":pp": orig["previousPrice"],
+                },
             )
             products_reset += 1
 
