@@ -279,8 +279,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         if http_method == "POST" and path == "/pricing-cycles":
             return _create_pricing_cycle(event)
+        elif http_method == "POST" and path == "/reset":
+            return _reset_demo(event)
+        elif http_method == "POST" and path == "/seed":
+            return _seed_demo_data(event)
         elif http_method == "GET" and path == "/pricing-cycles":
             return _list_pricing_cycles(event)
+        elif http_method == "GET" and path == "/billing":
+            return _get_billing_data(event)
         elif http_method == "GET" and "scenarios" in path:
             cycle_id = path_params.get("id", "")
             return _get_scenarios(cycle_id, event)
@@ -1037,6 +1043,248 @@ def _list_pricing_cycles(event: dict[str, Any]) -> dict[str, Any]:
         "cycles": cycles,
         "count": len(cycles),
     })
+
+
+def _reset_demo(event: dict[str, Any]) -> dict[str, Any]:
+    """Handle POST /reset - clear all pricing cycles and scenarios, reset product prices.
+
+    Deletes all items from PricingCycles and PricingScenarios tables,
+    and resets all product prices to their original seed values.
+    """
+    resource = _get_dynamodb_resource()
+
+    # 1. Clear PricingCycles table
+    cycles_table = resource.Table(PRICING_CYCLES_TABLE)
+    cycles_scan = cycles_table.scan(ProjectionExpression="cycleId, #s", ExpressionAttributeNames={"#s": "status"})
+    cycles_deleted = 0
+    with cycles_table.batch_writer() as batch:
+        for item in cycles_scan.get("Items", []):
+            batch.delete_item(Key={"cycleId": item["cycleId"], "status": item["status"]})
+            cycles_deleted += 1
+        while "LastEvaluatedKey" in cycles_scan:
+            cycles_scan = cycles_table.scan(
+                ProjectionExpression="cycleId, #s",
+                ExpressionAttributeNames={"#s": "status"},
+                ExclusiveStartKey=cycles_scan["LastEvaluatedKey"],
+            )
+            for item in cycles_scan.get("Items", []):
+                batch.delete_item(Key={"cycleId": item["cycleId"], "status": item["status"]})
+                cycles_deleted += 1
+
+    # 2. Clear PricingScenarios table
+    scenarios_table = resource.Table(PRICING_SCENARIOS_TABLE)
+    sc_scan = scenarios_table.scan(ProjectionExpression="cycleId, scenarioId")
+    scenarios_deleted = 0
+    with scenarios_table.batch_writer() as batch:
+        for item in sc_scan.get("Items", []):
+            batch.delete_item(Key={"cycleId": item["cycleId"], "scenarioId": item["scenarioId"]})
+            scenarios_deleted += 1
+        while "LastEvaluatedKey" in sc_scan:
+            sc_scan = scenarios_table.scan(
+                ProjectionExpression="cycleId, scenarioId",
+                ExclusiveStartKey=sc_scan["LastEvaluatedKey"],
+            )
+            for item in sc_scan.get("Items", []):
+                batch.delete_item(Key={"cycleId": item["cycleId"], "scenarioId": item["scenarioId"]})
+                scenarios_deleted += 1
+
+    # 3. Reset product prices to original seed values
+    products_table = resource.Table(os.environ.get("PRODUCTS_TABLE", "Products"))
+    products_scan = products_table.scan()
+    products_reset = 0
+    for item in products_scan.get("Items", []):
+        # If previousPrice exists and differs from current, revert
+        prev = item.get("previousPrice")
+        if prev is not None:
+            products_table.update_item(
+                Key={"productId": item["productId"]},
+                UpdateExpression="SET currentPrice = :p REMOVE previousPrice, priceUpdatedAt",
+                ExpressionAttributeValues={":p": prev},
+            )
+            products_reset += 1
+
+    logger.info("Demo reset: %d cycles, %d scenarios deleted, %d products reset",
+                cycles_deleted, scenarios_deleted, products_reset)
+
+    return _response(200, {
+        "message": "Demo reset complete",
+        "cyclesDeleted": cycles_deleted,
+        "scenariosDeleted": scenarios_deleted,
+        "productsReset": products_reset,
+    })
+
+
+def _seed_demo_data(event: dict[str, Any]) -> dict[str, Any]:
+    """Handle POST /seed - populate DynamoDB with historical pricing cycles.
+
+    Creates 5 completed cycles with scenarios so Analytics and Audit Trail
+    have content for demo purposes.
+    """
+    import random as _random
+
+    resource = _get_dynamodb_resource()
+    cycles_table = resource.Table(PRICING_CYCLES_TABLE)
+    scenarios_table = resource.Table(PRICING_SCENARIOS_TABLE)
+
+    from datetime import timedelta
+    now_dt = datetime.now(timezone.utc)
+
+    demo_configs = [
+        {"group": "Electronics-Audio", "objectives": ["revenue_maximization", "competitive_positioning"], "constraints": {"minMargin": 15, "maxPriceChange": 10}, "hours_ago": 48},
+        {"group": "Grocery-Dairy", "objectives": ["margin_protection"], "constraints": {"minMargin": 20, "maxPriceChange": 8}, "hours_ago": 36},
+        {"group": "Home & Garden-Lighting", "objectives": ["revenue_maximization"], "constraints": {"minMargin": 25, "maxPriceChange": 5}, "hours_ago": 24},
+        {"group": "Electronics-Wearables", "objectives": ["market_share_growth"], "constraints": {"minMargin": 12, "maxPriceChange": 15}, "hours_ago": 12},
+        {"group": "Grocery-Beverages", "objectives": ["competitive_positioning", "margin_protection"], "constraints": {"minMargin": 10, "maxPriceChange": 12}, "hours_ago": 6},
+    ]
+
+    cycles_created = 0
+    for cfg in demo_configs:
+        cycle_id = str(uuid.uuid4())
+        created = now_dt - timedelta(hours=cfg["hours_ago"])
+        completed = created + timedelta(seconds=_random.randint(45, 65))
+
+        cycles_table.put_item(Item={
+            "cycleId": cycle_id,
+            "status": "COMPLETE",
+            "pricingGroup": cfg["group"],
+            "objectives": cfg["objectives"],
+            "constraints": _convert_floats_to_decimal(cfg["constraints"]),
+            "scenarioCount": 3,
+            "requestedBy": "demo-user",
+            "createdAt": created.isoformat(),
+            "completedAt": completed.isoformat(),
+            "agentStatuses": {
+                "orchestrator": {"status": "completed"},
+                "competitive_intelligence": {"status": "completed"},
+                "demand_forecasting": {"status": "completed"},
+                "market_intelligence": {"status": "completed"},
+                "strategy_synthesis": {"status": "completed"},
+                "implementation_monitoring": {"status": "completed"},
+            },
+        })
+
+        strategies = [
+            {"name": "Aggressive Growth", "risk": "HIGH", "conf": _random.randint(65, 78)},
+            {"name": "Balanced Optimization", "risk": "MEDIUM", "conf": _random.randint(80, 90)},
+            {"name": "Conservative Protection", "risk": "LOW", "conf": _random.randint(88, 95)},
+        ]
+
+        for rank, strat in enumerate(strategies, 1):
+            sc_id = str(uuid.uuid4())
+            rev = round(_random.uniform(20000, 80000), 2)
+            margin = round(_random.uniform(0.12, 0.28), 4)
+            status_label = "Recommended" if strat["risk"] == "LOW" else "Review Required" if strat["risk"] == "MEDIUM" else "Human Exception Handling"
+
+            item: dict[str, Any] = {
+                "cycleId": cycle_id,
+                "scenarioId": sc_id,
+                "rank": rank,
+                "confidenceScore": strat["conf"],
+                "statusLabel": status_label,
+                "riskLevel": strat["risk"],
+                "projectedRevenue": Decimal(str(rev)),
+                "projectedMargin": Decimal(str(margin)),
+                "compositeScore": Decimal(str(round(strat["conf"] * 0.8 + _random.uniform(0, 20), 2))),
+                "priceChanges": [],
+                "competitiveFactors": {"competitorPriceIndex": Decimal(str(round(_random.uniform(0.85, 1.15), 3))), "dataSource": "simulated"},
+                "demandFactors": {"elasticity": Decimal(str(round(_random.uniform(-2.5, -0.5), 2))), "dataSource": "simulated"},
+                "marketFactors": {"inflationRate": "3.2%", "dataSource": "simulated"},
+                "guardrailResults": [{"rule": "Minimum Margin", "passed": True}, {"rule": "Bedrock Guardrail Policy", "passed": True}],
+                "aiRationale": f"Strategy: {strat['name']}. Optimized for {', '.join(cfg['objectives']).replace('_', ' ')} in {cfg['group'].replace('-', ' > ')}.",
+                "createdAt": completed.isoformat(),
+            }
+
+            # Auto-approve LOW risk
+            if strat["risk"] == "LOW":
+                item["approvalStatus"] = "APPROVED"
+                item["approvedBy"] = "system-auto-approval"
+                item["approvalComment"] = "Auto-approved: LOW risk (STP)"
+                item["approvedAt"] = (completed + timedelta(seconds=1)).isoformat()
+            elif strat["risk"] == "MEDIUM" and _random.random() > 0.5:
+                item["approvalStatus"] = "APPROVED"
+                item["approvedBy"] = "demo-user"
+                item["approvalComment"] = "Approved: aligns with quarterly strategy"
+                item["approvedAt"] = (completed + timedelta(minutes=5)).isoformat()
+
+            scenarios_table.put_item(Item=item)
+
+        cycles_created += 1
+
+    return _response(200, {
+        "message": f"Seeded {cycles_created} historical pricing cycles with scenarios",
+        "cyclesCreated": cycles_created,
+        "scenariosCreated": cycles_created * 3,
+    })
+
+
+def _get_billing_data(event: dict[str, Any]) -> dict[str, Any]:
+    """Handle GET /billing - return AWS Cost Explorer data for this solution.
+
+    Queries Cost Explorer for the last 30 days of costs grouped by service.
+    Note: Cost Explorer data has a 24-48 hour delay.
+    """
+    from datetime import datetime, timedelta
+
+    ce_client = boto3.client("ce", region_name="us-east-1")
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    start_30d = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    start_7d = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    try:
+        # Monthly cost by service
+        monthly_response = ce_client.get_cost_and_usage(
+            TimePeriod={"Start": start_30d, "End": today},
+            Granularity="MONTHLY",
+            Metrics=["UnblendedCost"],
+            GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}],
+        )
+
+        services = {}
+        for period in monthly_response.get("ResultsByTime", []):
+            for group in period.get("Groups", []):
+                service = group["Keys"][0]
+                cost = float(group.get("Metrics", {}).get("UnblendedCost", {}).get("Amount", 0))
+                if cost > 0:
+                    services[service] = round(services.get(service, 0) + cost, 4)
+
+        # Daily total cost (last 7 days)
+        daily_response = ce_client.get_cost_and_usage(
+            TimePeriod={"Start": start_7d, "End": today},
+            Granularity="DAILY",
+            Metrics=["UnblendedCost"],
+        )
+
+        daily_costs = []
+        for period in daily_response.get("ResultsByTime", []):
+            date = period["TimePeriod"]["Start"]
+            cost = float(period.get("Total", {}).get("UnblendedCost", {}).get("Amount", 0))
+            daily_costs.append({"date": date, "cost": round(cost, 4)})
+
+        total_30d = sum(services.values())
+        total_7d = sum(d["cost"] for d in daily_costs)
+
+        return _response(200, {
+            "period": {"start": start_30d, "end": today},
+            "totalCost30Days": round(total_30d, 2),
+            "totalCost7Days": round(total_7d, 2),
+            "costByService": dict(sorted(services.items(), key=lambda x: -x[1])),
+            "dailyCosts": daily_costs,
+            "dataDelay": "24-48 hours (Cost Explorer limitation)",
+            "currency": "USD",
+        })
+
+    except Exception as e:
+        logger.warning("Failed to fetch billing data: %s", e)
+        return _response(200, {
+            "totalCost30Days": 0,
+            "totalCost7Days": 0,
+            "costByService": {},
+            "dailyCosts": [],
+            "error": f"Cost Explorer unavailable: {str(e)[:100]}",
+            "dataDelay": "24-48 hours",
+            "currency": "USD",
+        })
 
 
 def _get_scenarios(cycle_id: str, event: dict[str, Any]) -> dict[str, Any]:

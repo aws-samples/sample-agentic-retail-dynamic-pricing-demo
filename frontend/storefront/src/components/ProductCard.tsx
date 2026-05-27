@@ -6,8 +6,9 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const priceChanged = product.currentPrice !== product.previousPrice;
-  const priceIncreased = product.currentPrice > product.previousPrice;
+  const hasPreviousPrice = product.previousPrice != null && product.previousPrice > 0;
+  const priceChanged = hasPreviousPrice && product.currentPrice !== product.previousPrice;
+  const priceIncreased = hasPreviousPrice && product.currentPrice > product.previousPrice;
 
   return (
     <Link
@@ -36,24 +37,33 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.description}
         </p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-lg font-bold text-gray-900">
             ${product.currentPrice.toFixed(2)}
           </span>
 
-          {priceChanged && (
-            <span
-              className={`text-xs line-through ${
-                priceIncreased ? 'text-gray-400' : 'text-red-400'
-              }`}
-            >
-              ${product.previousPrice.toFixed(2)}
-            </span>
+          {priceChanged && hasPreviousPrice && (
+            <>
+              <span
+                className={`text-sm line-through ${
+                  priceIncreased ? 'text-gray-400' : 'text-red-400'
+                }`}
+              >
+                ${product.previousPrice!.toFixed(2)}
+              </span>
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                priceIncreased
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-green-100 text-green-700'
+              }`}>
+                {priceIncreased ? '↑' : '↓'} {Math.abs(((product.currentPrice - product.previousPrice!) / product.previousPrice!) * 100).toFixed(1)}%
+              </span>
+            </>
           )}
 
           {product.recentlyUpdated && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-              Recently Updated
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800 animate-pulse">
+              AI Optimized
             </span>
           )}
         </div>

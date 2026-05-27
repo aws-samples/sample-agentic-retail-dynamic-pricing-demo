@@ -6,17 +6,20 @@ import PricingRequestForm from './pages/PricingRequestForm';
 import CycleDetail from './pages/CycleDetail';
 import AuditTrail from './components/AuditTrail';
 import FinancialMetrics from './components/FinancialMetrics';
+import ArchitectureDiagram from './components/ArchitectureDiagram';
+import TcoRoiTab from './components/TcoRoiTab';
 import api from './lib/api';
 import { login, logout } from './lib/cognito';
 
 function DashboardHome() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'tco'>('overview');
 
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: '🏠' },
     { id: 'simulations' as const, label: 'Simulations', icon: '🧪' },
     { id: 'analytics' as const, label: 'Analytics', icon: '📊' },
     { id: 'audit' as const, label: 'Audit Trail', icon: '📋' },
+    { id: 'tco' as const, label: 'TCO & ROI', icon: '💰' },
   ];
 
   return (
@@ -59,12 +62,46 @@ function DashboardHome() {
         {activeTab === 'simulations' && <SimulationsTab />}
         {activeTab === 'analytics' && <AnalyticsTab />}
         {activeTab === 'audit' && <AuditTrail />}
+        {activeTab === 'tco' && <TcoRoiTab />}
       </main>
     </div>
   );
 }
 
 function OverviewTab() {
+  const [resetting, setResetting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
+  const handleReset = async () => {
+    if (!confirm('Reset demo? This will clear ALL pricing cycles, scenarios, and reset product prices to original values. This cannot be undone.')) return;
+    setResetting(true);
+    try {
+      await api.post('/reset');
+      setResetDone(true);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      alert('Reset failed. Check console for details.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const [seeding, setSeeding] = useState(false);
+  const [seedDone, setSeedDone] = useState(false);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      await api.post('/seed');
+      setSeedDone(true);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      alert('Seed failed. Check console for details.');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Quick Actions */}
@@ -75,7 +112,21 @@ function OverviewTab() {
         >
           + New Pricing Request
         </Link>
-        <p className="text-sm text-gray-500">Initiate an on-demand pricing cycle with custom parameters</p>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+        >
+          {resetting ? 'Resetting...' : resetDone ? '✓ Reset Complete' : '↺ Reset Demo'}
+        </button>
+        <button
+          onClick={handleSeed}
+          disabled={seeding}
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+        >
+          {seeding ? 'Seeding...' : seedDone ? '✓ Seeded' : '📊 Seed Historical Data'}
+        </button>
+        <p className="text-sm text-gray-500">Reset clears all data • Seed adds 5 sample pricing cycles</p>
       </div>
 
       {/* System Stats */}
@@ -85,6 +136,9 @@ function OverviewTab() {
         <AnalyticsCard label="Guardrail Policies" value="4 active" subtext="Bedrock Guardrails enforced" icon="🛡️" color="green" />
         <AnalyticsCard label="AI Agents" value="6" subtext="on AgentCore Runtime" icon="🤖" color="indigo" />
       </div>
+
+      {/* Architecture Diagram */}
+      <ArchitectureDiagram />
 
       {/* Architecture & Data Sources */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

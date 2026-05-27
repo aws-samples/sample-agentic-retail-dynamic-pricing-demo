@@ -152,16 +152,17 @@ export default function PipelineSidebar({ cycleId, cycleStatus }: PipelineSideba
                   }`}>
                     {step.label}
                   </p>
-                  {(isActive || step.status === 'awaiting_approval') && (
+                  {step.status !== 'idle' && (
                     <p className={`text-[10px] mt-0.5 ${
-                      isActive ? 'text-blue-600' : 'text-amber-600'
+                      isActive ? 'text-blue-600' :
+                      step.status === 'awaiting_approval' ? 'text-amber-600' :
+                      step.status === 'completed' ? 'text-green-600' :
+                      'text-gray-500'
                     }`}>
-                      {step.status === 'awaiting_approval' ? 'Waiting for human decision' : step.description}
-                    </p>
-                  )}
-                  {step.status === 'completed' && step.id === 'guardrail_validation' && (
-                    <p className="text-[10px] mt-0.5 text-green-600">
-                      All policies passed ✓
+                      {step.status === 'awaiting_approval' ? 'Waiting for human decision' :
+                       step.status === 'completed' && step.id === 'guardrail_validation' ? 'All policies passed ✓' :
+                       step.status === 'completed' ? '✓ Done' :
+                       step.description}
                     </p>
                   )}
                 </div>
