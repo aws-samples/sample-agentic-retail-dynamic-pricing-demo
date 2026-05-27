@@ -48,7 +48,7 @@ export default function ApprovalActions({
       await api.post('/approvals', {
         scenarioId,
         cycleId,
-        action,
+        action: action === 'approve' ? 'APPROVED' : 'REJECTED',
         comment: comment.trim(),
         riskLevel,
       });

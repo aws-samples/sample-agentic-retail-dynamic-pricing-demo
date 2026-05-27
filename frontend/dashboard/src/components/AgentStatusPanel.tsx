@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../lib/api';
 
-type AgentStatus = 'idle' | 'running' | 'completed' | 'failed';
+type AgentStatus = 'idle' | 'running' | 'completed' | 'failed' | 'awaiting_approval';
 
 interface AgentInfo {
   id: string;
@@ -19,11 +19,11 @@ interface AgentStatusPanelProps {
 
 const AGENT_EXECUTION_ORDER = [
   { id: 'orchestrator', name: 'Orchestrator' },
-  { id: 'competitive-intelligence', name: 'Competitive Intelligence' },
-  { id: 'demand-forecasting', name: 'Demand Forecasting' },
-  { id: 'market-intelligence', name: 'Market Intelligence' },
-  { id: 'strategy-synthesis', name: 'Strategy Synthesis' },
-  { id: 'implementation-monitoring', name: 'Implementation Monitoring' },
+  { id: 'competitive_intelligence', name: 'Competitive Intelligence' },
+  { id: 'demand_forecasting', name: 'Demand Forecasting' },
+  { id: 'market_intelligence', name: 'Market Intelligence' },
+  { id: 'strategy_synthesis', name: 'Strategy Synthesis' },
+  { id: 'implementation_monitoring', name: 'Implementation Monitoring' },
 ];
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
@@ -31,6 +31,7 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   running: 'bg-blue-500',
   completed: 'bg-green-500',
   failed: 'bg-red-500',
+  awaiting_approval: 'bg-amber-400',
 };
 
 const STATUS_LABELS: Record<AgentStatus, string> = {
@@ -38,6 +39,7 @@ const STATUS_LABELS: Record<AgentStatus, string> = {
   running: 'Running',
   completed: 'Completed',
   failed: 'Failed',
+  awaiting_approval: 'Awaiting Approval',
 };
 
 function StatusDot({ status }: { status: AgentStatus }) {
@@ -88,7 +90,7 @@ export default function AgentStatusPanel({ cycleId }: AgentStatusPanelProps) {
           params: { cycleId },
         });
 
-        const statusData = response.data?.agentStatuses ?? response.data;
+        const statusData = response.data?.agents ?? response.data?.agentStatuses ?? response.data;
 
         const updatedAgents: AgentInfo[] = AGENT_EXECUTION_ORDER.map((agent) => {
           const agentData = statusData?.[agent.id];
@@ -108,7 +110,7 @@ export default function AgentStatusPanel({ cycleId }: AgentStatusPanelProps) {
 
         // Stop polling when all agents are in a terminal state
         const allTerminal = updatedAgents.every(
-          (a) => a.status === 'completed' || a.status === 'failed'
+          (a) => a.status === 'completed' || a.status === 'failed' || a.status === 'awaiting_approval'
         );
         if (allTerminal && intervalRef.current) {
           clearInterval(intervalRef.current);
@@ -169,6 +171,8 @@ export default function AgentStatusPanel({ cycleId }: AgentStatusPanelProps) {
                   ? 'border-red-200 bg-red-50'
                   : agent.status === 'completed'
                   ? 'border-green-200 bg-green-50'
+                  : agent.status === 'awaiting_approval'
+                  ? 'border-amber-200 bg-amber-50'
                   : 'border-gray-200 bg-gray-50'
               }`}
             >
@@ -184,6 +188,9 @@ export default function AgentStatusPanel({ cycleId }: AgentStatusPanelProps) {
                 </div>
                 {agent.status === 'running' && (
                   <p className="text-xs text-blue-600 mt-0.5">Processing...</p>
+                )}
+                {agent.status === 'awaiting_approval' && (
+                  <p className="text-xs text-amber-600 mt-0.5">Waiting for human approval of a scenario</p>
                 )}
                 {agent.status === 'failed' && agent.error && (
                   <p className="text-xs text-red-600 mt-0.5 truncate">
@@ -204,6 +211,8 @@ export default function AgentStatusPanel({ cycleId }: AgentStatusPanelProps) {
                     ? 'text-red-700 bg-red-100'
                     : agent.status === 'completed'
                     ? 'text-green-700 bg-green-100'
+                    : agent.status === 'awaiting_approval'
+                    ? 'text-amber-700 bg-amber-100'
                     : 'text-gray-600 bg-gray-100'
                 }`}
               >

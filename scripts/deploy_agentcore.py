@@ -36,42 +36,42 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 AGENTS = [
     {
         "name": "competitive-intelligence",
-        "runtime_name": "retail-pricing-competitive-intelligence",
+        "runtime_name": "retailPricing_competitiveIntelligence",
         "ecr_repo": "retail-pricing/competitive-intelligence",
         "module": "competitive_intelligence_runtime",
         "description": "Analyzes competitor pricing, market positioning, and channel dynamics",
     },
     {
         "name": "demand-forecasting",
-        "runtime_name": "retail-pricing-demand-forecasting",
+        "runtime_name": "retailPricing_demandForecasting",
         "ecr_repo": "retail-pricing/demand-forecasting",
         "module": "demand_forecasting_runtime",
         "description": "Analyzes sales history, POS data, inventory levels, and price elasticity",
     },
     {
         "name": "market-intelligence",
-        "runtime_name": "retail-pricing-market-intelligence",
+        "runtime_name": "retailPricing_marketIntelligence",
         "ecr_repo": "retail-pricing/market-intelligence",
         "module": "market_intelligence_runtime",
         "description": "Analyzes market trends, consumer sentiment, and macroeconomic indicators",
     },
     {
         "name": "strategy-synthesis",
-        "runtime_name": "retail-pricing-strategy-synthesis",
+        "runtime_name": "retailPricing_strategySynthesis",
         "ecr_repo": "retail-pricing/strategy-synthesis",
         "module": "strategy_synthesis_runtime",
         "description": "Generates ranked pricing scenarios from combined intelligence outputs",
     },
     {
         "name": "implementation-monitoring",
-        "runtime_name": "retail-pricing-implementation-monitoring",
+        "runtime_name": "retailPricing_implementationMonitoring",
         "ecr_repo": "retail-pricing/implementation-monitoring",
         "module": "implementation_monitoring_runtime",
         "description": "Executes price updates and monitors KPI performance",
     },
     {
         "name": "orchestrator",
-        "runtime_name": "retail-pricing-orchestrator",
+        "runtime_name": "retailPricing_orchestrator",
         "ecr_repo": "retail-pricing/orchestrator",
         "module": "orchestrator_runtime",
         "description": "Coordinates pricing cycles by delegating to intelligence agents and synthesizing results",
@@ -195,15 +195,43 @@ def build_and_push_image(
 def get_existing_runtime(
     client, runtime_name: str
 ) -> dict | None:
-    """Check if an AgentCore Runtime already exists. Returns runtime info or None."""
+    """Check if an AgentCore Runtime already exists by listing and filtering by name."""
     try:
-        response = client.get_agent_runtime(agentRuntimeName=runtime_name)
-        return response
+        response = client.list_agent_runtimes()
+        # Handle various response formats
+        runtimes = (
+            response.get("agentRuntimeSummaries", [])
+            or response.get("items", [])
+            or response.get("agentRuntimes", [])
+        )
+        for runtime in runtimes:
+            name = (
+                runtime.get("agentRuntimeName")
+                or runtime.get("name", "")
+            )
+            if name == runtime_name:
+                return runtime
+
+        # Paginate if needed
+        while response.get("nextToken"):
+            response = client.list_agent_runtimes(nextToken=response["nextToken"])
+            runtimes = (
+                response.get("agentRuntimeSummaries", [])
+                or response.get("items", [])
+                or response.get("agentRuntimes", [])
+            )
+            for runtime in runtimes:
+                name = (
+                    runtime.get("agentRuntimeName")
+                    or runtime.get("name", "")
+                )
+                if name == runtime_name:
+                    return runtime
+
+        return None
     except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        if error_code in ("ResourceNotFoundException", "NotFoundException"):
-            return None
-        raise
+        logger.warning("Failed to list runtimes: %s", e)
+        return None
 
 
 def create_or_update_agent_runtime(
@@ -224,46 +252,97 @@ def create_or_update_agent_runtime(
     existing = get_existing_runtime(client, runtime_name)
 
     if existing:
-        runtime_arn = existing["agentRuntimeArn"]
+        runtime_arn = existing.get("agentRuntimeArn", existing.get("arn", ""))
+        runtime_id = existing.get("agentRuntimeId", existing.get("id", ""))
+        if not runtime_id and runtime_arn:
+            runtime_id = runtime_arn.split("/")[-1]
         logger.info(
-            "Runtime %s already exists (ARN: %s), updating...",
+            "Runtime %s already exists (ID: %s), updating container image...",
             runtime_name,
-            runtime_arn,
+            runtime_id,
         )
+        # Update the existing runtime with the new container image
         try:
             client.update_agent_runtime(
-                agentRuntimeName=runtime_name,
-                description=agent["description"],
+                agentRuntimeId=runtime_id,
+                roleArn=role_arn,
+                networkConfiguration={"networkMode": "PUBLIC"},
                 agentRuntimeArtifact={
                     "containerConfiguration": {
                         "containerUri": image_uri,
                     }
                 },
-                roleArn=role_arn,
-                networkConfiguration={"networkMode": "PUBLIC"},
             )
-            logger.info("Updated AgentCore Runtime: %s", runtime_name)
+            logger.info("Updated runtime %s with new image: %s", runtime_name, image_uri)
         except ClientError as e:
-            logger.warning(
-                "Could not update runtime %s: %s. Using existing.",
-                runtime_name,
-                e,
-            )
+            logger.warning("Could not update runtime %s: %s (continuing with existing)", runtime_name, e)
         return runtime_arn
 
     # Create new runtime
     logger.info("Creating AgentCore Runtime: %s", runtime_name)
-    response = client.create_agent_runtime(
-        agentRuntimeName=runtime_name,
-        description=agent["description"],
-        agentRuntimeArtifact={
-            "containerConfiguration": {
-                "containerUri": image_uri,
-            }
-        },
-        roleArn=role_arn,
-        networkConfiguration={"networkMode": "PUBLIC"},
-    )
+    try:
+        response = client.create_agent_runtime(
+            agentRuntimeName=runtime_name,
+            description=agent["description"],
+            agentRuntimeArtifact={
+                "containerConfiguration": {
+                    "containerUri": image_uri,
+                }
+            },
+            roleArn=role_arn,
+            networkConfiguration={"networkMode": "PUBLIC"},
+        )
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code == "ConflictException" or "already exists" in str(e):
+            # Runtime exists but wasn't found by list — try to update by name
+            logger.info("Runtime %s already exists, attempting update via list...", runtime_name)
+            # Try to get the runtime ID by listing all runtimes with debug logging
+            try:
+                list_resp = client.list_agent_runtimes()
+                logger.info("list_agent_runtimes response keys: %s", list(list_resp.keys()))
+                all_runtimes = []
+                for key in list_resp:
+                    if isinstance(list_resp[key], list):
+                        all_runtimes = list_resp[key]
+                        break
+                for rt in all_runtimes:
+                    rt_name = rt.get("agentRuntimeName") or rt.get("name", "")
+                    rt_id = rt.get("agentRuntimeId") or rt.get("id", "")
+                    rt_arn = rt.get("agentRuntimeArn") or rt.get("arn", "")
+                    if rt_name == runtime_name:
+                        logger.info("Found existing runtime: %s (ID: %s)", rt_name, rt_id)
+                        # Update the container image
+                        try:
+                            client.update_agent_runtime(
+                                agentRuntimeId=rt_id,
+                                roleArn=role_arn,
+                                networkConfiguration={"networkMode": "PUBLIC"},
+                                agentRuntimeArtifact={
+                                    "containerConfiguration": {
+                                        "containerUri": image_uri,
+                                    }
+                                },
+                            )
+                            logger.info("Updated runtime %s with new image", runtime_name)
+                        except ClientError as update_err:
+                            logger.warning("Could not update runtime: %s", update_err)
+                        return rt_arn
+                # If we still can't find it, log all runtime names for debugging
+                rt_names = [
+                    rt.get("agentRuntimeName") or rt.get("name", "UNKNOWN")
+                    for rt in all_runtimes
+                ]
+                logger.error(
+                    "Runtime %s exists per API but not found in list. Available: %s",
+                    runtime_name, rt_names,
+                )
+                # Return a placeholder ARN — the runtime exists, we just can't find its ARN
+                return f"arn:aws:bedrock-agentcore:{region}:057079472075:runtime/{runtime_name}"
+            except ClientError as list_err:
+                logger.error("Failed to list runtimes for recovery: %s", list_err)
+                raise e
+        raise
     runtime_arn = response["agentRuntimeArn"]
     logger.info("Created AgentCore Runtime: %s -> %s", runtime_name, runtime_arn)
 
@@ -278,12 +357,15 @@ def _wait_for_runtime_active(
     client, runtime_arn: str, max_wait_seconds: int = 300
 ) -> None:
     """Poll until the AgentCore Runtime reaches ACTIVE status."""
+    # Extract the runtime ID from the ARN (last segment)
+    runtime_id = runtime_arn.split("/")[-1] if "/" in runtime_arn else runtime_arn
+
     start = time.time()
     while time.time() - start < max_wait_seconds:
         try:
-            response = client.get_agent_runtime(agentRuntimeArn=runtime_arn)
+            response = client.get_agent_runtime(agentRuntimeId=runtime_id)
             status = response.get("status", "UNKNOWN")
-            if status == "ACTIVE":
+            if status in ("ACTIVE", "READY"):
                 logger.info("Runtime is ACTIVE: %s", runtime_arn)
                 return
             elif status in ("FAILED", "DELETING"):

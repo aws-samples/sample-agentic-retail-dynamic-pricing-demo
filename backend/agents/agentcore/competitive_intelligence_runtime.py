@@ -22,6 +22,7 @@ from strands import Agent
 from strands.tools.mcp import MCPClient
 
 from backend.agents.agentcore.memory_config import create_session_manager
+from backend.agents.agentcore.guardrail_config import get_guardrail_config
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +110,13 @@ def invoke(payload: dict) -> dict:
             }
 
         # Create agent with memory and gateway tools
+        guardrail_kwargs = get_guardrail_config()
         agent = Agent(
             model="us.anthropic.claude-sonnet-4-6",
             system_prompt=SYSTEM_PROMPT,
             tools=tools,
             session_manager=session_manager,
+            **guardrail_kwargs,
         )
 
         result = agent(full_prompt)

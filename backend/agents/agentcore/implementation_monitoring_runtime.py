@@ -110,7 +110,9 @@ def invoke(payload: dict) -> dict:
             generate_adjustment,
         )
         from strands import Agent
+        from backend.agents.agentcore.guardrail_config import get_guardrail_config
 
+        guardrail_kwargs = get_guardrail_config()
         agent = Agent(
             model="us.anthropic.claude-sonnet-4-6",
             system_prompt=IMPLEMENTATION_MONITORING_SYSTEM_PROMPT,
@@ -121,6 +123,7 @@ def invoke(payload: dict) -> dict:
                 generate_adjustment,
             ],
             session_manager=session_manager,
+            **guardrail_kwargs,
         )
 
         result = agent(full_prompt)

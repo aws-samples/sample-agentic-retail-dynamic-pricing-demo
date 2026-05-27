@@ -32,60 +32,130 @@ def setup_gateway(region: str = "us-east-1") -> str:
     Returns:
         The gateway ID.
     """
-    client = boto3.client("bedrock-agentcore", region_name=region)
+    client = boto3.client("bedrock-agentcore-control", region_name=region)
 
-    # Create the gateway
-    print(f"Creating AgentCore Gateway in {region}...")
-    gateway = client.create_gateway(
-        name="retail-pricing-gateway",
-        description="Gateway for Retail Dynamic Pricing MCP tools",
-        protocolType="MCP",
+    # Use the same AgentCore role for the gateway
+    role_arn = os.environ.get(
+        "AGENTCORE_ROLE_ARN",
+        f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/RetailPricingAgentCoreRole"
     )
-    gateway_id = gateway["gatewayId"]
+
+    # Create the gateway (idempotent — skip if already exists)
+    print(f"Creating AgentCore Gateway in {region}...")
+    from botocore.exceptions import ClientError
+
+    gateway_id = None
+
+    # Check if gateway already exists
+    existing_gateways = client.list_gateways()
+    for gw in existing_gateways.get("items", []):
+        if gw.get("name") == "retail-pricing-gateway":
+            gateway_id = gw["gatewayId"]
+            print(f"  Gateway already exists: {gateway_id}")
+            break
+
+    if not gateway_id:
+        gateway = client.create_gateway(
+            name="retail-pricing-gateway",
+            description="Gateway for Retail Dynamic Pricing MCP tools",
+            roleArn=role_arn,
+            authorizerType="NONE",
+            protocolConfiguration={
+                "mcp": {
+                    "searchType": "SEMANTIC",
+                }
+            },
+        )
+        gateway_id = gateway["gatewayId"]
+        print(f"  Created gateway: {gateway_id}")
+
     print(f"  Gateway ID: {gateway_id}")
 
-    # Define MCP Server Lambda targets
+    # Define MCP Server Lambda targets with their tool schemas
     mcp_targets = [
         {
             "name": "competitor-api",
             "description": "Competitor pricing data tools",
             "lambdaArn": os.environ["COMPETITOR_API_LAMBDA_ARN"],
+            "toolSchema": {
+                "inlinePayload": [
+                    {"name": "get_competitor_prices", "description": "Get current competitor prices for a product", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}}, "required": ["product_id"]}},
+                    {"name": "get_price_history", "description": "Get historical price data for a product", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}, "days": {"type": "integer"}}, "required": ["product_id"]}},
+                    {"name": "get_market_position", "description": "Get market positioning data for a product", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}}, "required": ["product_id"]}},
+                ]
+            },
         },
         {
             "name": "erp-pos",
             "description": "ERP/POS sales and inventory tools",
             "lambdaArn": os.environ["ERP_POS_LAMBDA_ARN"],
+            "toolSchema": {
+                "inlinePayload": [
+                    {"name": "get_sales_history", "description": "Get weekly/monthly sales data", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}, "period": {"type": "string"}}, "required": ["product_id"]}},
+                    {"name": "get_pos_realtime", "description": "Get recent POS transaction data", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}, "hours": {"type": "integer"}}, "required": ["product_id"]}},
+                    {"name": "get_inventory_levels", "description": "Get current stock levels", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}}, "required": ["product_id"]}},
+                    {"name": "get_elasticity_data", "description": "Get price elasticity by segment", "inputSchema": {"type": "object", "properties": {"product_id": {"type": "string"}}, "required": ["product_id"]}},
+                ]
+            },
         },
         {
             "name": "market-signals",
             "description": "Market trends and sentiment tools",
             "lambdaArn": os.environ["MARKET_SIGNALS_LAMBDA_ARN"],
+            "toolSchema": {
+                "inlinePayload": [
+                    {"name": "get_market_trends", "description": "Get market trend indicators", "inputSchema": {"type": "object", "properties": {"category": {"type": "string"}}, "required": ["category"]}},
+                    {"name": "get_consumer_sentiment", "description": "Get consumer sentiment scores", "inputSchema": {"type": "object", "properties": {"category": {"type": "string"}}, "required": ["category"]}},
+                    {"name": "get_macro_indicators", "description": "Get macroeconomic indicators", "inputSchema": {"type": "object", "properties": {"region": {"type": "string"}}}},
+                ]
+            },
         },
         {
             "name": "cost-finance",
             "description": "Cost structure and financial constraints tools",
             "lambdaArn": os.environ["COST_FINANCE_LAMBDA_ARN"],
+            "toolSchema": {
+                "inlinePayload": [
+                    {"name": "get_cost_structure", "description": "Get product cost breakdown", "inputSchema": {"type": "object", "properties": {"category": {"type": "string"}}}},
+                    {"name": "get_margin_targets", "description": "Get target margins by channel", "inputSchema": {"type": "object", "properties": {"category": {"type": "string"}}}},
+                    {"name": "get_financial_constraints", "description": "Get budget limits and rules", "inputSchema": {"type": "object", "properties": {"channel": {"type": "string"}}}},
+                ]
+            },
         },
     ]
 
-    # Register each Lambda as a gateway target
+    # Register each Lambda as a gateway target and collect target IDs
     print("\nRegistering MCP Server targets...")
+    target_ids = []
     for target in mcp_targets:
         print(f"  Registering: {target['name']} ({target['lambdaArn']})")
-        client.create_gateway_target(
-            gatewayId=gateway_id,
+        response = client.create_gateway_target(
+            gatewayIdentifier=gateway_id,
             name=target["name"],
             description=target["description"],
-            connectionConfiguration={
-                "lambdaConnection": {
-                    "lambdaArn": target["lambdaArn"],
+            targetConfiguration={
+                "mcp": {
+                    "lambda": {
+                        "lambdaArn": target["lambdaArn"],
+                        "toolSchema": target["toolSchema"],
+                    }
                 }
             },
+            credentialProviderConfigurations=[
+                {
+                    "credentialProviderType": "GATEWAY_IAM_ROLE",
+                }
+            ],
         )
+        target_id = response.get("targetId", response.get("name", target["name"]))
+        target_ids.append(target_id)
 
     # Synchronize to discover tools from all targets
     print("\nSynchronizing gateway targets (discovering tools)...")
-    client.synchronize_gateway_targets(gatewayId=gateway_id)
+    client.synchronize_gateway_targets(
+        gatewayIdentifier=gateway_id,
+        targetIdList=target_ids,
+    )
 
     print(f"\nGateway setup complete!")
     print(f"  Gateway ID: {gateway_id}")

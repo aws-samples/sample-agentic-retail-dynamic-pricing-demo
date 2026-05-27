@@ -28,8 +28,9 @@ export default function ProductCatalog() {
       setLoading(true);
       setError(null);
 
-      const response = await api.get<Product[]>('/products');
-      setProducts(response.data);
+      const response = await api.get('/products');
+      const data = response.data;
+      setProducts(data.products ?? data ?? []);
       retryCount.current = 0;
       setLoading(false);
     } catch {

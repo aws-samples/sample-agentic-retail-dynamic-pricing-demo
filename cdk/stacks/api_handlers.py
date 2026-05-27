@@ -59,8 +59,8 @@ class ApiHandlersConstruct(Construct):
             description="REST API for Retail Dynamic Pricing system",
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=[
-                    "https://dashboard.example.com",
-                    "https://storefront.example.com",
+                    "https://d2jfxf5nmj4tvq.cloudfront.net",
+                    "https://df5n71gqbb4e4.cloudfront.net",
                     "http://localhost:5173",
                 ],
                 allow_methods=apigw.Cors.ALL_METHODS,
@@ -90,6 +90,8 @@ class ApiHandlersConstruct(Construct):
             actions=[
                 "bedrock:InvokeAgent",
                 "bedrock:InvokeAgentRuntime",
+                "bedrock-agentcore:InvokeAgentRuntime",
+                "bedrock-agentcore:*",
             ],
             resources=["*"],
         )
@@ -112,10 +114,19 @@ class ApiHandlersConstruct(Construct):
                     "ORCHESTRATOR_AGENT_ARN", ""
                 ),
             },
+            timeout_seconds=300,  # 5 min for async AgentCore invocations
         )
         dynamodb_tables.pricing_cycles_table.grant_read_write_data(self.pricing_cycles_fn)
         dynamodb_tables.pricing_scenarios_table.grant_read_data(self.pricing_cycles_fn)
         self.pricing_cycles_fn.add_to_role_policy(agentcore_policy)
+        # Allow Lambda to invoke itself asynchronously for orchestrator calls
+        self.pricing_cycles_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["lambda:InvokeFunction"],
+                resources=[self.pricing_cycles_fn.function_arn],
+            )
+        )
 
         # Scenarios handler
         self.scenarios_fn = self._create_handler(
@@ -184,6 +195,14 @@ class ApiHandlersConstruct(Construct):
         pricing_cycles_resource = self.api.root.add_resource("pricing-cycles")
         pricing_cycles_resource.add_method(
             "POST",
+            apigw.LambdaIntegration(self.pricing_cycles_fn),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
+        # GET /pricing-cycles (authenticated) - list all cycles for audit trail
+        pricing_cycles_resource.add_method(
+            "GET",
             apigw.LambdaIntegration(self.pricing_cycles_fn),
             authorizer=authorizer,
             authorization_type=apigw.AuthorizationType.COGNITO,
@@ -264,6 +283,7 @@ class ApiHandlersConstruct(Construct):
         handler_module: str,
         description: str,
         environment: dict[str, str] | None = None,
+        timeout_seconds: int = 30,
     ) -> lambda_.Function:
         """Create a Lambda function for an API handler.
 
@@ -272,6 +292,7 @@ class ApiHandlersConstruct(Construct):
             handler_module: Python module name under backend/api_handlers/.
             description: Description of the handler's purpose.
             environment: Environment variables for the Lambda function.
+            timeout_seconds: Lambda timeout in seconds (default 30).
 
         Returns:
             The created Lambda function.
@@ -285,7 +306,7 @@ class ApiHandlersConstruct(Construct):
             handler=f"{handler_module}.handler",
             code=lambda_.Code.from_asset(str(API_HANDLERS_DIR)),
             memory_size=256,
-            timeout=cdk.Duration.seconds(30),
+            timeout=cdk.Duration.seconds(timeout_seconds),
             environment=environment or {},
         )
 

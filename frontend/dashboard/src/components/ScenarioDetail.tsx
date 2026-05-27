@@ -1,4 +1,7 @@
 import type { PricingScenario, GuardrailResult } from './ScenarioList';
+import { useState } from 'react';
+import ApprovalActions from './ApprovalActions';
+import api from '../lib/api';
 
 interface ScenarioDetailProps {
   scenario: PricingScenario;
@@ -6,6 +9,30 @@ interface ScenarioDetailProps {
 }
 
 export default function ScenarioDetail({ scenario, showContributingFactors = true }: ScenarioDetailProps) {
+  const [reverting, setReverting] = useState(false);
+  const [reverted, setReverted] = useState(false);
+  const [revertError, setRevertError] = useState<string | null>(null);
+
+  const handleRevert = async () => {
+    setReverting(true);
+    setRevertError(null);
+    try {
+      await api.post('/approvals', {
+        scenarioId: scenario.scenarioId,
+        cycleId: scenario.cycleId,
+        action: 'REJECTED',
+        comment: `Price revert: Rolling back ${scenario.priceChanges.length} price changes to previous values.`,
+        riskLevel: scenario.riskLevel,
+        revertPrices: true,
+      });
+      setReverted(true);
+    } catch (err: unknown) {
+      setRevertError(err instanceof Error ? err.message : 'Failed to revert prices');
+    } finally {
+      setReverting(false);
+    }
+  };
+
   return (
     <div className="bg-gray-50 border-t border-gray-200 p-6 space-y-6">
       {/* Price Changes Section */}
@@ -18,7 +45,10 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
                 key={change.productId}
                 className="bg-white rounded-md border border-gray-200 p-3"
               >
-                <p className="text-xs text-gray-500 truncate">{change.productId}</p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {(change as any).productName || change.productId}
+                </p>
+                <p className="text-[10px] text-gray-400 font-mono">{change.productId}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-sm text-gray-600 line-through">
                     ${change.currentPrice.toFixed(2)}
@@ -127,6 +157,64 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
           }
         />
       </section>
+
+      {/* AI Rationale */}
+      {(scenario as any).aiRationale && (
+        <section className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <h3 className="text-sm font-semibold text-blue-900 mb-2">AI Decision Rationale</h3>
+          <p className="text-sm text-blue-800">{(scenario as any).aiRationale}</p>
+        </section>
+      )}
+
+      {/* Approval Actions (HITL) */}
+      {!scenario.approvalStatus && (
+        <ApprovalActions
+          scenarioId={scenario.scenarioId}
+          cycleId={scenario.cycleId}
+          riskLevel={scenario.riskLevel}
+          statusLabel={scenario.statusLabel}
+        />
+      )}
+
+      {scenario.approvalStatus && (
+        <div className={`rounded-md border p-4 ${
+          scenario.approvalStatus === 'APPROVED'
+            ? 'bg-green-50 border-green-200'
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm font-medium ${
+                scenario.approvalStatus === 'APPROVED' ? 'text-green-800' : 'text-red-800'
+              }`}>
+                {scenario.approvalStatus === 'APPROVED' ? '✓ Approved' : '✗ Rejected'}
+                {scenario.approvedBy && ` by ${scenario.approvedBy}`}
+                {scenario.approvedAt && ` on ${new Date(scenario.approvedAt).toLocaleString()}`}
+              </p>
+              {scenario.approvalComment && (
+                <p className="text-sm text-gray-600 mt-1">{scenario.approvalComment}</p>
+              )}
+            </div>
+            {scenario.approvalStatus === 'APPROVED' && !reverted && (
+              <button
+                onClick={handleRevert}
+                disabled={reverting}
+                className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-300 rounded-md hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {reverting ? 'Reverting...' : '↩ Revert Prices'}
+              </button>
+            )}
+          </div>
+          {reverted && (
+            <p className="text-xs text-amber-700 mt-2 font-medium">
+              ↩ Prices reverted to previous values. Refresh the storefront to see changes.
+            </p>
+          )}
+          {revertError && (
+            <p className="text-xs text-red-600 mt-2">{revertError}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

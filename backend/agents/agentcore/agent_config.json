@@ -1,22 +1,26 @@
 {
   "competitive-intelligence": {
-    "arn": "",
+    "arn": "arn:aws:bedrock-agentcore:us-east-1:057079472075:runtime/retailPricing_competitiveIntelligence-6MWOGLDodA",
     "module": "competitive_intelligence_runtime"
   },
   "demand-forecasting": {
-    "arn": "",
+    "arn": "arn:aws:bedrock-agentcore:us-east-1:057079472075:runtime/retailPricing_demandForecasting-PLzHrW8Ig0",
     "module": "demand_forecasting_runtime"
   },
   "market-intelligence": {
-    "arn": "",
+    "arn": "arn:aws:bedrock-agentcore:us-east-1:057079472075:runtime/retailPricing_marketIntelligence-c03w3rFK4e",
     "module": "market_intelligence_runtime"
   },
   "strategy-synthesis": {
-    "arn": "",
+    "arn": "arn:aws:bedrock-agentcore:us-east-1:057079472075:runtime/retailPricing_strategySynthesis-b7DSx0Ejhe",
     "module": "strategy_synthesis_runtime"
   },
   "implementation-monitoring": {
-    "arn": "",
+    "arn": "arn:aws:bedrock-agentcore:us-east-1:057079472075:runtime/retailPricing_implementationMonitoring-p1UMk7Fnmj",
     "module": "implementation_monitoring_runtime"
+  },
+  "orchestrator": {
+    "arn": "arn:aws:bedrock-agentcore:us-east-1:057079472075:runtime/retailPricing_orchestrator-1bGyC4FTaH",
+    "module": "orchestrator_runtime"
   }
 }

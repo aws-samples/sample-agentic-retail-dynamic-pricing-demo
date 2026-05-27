@@ -1,20 +1,37 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 
 /** Pricing group options organized by type */
 const PRICING_GROUPS = [
-  { label: 'Electronics', value: 'electronics', type: 'category' },
-  { label: 'Electronics > Smartphones', value: 'electronics-smartphones', type: 'sub-category' },
-  { label: 'Electronics > Laptops', value: 'electronics-laptops', type: 'sub-category' },
-  { label: 'Electronics > Smartphones > Premium', value: 'electronics-smartphones-premium', type: 'product-family' },
-  { label: 'Grocery', value: 'grocery', type: 'category' },
-  { label: 'Grocery > Beverages', value: 'grocery-beverages', type: 'sub-category' },
-  { label: 'Grocery > Snacks', value: 'grocery-snacks', type: 'sub-category' },
-  { label: 'Grocery > Beverages > Energy Drinks', value: 'grocery-beverages-energy-drinks', type: 'product-family' },
-  { label: 'Home & Garden', value: 'home-garden', type: 'category' },
-  { label: 'Home & Garden > Furniture', value: 'home-garden-furniture', type: 'sub-category' },
-  { label: 'Home & Garden > Outdoor', value: 'home-garden-outdoor', type: 'sub-category' },
-  { label: 'Home & Garden > Furniture > Living Room', value: 'home-garden-furniture-living-room', type: 'product-family' },
+  { label: 'Electronics', value: 'Electronics', type: 'category' },
+  { label: 'Electronics > Audio', value: 'Electronics-Audio', type: 'sub-category' },
+  { label: 'Electronics > Wearables', value: 'Electronics-Wearables', type: 'sub-category' },
+  { label: 'Electronics > Tablets', value: 'Electronics-Tablets', type: 'sub-category' },
+  { label: 'Electronics > Accessories', value: 'Electronics-Accessories', type: 'sub-category' },
+  { label: 'Grocery', value: 'Grocery', type: 'category' },
+  { label: 'Grocery > Dairy', value: 'Grocery-Dairy', type: 'sub-category' },
+  { label: 'Grocery > Beverages', value: 'Grocery-Beverages', type: 'sub-category' },
+  { label: 'Grocery > Bakery', value: 'Grocery-Bakery', type: 'sub-category' },
+  { label: 'Home & Garden', value: 'Home & Garden', type: 'category' },
+  { label: 'Home & Garden > Lighting', value: 'Home & Garden-Lighting', type: 'sub-category' },
+  { label: 'Home & Garden > Cleaning', value: 'Home & Garden-Cleaning', type: 'sub-category' },
+  { label: 'Home & Garden > Tools', value: 'Home & Garden-Tools', type: 'sub-category' },
+  { label: 'Home & Garden > Garden', value: 'Home & Garden-Garden', type: 'sub-category' },
+  { label: 'Home & Garden > Climate Control', value: 'Home & Garden-Climate Control', type: 'sub-category' },
+  // Individual products
+  { label: 'ProSound Wireless Earbuds ($79.99)', value: 'product-prod-elec-001', type: 'product' },
+  { label: 'SoundWave Bluetooth Speaker ($49.99)', value: 'product-prod-elec-002', type: 'product' },
+  { label: 'FitTrack Pro Smartwatch ($199.99)', value: 'product-prod-elec-003', type: 'product' },
+  { label: 'TabletX 10-inch Display ($249.99)', value: 'product-prod-elec-004', type: 'product' },
+  { label: 'StudioMax Over-Ear Headphones ($149.99)', value: 'product-prod-elec-005', type: 'product' },
+  { label: 'QuickCharge USB-C Power Bank ($39.99)', value: 'product-prod-elec-006', type: 'product' },
+  { label: 'Farm Fresh Whole Milk ($4.49)', value: 'product-prod-groc-001', type: 'product' },
+  { label: 'Mountain Roast Premium Coffee ($12.99)', value: 'product-prod-groc-002', type: 'product' },
+  { label: 'LumiGlow Smart LED Floor Lamp ($89.99)', value: 'product-prod-home-001', type: 'product' },
+  { label: 'CleanForce Cordless Stick Vacuum ($299.99)', value: 'product-prod-home-002', type: 'product' },
+  { label: 'EcoTemp Smart Thermostat ($129.99)', value: 'product-prod-home-004', type: 'product' },
+  { label: 'PowerDrill 20V Cordless Drill Kit ($119.99)', value: 'product-prod-home-005', type: 'product' },
 ];
 
 /** Strategic objective options */
@@ -39,6 +56,7 @@ interface FormErrors {
 }
 
 export default function PricingRequestForm() {
+  const navigate = useNavigate();
   const [pricingGroup, setPricingGroup] = useState('');
   const [objectives, setObjectives] = useState<string[]>([]);
   const [minMargin, setMinMargin] = useState('');
@@ -92,23 +110,17 @@ export default function PricingRequestForm() {
         pricingGroup,
         objectives,
         constraints: {
-          minMargin: minMargin ? parseFloat(minMargin) : undefined,
-          maxPriceChange: maxPriceChange ? parseFloat(maxPriceChange) : undefined,
-          channelRestrictions: channelRestrictions.length > 0 ? channelRestrictions : undefined,
+          ...(minMargin ? { minMargin: parseFloat(minMargin) } : {}),
+          ...(maxPriceChange ? { maxPriceChange: parseFloat(maxPriceChange) } : {}),
+          ...(channelRestrictions.length > 0 ? { channelRestrictions } : {}),
         },
       };
 
       const response = await api.post('/pricing-cycles', payload);
       const cycleId = response.data.cycleId;
-      setSuccessMessage(`Pricing cycle initiated successfully. Cycle ID: ${cycleId}`);
 
-      // Reset form
-      setPricingGroup('');
-      setObjectives([]);
-      setMinMargin('');
-      setMaxPriceChange('');
-      setChannelRestrictions([]);
-      setErrors({});
+      // Navigate to the cycle detail page to watch agents work
+      navigate(`/cycles/${cycleId}`);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to submit pricing request. Please try again.';
@@ -163,8 +175,8 @@ export default function PricingRequestForm() {
                 </option>
               ))}
             </optgroup>
-            <optgroup label="Product Family">
-              {PRICING_GROUPS.filter((g) => g.type === 'product-family').map((g) => (
+            <optgroup label="Individual Products">
+              {PRICING_GROUPS.filter((g) => g.type === 'product').map((g) => (
                 <option key={g.value} value={g.value}>
                   {g.label}
                 </option>

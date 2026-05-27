@@ -68,7 +68,7 @@ export default function ScenarioList({ cycleId }: ScenarioListProps) {
       );
       const data = response.data;
       setScenarios(data.scenarios ?? data.items ?? []);
-      setTotalPages(data.totalPages ?? Math.ceil((data.total ?? 0) / PAGE_SIZE) || 1);
+      setTotalPages(data.totalPages ?? (Math.ceil((data.total ?? 0) / PAGE_SIZE) || 1));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load scenarios';
       setError(message);
@@ -166,6 +166,9 @@ export default function ScenarioList({ cycleId }: ScenarioListProps) {
                 Projected Margin
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Approval
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -250,6 +253,24 @@ function ScenarioRow({
           {formatPercent(scenario.projectedMargin)}
         </td>
         <td className="px-4 py-3 whitespace-nowrap">
+          {scenario.approvalStatus ? (
+            <div>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                scenario.approvalStatus === 'APPROVED'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {scenario.approvalStatus === 'APPROVED' ? '✓ Approved' : '✗ Rejected'}
+              </span>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                {scenario.approvedBy === 'system-auto-approval' ? '⚡ Auto (STP)' : scenario.approvedBy ?? ''}
+              </p>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-400 italic">Pending</span>
+          )}
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
           <button
             className="text-blue-600 hover:text-blue-800 text-sm font-medium"
             onClick={(e) => {
@@ -263,7 +284,7 @@ function ScenarioRow({
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={6} className="px-0 py-0">
+          <td colSpan={7} className="px-0 py-0">
             <ScenarioDetail scenario={scenario} showContributingFactors={isTop3} />
           </td>
         </tr>

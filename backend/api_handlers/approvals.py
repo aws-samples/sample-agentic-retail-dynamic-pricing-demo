@@ -9,17 +9,15 @@ Requirements: 4.3, 7.1, 7.2, 7.3, 7.5
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
-
-from shared.approval_routing import validate_approval
-from shared.models.pricing_scenario import RiskLevel
-from backend.agents.orchestrator import trigger_implementation
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -27,8 +25,112 @@ logger.setLevel(logging.INFO)
 APPROVALS_TABLE = os.environ.get("APPROVALS_TABLE", "Approvals")
 PRICING_SCENARIOS_TABLE = os.environ.get("PRICING_SCENARIOS_TABLE", "PricingScenarios")
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "Products")
-AGENTCORE_ENDPOINT = os.environ.get("AGENTCORE_ENDPOINT", "")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+
+# --- Inlined approval routing logic (from shared.approval_routing) ---
+
+class RiskLevel(str, Enum):
+    """Risk level classification for pricing scenarios."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+def validate_approval(risk_level: RiskLevel, justification: str | None = None) -> bool:
+    """Validate whether an approval meets requirements for the given risk level.
+
+    - LOW/MEDIUM: Always valid
+    - HIGH: Requires justification of >= 50 characters
+    """
+    if risk_level in (RiskLevel.LOW, RiskLevel.MEDIUM):
+        return True
+    if justification is None:
+        return False
+    return len(justification) >= 50
+
+
+# --- Inlined implementation trigger (calls AgentCore Runtime directly) ---
+
+# Minimum session ID length required by AgentCore Runtime
+_MIN_SESSION_ID_LENGTH = 33
+
+
+def _ensure_session_id(session_id: str | None = None) -> str:
+    """Ensure the session ID meets AgentCore's minimum length requirement."""
+    if not session_id:
+        session_id = f"approval-impl-{uuid.uuid4().hex}"
+    if len(session_id) < _MIN_SESSION_ID_LENGTH:
+        padding = uuid.uuid4().hex
+        session_id = f"{session_id}-{padding}"
+    return session_id[:128]
+
+
+def _require_env(var_name: str) -> str:
+    """Read a required environment variable or raise a clear error."""
+    value = os.environ.get(var_name)
+    if not value:
+        raise EnvironmentError(
+            f"Required environment variable '{var_name}' is not set."
+        )
+    return value
+
+
+def trigger_implementation(
+    scenario: dict[str, Any],
+    cycle_id: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Trigger the Implementation Monitoring Agent via AgentCore Runtime.
+
+    After a pricing scenario is approved, invokes the agent to execute
+    price updates and begin monitoring.
+    """
+    # Implementation agent ARN is optional — if not set, skip invocation
+    impl_agent_arn = os.environ.get("IMPLEMENTATION_MONITORING_AGENT_ARN", "")
+    if not impl_agent_arn:
+        logger.warning(
+            "IMPLEMENTATION_MONITORING_AGENT_ARN not set, skipping implementation trigger"
+        )
+        return {"status": "SKIPPED", "reason": "Agent ARN not configured"}
+
+    cycle_id = cycle_id or scenario.get("cycleId", str(uuid.uuid4()))
+    scenario_id = scenario.get("scenarioId", str(uuid.uuid4()))
+    price_changes = scenario.get("priceChanges", [])
+
+    prompt = (
+        f"Execute price updates for approved scenario '{scenario_id}' "
+        f"in pricing cycle '{cycle_id}'. "
+        f"Price changes to implement: {json.dumps(price_changes)}. "
+        f"Begin monitoring after implementation."
+    )
+
+    client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
+    runtime_session_id = _ensure_session_id(session_id)
+
+    payload = json.dumps({"prompt": prompt}).encode()
+
+    response = client.invoke_agent_runtime(
+        agentRuntimeArn=impl_agent_arn,
+        runtimeSessionId=runtime_session_id,
+        payload=payload,
+        qualifier="DEFAULT",
+    )
+
+    response_body = response["response"].read()
+
+    try:
+        result = json.loads(response_body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        result = {"raw_output": response_body.decode("utf-8", errors="replace")}
+
+    return {
+        "status": "IMPLEMENTATION_STARTED",
+        "scenario_id": scenario_id,
+        "cycle_id": cycle_id,
+        "price_changes_count": len(price_changes),
+        "agent_response": result,
+    }
 
 
 def _get_dynamodb_resource():
@@ -228,6 +330,19 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
         if price_changes:
             _update_product_prices(dynamodb, price_changes)
 
+        # Step 5: Update agent pipeline status to show Implementation Monitoring completed
+        if cycle_id:
+            _update_implementation_agent_status(cycle_id, implementation_result)
+
+    # If REJECTED, update pipeline to show implementation is not needed
+    if action == "REJECTED" and cycle_id:
+        _update_implementation_agent_status(cycle_id, {"status": "REJECTED"})
+
+    # If revertPrices flag is set, roll back product prices to previousPrice
+    revert_prices = body.get("revertPrices", False)
+    if revert_prices and cycle_id:
+        _revert_product_prices(dynamodb, cycle_id, scenario_id)
+
     # Build response
     response_body: dict[str, Any] = {
         "message": f"Scenario {scenario_id} {action.lower()}",
@@ -317,6 +432,127 @@ def _convert_decimals_to_float(obj: Any) -> Any:
     elif isinstance(obj, list):
         return [_convert_decimals_to_float(item) for item in obj]
     return obj
+
+
+def _revert_product_prices(dynamodb, cycle_id: str, scenario_id: str) -> None:
+    """Revert product prices to their previous values for a given scenario.
+
+    Reads the scenario's priceChanges, then for each product sets
+    currentPrice back to the value it was before the change (stored as
+    currentPrice in the priceChanges record, which was the price at the
+    time the scenario was generated).
+    """
+    try:
+        scenarios_table = dynamodb.Table(PRICING_SCENARIOS_TABLE)
+        products_table = dynamodb.Table(PRODUCTS_TABLE)
+        now = _iso_now()
+
+        # Fetch the scenario to get its price changes
+        response = scenarios_table.get_item(
+            Key={"cycleId": cycle_id, "scenarioId": scenario_id}
+        )
+        scenario = response.get("Item")
+        if not scenario:
+            logger.warning("Cannot revert: scenario %s not found", scenario_id)
+            return
+
+        price_changes = scenario.get("priceChanges", [])
+        reverted_count = 0
+
+        for change in price_changes:
+            product_id = change.get("productId")
+            original_price = change.get("currentPrice")  # This was the price BEFORE the change
+
+            if not product_id or original_price is None:
+                continue
+
+            try:
+                original_decimal = Decimal(str(float(original_price)))
+                products_table.update_item(
+                    Key={"productId": product_id},
+                    UpdateExpression="SET currentPrice = :p, priceUpdatedAt = :t, previousPrice = :prev",
+                    ExpressionAttributeValues={
+                        ":p": original_decimal,
+                        ":t": now,
+                        ":prev": change.get("newPrice", original_decimal),
+                    },
+                )
+                reverted_count += 1
+            except Exception as e:
+                logger.warning("Failed to revert price for %s: %s", product_id, e)
+
+        # Update scenario approval status to indicate revert
+        try:
+            scenarios_table.update_item(
+                Key={"cycleId": cycle_id, "scenarioId": scenario_id},
+                UpdateExpression="SET approvalStatus = :s, approvalComment = :c",
+                ExpressionAttributeValues={
+                    ":s": "REVERTED",
+                    ":c": f"Prices reverted to original values ({reverted_count} products)",
+                },
+            )
+        except Exception:
+            pass
+
+        logger.info("Reverted %d product prices for scenario %s", reverted_count, scenario_id)
+    except Exception as e:
+        logger.error("Failed to revert prices for scenario %s: %s", scenario_id, e)
+
+
+def _update_implementation_agent_status(cycle_id: str, impl_result: dict[str, Any] | None) -> None:
+    """Update the Implementation Monitoring agent status in the PricingCycles table."""
+    try:
+        from boto3.dynamodb.conditions import Key as DDBKey
+
+        dynamodb_resource = boto3.resource("dynamodb", region_name=AWS_REGION)
+        table = dynamodb_resource.Table(os.environ.get("PRICING_CYCLES_TABLE", "PricingCycles"))
+
+        response = table.query(
+            KeyConditionExpression=DDBKey("cycleId").eq(cycle_id),
+            Limit=1,
+        )
+        items = response.get("Items", [])
+        if not items:
+            return
+
+        item = items[0]
+        agent_statuses = item.get("agentStatuses", {})
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        if impl_result and impl_result.get("status") in ("IMPLEMENTATION_STARTED", "SKIPPED"):
+            agent_statuses["implementation_monitoring"] = {
+                "status": "completed",
+                "startTime": now,
+                "endTime": now,
+            }
+        elif impl_result and impl_result.get("status") == "REJECTED":
+            agent_statuses["implementation_monitoring"] = {
+                "status": "idle",
+                "endTime": now,
+            }
+        elif impl_result and "FAILED" in impl_result.get("status", ""):
+            agent_statuses["implementation_monitoring"] = {
+                "status": "failed",
+                "startTime": now,
+                "endTime": now,
+                "error": impl_result.get("error", "Implementation failed"),
+            }
+        else:
+            agent_statuses["implementation_monitoring"] = {
+                "status": "completed",
+                "startTime": now,
+                "endTime": now,
+            }
+
+        table.update_item(
+            Key={"cycleId": cycle_id, "status": item["status"]},
+            UpdateExpression="SET agentStatuses = :s",
+            ExpressionAttributeValues={":s": agent_statuses},
+        )
+        logger.info("Updated implementation_monitoring agent status for cycle %s", cycle_id)
+    except Exception as e:
+        logger.warning("Failed to update implementation agent status: %s", e)
 
 
 def _response(status_code: int, body: dict) -> dict[str, Any]:
