@@ -1,7 +1,7 @@
 # Bedrock Guardrails Integration - Rollback Instructions
 
 ## What Was Added
-- **Guardrail ID**: `mgu29odtpk6m`
+- **Guardrail ID**: `<GUARDRAIL_ID>`
 - **Version**: `1`
 - **Region**: `us-east-1`
 - **Account**: `<ACCOUNT_ID>`
@@ -33,7 +33,7 @@ This causes `get_guardrail_config()` to return an empty dict, bypassing the guar
 
 ### Option 2: Delete the Guardrail
 ```bash
-aws bedrock delete-guardrail --guardrail-identifier mgu29odtpk6m --region us-east-1
+aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-east-1
 ```
 The agents will get an error on the guardrail call and fall back to unguarded behavior (Strands handles missing guardrails gracefully).
 

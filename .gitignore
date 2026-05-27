@@ -40,6 +40,9 @@ frontend/storefront/dist/
 .env.*.local
 scripts/agent_arns.env
 
+# Kiro (internal development tooling)
+.kiro/
+
 # OS
 .DS_Store
 Thumbs.db

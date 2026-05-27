@@ -8,16 +8,16 @@
 
 | Document | Description |
 |----------|-------------|
-| [QUICK_START.md](QUICK_START.md) | Setup and deployment instructions |
+| [QUICK_START.md](QUICK_START.md) | Concise setup and deployment steps |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Solution architecture, data flow, agent design |
 | [DEMO_SCRIPT.md](DEMO_SCRIPT.md) | 5-minute demo walkthrough script |
+| [deployment_guide.md](deployment_guide.md) | Detailed deployment guide with environment variables |
+| [agent_testing_guide.md](agent_testing_guide.md) | Agent testing procedures and harness usage |
 | [GUIDANCE_ALIGNMENT.md](GUIDANCE_ALIGNMENT.md) | Mapping to AWS Guidance Paper |
 | [TCO_ESTIMATE.md](TCO_ESTIMATE.md) | Total Cost of Ownership analysis |
-| [ROLLBACK_GUIDE.md](ROLLBACK_GUIDE.md) | How to revert any feature |
-| [GUARDRAILS_ROLLBACK.md](GUARDRAILS_ROLLBACK.md) | Bedrock Guardrails details |
-| [MCP_DATA_INTEGRATION_ROLLBACK.md](MCP_DATA_INTEGRATION_ROLLBACK.md) | MCP data parsing details |
-| [deployment_guide.md](deployment_guide.md) | Original deployment guide |
-| [agent_testing_guide.md](agent_testing_guide.md) | Agent testing procedures |
+| [ROLLBACK_GUIDE.md](ROLLBACK_GUIDE.md) | Consolidated rollback instructions for all features |
+| [GUARDRAILS_ROLLBACK.md](GUARDRAILS_ROLLBACK.md) | Bedrock Guardrails integration details |
+| [MCP_DATA_INTEGRATION_ROLLBACK.md](MCP_DATA_INTEGRATION_ROLLBACK.md) | MCP data parsing integration details |
 
 ---
 
@@ -38,30 +38,29 @@
 
 ---
 
-### Key URLs (Current Deployment)
+### Key URLs (After Deployment)
 
 | Resource | URL |
 |----------|-----|
-| Dashboard | https://<DASHBOARD_CLOUDFRONT_DOMAIN> |
-| Storefront | https://<STOREFRONT_CLOUDFRONT_DOMAIN> |
-| API Gateway | https://<API_GATEWAY_ID>.execute-api.<REGION>.amazonaws.com/prod/ |
-| Login | <COGNITO_DEMO_USER> / <COGNITO_DEMO_PASSWORD> |
+| Dashboard | `https://<DASHBOARD_CLOUDFRONT_DOMAIN>` |
+| Storefront | `https://<STOREFRONT_CLOUDFRONT_DOMAIN>` |
+| API Gateway | `https://<API_GATEWAY_URL>/prod/` |
+| Login | `<COGNITO_DEMO_USER>` / `<COGNITO_DEMO_PASSWORD>` |
 
 ---
 
 ### AWS Services Used
 
-- Amazon Bedrock (Foundation Models)
+- Amazon Bedrock (Foundation Models — Claude Opus 4, Sonnet 4)
 - Amazon Bedrock AgentCore (Runtime, Gateway, Memory, Identity, Observability)
 - Amazon Bedrock Guardrails
-- AWS Lambda
-- Amazon API Gateway
-- Amazon DynamoDB
-- Amazon Cognito
-- Amazon CloudFront
-- Amazon S3
-- Amazon ECR
+- AWS Lambda (Python 3.12)
+- Amazon API Gateway (REST)
+- Amazon DynamoDB (4 tables, on-demand)
+- Amazon Cognito (User Pool + Hosted UI)
+- Amazon CloudFront (2 distributions)
+- Amazon S3 (static hosting)
+- Amazon ECR (6 agent container repositories)
 - AWS IAM
 - AWS CloudWatch
-- AWS Cost Explorer
 - AWS CDK (Infrastructure as Code)

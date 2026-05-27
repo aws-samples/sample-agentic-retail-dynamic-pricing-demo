@@ -18,7 +18,7 @@ DISABLE_BEDROCK_GUARDRAILS=true
 
 **Rollback (permanent):**
 ```bash
-aws bedrock delete-guardrail --guardrail-identifier mgu29odtpk6m --region us-east-1
+aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-east-1
 ```
 
 **Details:** See `docs/GUARDRAILS_ROLLBACK.md`
@@ -75,13 +75,13 @@ npx cdk destroy --all
 python scripts/deploy_agentcore.py --delete --region us-east-1
 
 # Delete Guardrail
-aws bedrock delete-guardrail --guardrail-identifier mgu29odtpk6m --region us-east-1
+aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-east-1
 
 # Delete AgentCore Memory
 aws bedrock-agentcore-control delete-memory-store \
-  --memory-id RetailDynamicPricingMemory-NpUejX97Kj --region us-east-1
+  --memory-id <AGENTCORE_MEMORY_ID> --region us-east-1
 
 # Delete AgentCore Gateway
 aws bedrock-agentcore-control delete-gateway \
-  --gateway-id retail-pricing-gateway-844uj8brbs --region us-east-1
+  --gateway-id <AGENTCORE_GATEWAY_ID> --region us-east-1
 ```
