@@ -59,8 +59,8 @@ class ApiHandlersConstruct(Construct):
             description="REST API for Retail Dynamic Pricing system",
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=[
-                    "https://d2jfxf5nmj4tvq.cloudfront.net",
-                    "https://df5n71gqbb4e4.cloudfront.net",
+                    "https://<DASHBOARD_CLOUDFRONT_DOMAIN>",
+                    "https://<STOREFRONT_CLOUDFRONT_DOMAIN>",
                     "http://localhost:5173",
                 ],
                 allow_methods=apigw.Cors.ALL_METHODS,
@@ -110,9 +110,8 @@ class ApiHandlersConstruct(Construct):
                 "AWS_REGION_NAME": cdk.Aws.REGION,
                 # Orchestrator Agent ARN — the Lambda invokes only the orchestrator,
                 # which in turn coordinates the other 5 agents on AgentCore.
-                "ORCHESTRATOR_AGENT_ARN": os.environ.get(
-                    "ORCHESTRATOR_AGENT_ARN", ""
-                ),
+                # Read from ORCHESTRATOR_AGENT_ARN env var or scripts/agent_arns.env
+                "ORCHESTRATOR_AGENT_ARN": self._get_agent_arn("ORCHESTRATOR_AGENT_ARN"),
             },
             timeout_seconds=300,  # 5 min for async AgentCore invocations
         )
@@ -124,7 +123,11 @@ class ApiHandlersConstruct(Construct):
             iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
                 actions=["lambda:InvokeFunction"],
-                resources=[self.pricing_cycles_fn.function_arn],
+                resources=[
+                    cdk.Fn.sub(
+                        "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:rdp-api-pricing-cycles"
+                    )
+                ],
             )
         )
 
@@ -315,3 +318,28 @@ class ApiHandlersConstruct(Construct):
         cdk.Tags.of(fn).add("Handler", name)
 
         return fn
+
+    @staticmethod
+    def _get_agent_arn(key: str) -> str:
+        """Read an agent ARN from environment variable or scripts/agent_arns.env file.
+
+        Falls back to the env file if the environment variable is not set,
+        ensuring CDK deploys don't wipe previously configured ARNs.
+        """
+        # First check environment variable
+        value = os.environ.get(key, "")
+        if value:
+            return value
+
+        # Fall back to scripts/agent_arns.env
+        env_file = Path(__file__).parent.parent.parent / "scripts" / "agent_arns.env"
+        if env_file.exists():
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == key:
+                    return v.strip()
+
+        return ""

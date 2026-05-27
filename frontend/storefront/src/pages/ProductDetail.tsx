@@ -76,8 +76,9 @@ export default function ProductDetail() {
     );
   }
 
-  const priceChanged = product.currentPrice !== product.previousPrice;
-  const priceIncreased = product.currentPrice > product.previousPrice;
+  const hasPreviousPrice = product.previousPrice != null && product.previousPrice > 0;
+  const priceChanged = hasPreviousPrice && product.currentPrice !== product.previousPrice;
+  const priceIncreased = priceChanged && product.currentPrice > product.previousPrice!;
 
   return (
     <div>
@@ -130,20 +131,20 @@ export default function ProductDetail() {
           {/* Pricing */}
           <div className="mt-6 flex items-baseline gap-3">
             <span className="text-3xl font-bold text-gray-900">
-              ${product.currentPrice.toFixed(2)}
+              ${(product.currentPrice ?? 0).toFixed(2)}
             </span>
 
-            {priceChanged && (
+            {hasPreviousPrice && priceChanged && (
               <span
                 className={`text-lg line-through ${
                   priceIncreased ? 'text-gray-400' : 'text-red-400'
                 }`}
               >
-                ${product.previousPrice.toFixed(2)}
+                ${(product.previousPrice ?? 0).toFixed(2)}
               </span>
             )}
 
-            {priceChanged && (
+            {hasPreviousPrice && priceChanged && (
               <span
                 className={`inline-flex items-center gap-0.5 text-sm font-medium ${
                   priceIncreased ? 'text-red-600' : 'text-green-600'
@@ -151,8 +152,8 @@ export default function ProductDetail() {
               >
                 {priceIncreased ? '↑' : '↓'}
                 {Math.abs(
-                  ((product.currentPrice - product.previousPrice) /
-                    product.previousPrice) *
+                  ((product.currentPrice - product.previousPrice!) /
+                    product.previousPrice!) *
                     100
                 ).toFixed(1)}
                 %

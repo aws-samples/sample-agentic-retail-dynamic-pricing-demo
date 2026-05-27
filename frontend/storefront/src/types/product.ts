@@ -6,7 +6,7 @@ export interface Product {
   category: string;
   subCategory: string;
   currentPrice: number;
-  previousPrice: number;
+  previousPrice: number | null;
   priceUpdatedAt: string;
   recentlyUpdated: boolean;
   productFamily?: string;

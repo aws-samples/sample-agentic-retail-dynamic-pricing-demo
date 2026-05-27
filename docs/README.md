@@ -42,10 +42,10 @@
 
 | Resource | URL |
 |----------|-----|
-| Dashboard | https://d2jfxf5nmj4tvq.cloudfront.net |
-| Storefront | https://df5n71gqbb4e4.cloudfront.net |
-| API Gateway | https://0svdfgyfg4.execute-api.us-east-1.amazonaws.com/prod/ |
-| Login | demo@example.com / DemoPass123! |
+| Dashboard | https://<DASHBOARD_CLOUDFRONT_DOMAIN> |
+| Storefront | https://<STOREFRONT_CLOUDFRONT_DOMAIN> |
+| API Gateway | https://<API_GATEWAY_ID>.execute-api.<REGION>.amazonaws.com/prod/ |
+| Login | <COGNITO_DEMO_USER> / <COGNITO_DEMO_PASSWORD> |
 
 ---
 

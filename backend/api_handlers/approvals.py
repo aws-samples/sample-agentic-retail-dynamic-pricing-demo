@@ -389,6 +389,13 @@ def _update_product_prices(
         try:
             # Convert to Decimal for DynamoDB
             new_price_decimal = Decimal(str(new_price))
+
+            # Always read the current price from DynamoDB to ensure previousPrice is set
+            if current_price is None:
+                existing = products_table.get_item(Key={"productId": product_id})
+                item = existing.get("Item", {})
+                current_price = item.get("currentPrice")
+
             previous_price_decimal = (
                 Decimal(str(current_price)) if current_price is not None else None
             )

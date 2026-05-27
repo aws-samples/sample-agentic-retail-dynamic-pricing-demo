@@ -8,9 +8,9 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ## Setup Before Demo
 
-- **Dashboard URL:** `https://d2jfxf5nmj4tvq.cloudfront.net`
-- **Storefront URL:** `https://df5n71gqbb4e4.cloudfront.net`
-- **Login:** `demo@example.com` / `DemoPass123!`
+- **Dashboard URL:** `https://<DASHBOARD_CLOUDFRONT_DOMAIN>`
+- **Storefront URL:** `https://<STOREFRONT_CLOUDFRONT_DOMAIN>`
+- **Login:** `<COGNITO_DEMO_USER>` / `<COGNITO_DEMO_PASSWORD>`
 - Open both URLs in separate browser tabs
 - Log into the Dashboard
 

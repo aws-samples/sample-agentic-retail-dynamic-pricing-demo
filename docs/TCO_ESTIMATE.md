@@ -2,7 +2,7 @@
 ## Dynamic Pricing for Retail — Agentic AI Solution
 
 **Date:** May 2026
-**Account:** 057079472075
+**Account:** <ACCOUNT_ID>
 **Region:** us-east-1
 
 ---

@@ -137,8 +137,72 @@ function OverviewTab() {
         <AnalyticsCard label="AI Agents" value="6" subtext="on AgentCore Runtime" icon="🤖" color="indigo" />
       </div>
 
-      {/* Architecture Diagram */}
-      <ArchitectureDiagram />
+      {/* Architecture Diagram + Process Flow Explainer */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ArchitectureDiagram />
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 flex flex-col">
+          <h3 className="text-sm font-semibold text-gray-900 mb-1">How a Pricing Request is Processed</h3>
+          <p className="text-[10px] text-gray-500 mb-4">Step-by-step flow from request to price update</p>
+          <ol className="space-y-3 text-xs text-gray-700">
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">1</span>
+              <div>
+                <p className="font-semibold text-gray-900">Pricing Request Submitted</p>
+                <p className="text-gray-500 mt-0.5">A product manager submits a request via the Dashboard, specifying the product group, objectives (e.g. margin protection), and constraints.</p>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">2</span>
+              <div>
+                <p className="font-semibold text-gray-900">Orchestrator Dispatches Agents</p>
+                <p className="text-gray-500 mt-0.5">The Orchestrator Agent (Claude Opus 4) breaks the task into parallel sub-tasks and dispatches Competitive Intel, Demand Forecasting, and Market Intelligence agents simultaneously.</p>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold">3</span>
+              <div>
+                <p className="font-semibold text-gray-900">MCP Servers Provide Data</p>
+                <p className="text-gray-500 mt-0.5">Each agent calls its MCP Server (Competitor API, ERP/POS, Market Signals, Cost & Finance) via the AgentCore Gateway to gather real-time intelligence.</p>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">4</span>
+              <div>
+                <p className="font-semibold text-gray-900">Strategy Synthesis</p>
+                <p className="text-gray-500 mt-0.5">The Strategy Synthesis Agent combines all intelligence into 3 ranked pricing scenarios (Aggressive, Balanced, Conservative), each with projected impact.</p>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-bold">5</span>
+              <div>
+                <p className="font-semibold text-gray-900">Guardrail Validation</p>
+                <p className="text-gray-500 mt-0.5">Bedrock Guardrails check all scenarios against 4 denied-topic policies (anti-competitive, discriminatory, predatory pricing, PII exposure).</p>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold">6</span>
+              <div>
+                <p className="font-semibold text-gray-900">Risk-Based Approval</p>
+                <p className="text-gray-500 mt-0.5">LOW risk → auto-approved (STP). MEDIUM/HIGH risk → routed to human decision-maker with full context and AI rationale.</p>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold">7</span>
+              <div>
+                <p className="font-semibold text-gray-900">Price Implementation & Monitoring</p>
+                <p className="text-gray-500 mt-0.5">Approved prices are applied. The Implementation Monitor agent tracks variance and triggers corrective recommendations if actuals deviate from projections.</p>
+              </div>
+            </li>
+          </ol>
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            <p className="text-[10px] text-gray-500 leading-relaxed">
+              <span className="font-semibold text-gray-700">Total time:</span> ~55 seconds end-to-end. The entire loop is closed — monitoring feeds back into future pricing decisions via AgentCore Memory.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Architecture & Data Sources */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -4,7 +4,7 @@
 - **Guardrail ID**: `mgu29odtpk6m`
 - **Version**: `1`
 - **Region**: `us-east-1`
-- **Account**: `057079472075`
+- **Account**: `<ACCOUNT_ID>`
 
 ## Policies Configured
 1. **PredatoryPricing** (DENY) - Blocks strategies to sell below cost to eliminate competitors

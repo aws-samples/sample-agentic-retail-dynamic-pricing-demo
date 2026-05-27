@@ -338,7 +338,7 @@ def create_or_update_agent_runtime(
                     runtime_name, rt_names,
                 )
                 # Return a placeholder ARN — the runtime exists, we just can't find its ARN
-                return f"arn:aws:bedrock-agentcore:{region}:057079472075:runtime/{runtime_name}"
+                return f"arn:aws:bedrock-agentcore:{region}:<ACCOUNT_ID>:runtime/{runtime_name}"
             except ClientError as list_err:
                 logger.error("Failed to list runtimes for recovery: %s", list_err)
                 raise e
