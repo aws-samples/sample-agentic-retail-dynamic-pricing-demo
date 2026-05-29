@@ -252,7 +252,6 @@ def _invoke_orchestrator(
         agentRuntimeArn=ORCHESTRATOR_AGENT_ARN,
         runtimeSessionId=runtime_session_id,
         payload=payload,
-        qualifier="DEFAULT",
     )
 
     response_body = response["response"].read()
@@ -641,27 +640,18 @@ def _parse_and_store_scenarios(
 ) -> list[dict[str, Any]]:
     """Parse orchestrator response and store pricing scenarios in DynamoDB.
 
-    The orchestrator agent returns AI-generated analysis. We parse structured
-    scenarios from the response, or generate data-driven scenarios based on
-    the product catalog and the AI's recommendations.
+    The orchestrator agent returns AI-generated analysis. We use the MCP data
+    from the response to enrich contributing factors, but always generate
+    scenarios locally to ensure consistent alignment between objectives,
+    constraints, and price direction.
     """
-    # Try to extract scenarios from orchestrator response
-    scenarios = []
-
-    # Check if the orchestrator returned structured scenarios
-    if isinstance(orchestrator_result, dict):
-        raw_scenarios = orchestrator_result.get("scenarios", [])
-        if isinstance(raw_scenarios, list) and len(raw_scenarios) > 0:
-            scenarios = raw_scenarios
-
-    # If no structured scenarios, generate them from product data + AI rationale
-    if not scenarios:
-        # Extract MCP server data from orchestrator response (if available)
-        mcp_data = _extract_mcp_data(orchestrator_result)
-        scenarios = _generate_scenarios_from_products(
-            cycle_id, pricing_group, objectives, constraints, orchestrator_result,
-            mcp_data=mcp_data,
-        )
+    # Always generate scenarios from product data + orchestrator intelligence
+    # This ensures price direction aligns with the scenario context (objectives/constraints)
+    mcp_data = _extract_mcp_data(orchestrator_result)
+    scenarios = _generate_scenarios_from_products(
+        cycle_id, pricing_group, objectives, constraints, orchestrator_result,
+        mcp_data=mcp_data,
+    )
 
     # Write scenarios to DynamoDB
     resource = _get_dynamodb_resource()
@@ -803,6 +793,103 @@ def _extract_mcp_data(orchestrator_result: dict[str, Any]) -> dict[str, Any] | N
     return None
 
 
+def _infer_scenario_context(
+    objectives: list[str],
+    constraints: dict[str, Any],
+) -> dict[str, Any]:
+    """Infer scenario context from objectives and constraints to align strategy biases.
+
+    Maps business objectives to appropriate price direction biases so that:
+    - margin_protection → prices increase (protect margins from rising costs)
+    - revenue_maximization → prices increase (capture more revenue)
+    - competitive_positioning → prices decrease (match/undercut competitors)
+    - market_share_growth → prices decrease (attract more customers)
+
+    The conservative (LOW risk, auto-approved) scenario should always align
+    with the primary objective's natural direction.
+    """
+    # Determine the dominant price direction from objectives
+    increase_signals = 0
+    decrease_signals = 0
+
+    for i, obj in enumerate(objectives):
+        # First objective gets slightly more weight (it's the primary goal)
+        weight_bonus = 1 if i == 0 and len(objectives) > 1 else 0
+        if obj in ("margin_protection",):
+            increase_signals += 2 + weight_bonus  # Strong signal to increase
+        elif obj in ("revenue_maximization",):
+            increase_signals += 1 + weight_bonus  # Moderate signal to increase
+        elif obj in ("competitive_positioning",):
+            decrease_signals += 2 + weight_bonus  # Strong signal to decrease
+        elif obj in ("market_share_growth",):
+            decrease_signals += 1 + weight_bonus  # Moderate signal to decrease
+
+    # High minMargin constraint also signals price increases
+    min_margin = constraints.get("minMargin", 15)
+    if min_margin >= 25:
+        increase_signals += 1
+
+    # High maxPriceChange with decrease signals suggests clearance/aggressive cuts
+    max_change = constraints.get("maxPriceChange", 10)
+    if max_change >= 25 and decrease_signals > 0:
+        decrease_signals += 1
+
+    # Very low minMargin + high maxPriceChange = clearance pattern
+    # (willing to accept thin margins with big price swings → markdown scenario)
+    if min_margin <= 8 and max_change >= 25:
+        decrease_signals += 2
+
+    # Determine bias direction
+    if increase_signals > decrease_signals:
+        # Scenario favors price increases (e.g., Supply Chain Disruption, Premium, Low Inventory)
+        # Distinguish between cost-pressure (supply chain) and other increase scenarios
+        # Cost pressure: margin_protection is the PRIMARY (first) objective
+        is_cost_pressure = (
+            len(objectives) > 0
+            and objectives[0] == "margin_protection"
+            and min_margin < 30
+        )
+        # Low inventory: revenue_maximization is primary with high min margin
+        is_scarcity = (
+            len(objectives) > 0
+            and objectives[0] == "revenue_maximization"
+            and "margin_protection" in objectives
+            and min_margin >= 20
+        )
+        return {
+            "aggressive_bias": 0.9,       # Strong increase
+            "balanced_bias": 0.5,         # Moderate increase
+            "conservative_bias": 0.4,     # Meaningful increase (safe, auto-approved)
+            "direction": "increase",
+            "supply_chain_risk": "high" if is_cost_pressure else "low",
+            "demand_trend": "high_demand" if is_scarcity else "stable",
+            "inventory_status": "critical" if is_scarcity else "healthy",
+            "competitive_pressure": "moderate",
+        }
+    elif decrease_signals > increase_signals:
+        # Scenario favors price decreases (e.g., Competitor Price War, Clearance)
+        return {
+            "aggressive_bias": -0.8,      # Strong decrease
+            "balanced_bias": -0.3,        # Moderate decrease
+            "conservative_bias": -0.15,   # Small decrease (safe, auto-approved)
+            "direction": "decrease",
+            "supply_chain_risk": "low",
+            "demand_trend": "declining" if max_change >= 25 else "stable",
+            "competitive_pressure": "high" if "competitive_positioning" in objectives else "moderate",
+        }
+    else:
+        # Mixed signals — balanced approach
+        return {
+            "aggressive_bias": 0.5,       # Moderate increase
+            "balanced_bias": 0.0,         # Neutral
+            "conservative_bias": -0.2,    # Small decrease
+            "direction": "mixed",
+            "supply_chain_risk": "moderate",
+            "demand_trend": "growing",
+            "competitive_pressure": "moderate",
+        }
+
+
 def _generate_scenarios_from_products(
     cycle_id: str,
     pricing_group: str,
@@ -868,10 +955,29 @@ def _generate_scenarios_from_products(
     min_margin = constraints.get("minMargin", 15) / 100 if constraints.get("minMargin") else 0.15
     max_change = constraints.get("maxPriceChange", 10) / 100 if constraints.get("maxPriceChange") else 0.10
 
+    # Determine scenario context from objectives to align strategy biases
+    # with the narrative (e.g., margin_protection → prices should increase)
+    scenario_context = _infer_scenario_context(objectives, constraints)
+
     strategies = [
-        {"name": "Aggressive Growth", "bias": 0.7, "risk": "HIGH", "confidence": 72},
-        {"name": "Balanced Optimization", "bias": 0.0, "risk": "MEDIUM", "confidence": 85},
-        {"name": "Conservative Protection", "bias": -0.5, "risk": "LOW", "confidence": 91},
+        {
+            "name": "Aggressive Growth",
+            "bias": scenario_context["aggressive_bias"],
+            "risk": "HIGH",
+            "confidence": 72,
+        },
+        {
+            "name": "Balanced Optimization",
+            "bias": scenario_context["balanced_bias"],
+            "risk": "MEDIUM",
+            "confidence": 85,
+        },
+        {
+            "name": "Conservative Protection",
+            "bias": scenario_context["conservative_bias"],
+            "risk": "LOW",
+            "confidence": 91,
+        },
     ]
 
     scenarios = []
@@ -891,8 +997,18 @@ def _generate_scenarios_from_products(
             # Calculate price change based on strategy
             # Positive bias = price increase, negative = decrease
             random.seed(hash(f"{scenario_id}-{product.get('productId', '')}"))
-            base_change = random.uniform(-max_change, max_change)
-            adjusted_change = base_change + (strategy["bias"] * max_change * 0.5)
+            # Shift the random range in the direction of the bias to ensure
+            # the price change aligns with the scenario context
+            bias = strategy["bias"]
+            if bias > 0:
+                # For increase scenarios: random range shifted upward
+                base_change = random.uniform(-max_change * 0.3, max_change)
+            elif bias < 0:
+                # For decrease scenarios: random range shifted downward
+                base_change = random.uniform(-max_change, max_change * 0.3)
+            else:
+                base_change = random.uniform(-max_change, max_change)
+            adjusted_change = base_change + (bias * max_change * 0.8)
             adjusted_change = max(-max_change, min(max_change, adjusted_change))
 
             new_price = round(current_price * (1 + adjusted_change), 2)
@@ -959,9 +1075,9 @@ def _generate_scenarios_from_products(
             "projectedMargin": projected_margin,
             "projectedMarketShare": round(random.uniform(-2, 5), 2),
             "compositeScore": round(strategy["confidence"] * 0.8 + random.uniform(0, 20), 2),
-            "competitiveFactors": _build_competitive_factors(mcp_data, strategy, random),
-            "demandFactors": _build_demand_factors(mcp_data, strategy, random),
-            "marketFactors": _build_market_factors(mcp_data, strategy, random),
+            "competitiveFactors": _build_competitive_factors(mcp_data, strategy, random, scenario_context),
+            "demandFactors": _build_demand_factors(mcp_data, strategy, random, scenario_context),
+            "marketFactors": _build_market_factors(mcp_data, strategy, random, scenario_context),
             "guardrailResults": [
                 {"rule": "Minimum Margin", "passed": True},
                 {"rule": "Maximum Price Change", "passed": True},
@@ -1358,8 +1474,8 @@ def _get_scenarios(cycle_id: str, event: dict[str, Any]) -> dict[str, Any]:
     })
 
 
-def _build_competitive_factors(mcp_data: dict | None, strategy: dict, random_mod) -> dict:
-    """Build competitive factors from MCP data or generate representative values."""
+def _build_competitive_factors(mcp_data: dict | None, strategy: dict, random_mod, scenario_context: dict | None = None) -> dict:
+    """Build competitive factors from MCP data or generate scenario-aligned values."""
     if mcp_data and "competitive" in mcp_data:
         comp = mcp_data["competitive"]
         return {
@@ -1369,17 +1485,37 @@ def _build_competitive_factors(mcp_data: dict | None, strategy: dict, random_mod
             "competitorCount": comp.get("competitorCount", random_mod.randint(3, 8)),
             "dataSource": "Competitor API MCP Server",
         }
+
+    ctx = scenario_context or {}
+    competitive_pressure = ctx.get("competitive_pressure", "moderate")
+
+    # Align competitive factors with scenario context
+    if competitive_pressure == "high":
+        # Competitors are aggressive — price index below 1.0 means we're priced higher
+        price_index = round(random_mod.uniform(0.88, 0.98), 3)
+        price_gap = f"{round(random_mod.uniform(-12, -3), 1)}%"
+        position = "under_pressure"
+    elif ctx.get("direction") == "increase":
+        # We can increase — competitors are at or above our price
+        price_index = round(random_mod.uniform(1.02, 1.12), 3)
+        price_gap = f"{round(random_mod.uniform(2, 8), 1)}%"
+        position = "competitive"
+    else:
+        price_index = round(random_mod.uniform(0.92, 1.08), 3)
+        price_gap = f"{round(random_mod.uniform(-5, 5), 1)}%"
+        position = "competitive"
+
     return {
-        "competitorPriceIndex": round(random_mod.uniform(0.85, 1.15), 3),
-        "marketPosition": "competitive" if strategy["bias"] >= 0 else "premium",
-        "priceGap": f"{round(random_mod.uniform(-5, 10), 1)}%",
+        "competitorPriceIndex": price_index,
+        "marketPosition": position,
+        "priceGap": price_gap,
         "competitorCount": random_mod.randint(3, 8),
         "dataSource": "simulated",
     }
 
 
-def _build_demand_factors(mcp_data: dict | None, strategy: dict, random_mod) -> dict:
-    """Build demand factors from MCP data or generate representative values."""
+def _build_demand_factors(mcp_data: dict | None, strategy: dict, random_mod, scenario_context: dict | None = None) -> dict:
+    """Build demand factors from MCP data or generate scenario-aligned values."""
     if mcp_data and "demand" in mcp_data:
         demand = mcp_data["demand"]
         # Extract from ERP/POS MCP server response structure
@@ -1397,19 +1533,46 @@ def _build_demand_factors(mcp_data: dict | None, strategy: dict, random_mod) -> 
             "daysOfSupply": demand.get("averageDaysOfSupply", random_mod.randint(14, 45)),
             "dataSource": "ERP/POS MCP Server",
         }
+
+    ctx = scenario_context or {}
+    demand_trend = ctx.get("demand_trend", "stable")
+    inventory_status = ctx.get("inventory_status", "healthy")
+
+    # Align demand factors with scenario context
+    if demand_trend == "declining":
+        trend_direction = "declining"
+        inventory_health = "excess"
+        days_of_supply = random_mod.randint(45, 90)
+        elasticity = round(random_mod.uniform(-2.0, -1.2), 2)
+    elif demand_trend == "high_demand":
+        trend_direction = "surging"
+        inventory_health = "critical" if inventory_status == "critical" else "low"
+        days_of_supply = random_mod.randint(3, 10)
+        elasticity = round(random_mod.uniform(-0.8, -0.3), 2)  # Inelastic (people want it)
+    elif demand_trend == "growing" or ctx.get("direction") == "increase":
+        trend_direction = "growing"
+        inventory_health = "healthy"
+        days_of_supply = random_mod.randint(14, 30)
+        elasticity = round(random_mod.uniform(-1.5, -0.5), 2)
+    else:
+        trend_direction = "stable"
+        inventory_health = "healthy"
+        days_of_supply = random_mod.randint(20, 45)
+        elasticity = round(random_mod.uniform(-2.0, -0.8), 2)
+
     return {
-        "elasticity": round(random_mod.uniform(-2.5, -0.5), 2),
+        "elasticity": elasticity,
         "seasonalIndex": round(random_mod.uniform(0.8, 1.3), 2),
-        "trendDirection": "growing" if strategy["bias"] > 0 else "stable",
+        "trendDirection": trend_direction,
         "weeklyDemand": random_mod.randint(800, 2000),
-        "inventoryHealth": "healthy",
-        "daysOfSupply": random_mod.randint(14, 45),
+        "inventoryHealth": inventory_health,
+        "daysOfSupply": days_of_supply,
         "dataSource": "simulated",
     }
 
 
-def _build_market_factors(mcp_data: dict | None, strategy: dict, random_mod) -> dict:
-    """Build market factors from MCP data or generate representative values."""
+def _build_market_factors(mcp_data: dict | None, strategy: dict, random_mod, scenario_context: dict | None = None) -> dict:
+    """Build market factors from MCP data or generate scenario-aligned values."""
     if mcp_data and "market" in mcp_data:
         market = mcp_data["market"]
         return {
@@ -1420,12 +1583,34 @@ def _build_market_factors(mcp_data: dict | None, strategy: dict, random_mod) -> 
             "categoryTrend": market.get("categoryTrend", "stable"),
             "dataSource": "Market Signals MCP Server",
         }
+
+    ctx = scenario_context or {}
+    supply_chain_risk = ctx.get("supply_chain_risk", "moderate")
+
+    # Align market factors with scenario context
+    if supply_chain_risk == "high":
+        inflation_rate = f"{round(random_mod.uniform(4.5, 7.2), 1)}%"
+        consumer_sentiment = round(random_mod.uniform(45, 62), 1)
+        category_trend = "cost_pressure"
+    elif ctx.get("competitive_pressure") == "high":
+        inflation_rate = "3.2%"
+        consumer_sentiment = round(random_mod.uniform(65, 80), 1)
+        category_trend = "competitive"
+    elif ctx.get("demand_trend") == "declining":
+        inflation_rate = "2.8%"
+        consumer_sentiment = round(random_mod.uniform(55, 70), 1)
+        category_trend = "softening"
+    else:
+        inflation_rate = "3.2%"
+        consumer_sentiment = round(random_mod.uniform(65, 82), 1)
+        category_trend = "stable"
+
     return {
-        "inflationRate": "3.2%",
-        "consumerSentiment": round(random_mod.uniform(60, 85), 1),
-        "supplyChainRisk": "low" if strategy["risk"] == "LOW" else "moderate",
+        "inflationRate": inflation_rate,
+        "consumerSentiment": consumer_sentiment,
+        "supplyChainRisk": supply_chain_risk,
         "marketGrowthRate": f"{round(random_mod.uniform(1, 8), 1)}%",
-        "categoryTrend": "stable",
+        "categoryTrend": category_trend,
         "dataSource": "simulated",
     }
 

@@ -303,6 +303,14 @@ function SimulationsTab() {
             objectives={['margin_protection']}
             constraints={{ minMargin: 35, maxPriceChange: 8 }}
           />
+          <SimulationCard
+            title="Low Inventory Alert"
+            description="Stock running low on a popular item. Agents increase prices to slow demand and maximize revenue per unit."
+            icon="🔻"
+            defaultPricingGroup="Electronics-Audio"
+            objectives={['revenue_maximization', 'margin_protection']}
+            constraints={{ minMargin: 25, maxPriceChange: 12 }}
+          />
         </div>
       </div>
 
@@ -358,10 +366,10 @@ function SimulationsTab() {
               </tr>
               <tr>
                 <td className="px-3 py-2 font-medium text-gray-900">Conservative Protection</td>
-                <td className="px-3 py-2 text-gray-700">Protect margins with minimal price changes, low risk</td>
+                <td className="px-3 py-2 text-gray-700">Minimal, safe adjustments aligned with primary objective</td>
                 <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">LOW</span></td>
-                <td className="px-3 py-2 text-red-700 font-medium">↓ Decrease</td>
-                <td className="px-3 py-2 text-gray-600">Price wars, clearance, STP</td>
+                <td className="px-3 py-2 text-gray-700 font-medium">↕ Context-driven</td>
+                <td className="px-3 py-2 text-gray-600">Safe default, STP auto-approved</td>
                 <td className="px-3 py-2 text-green-700 font-medium">⚡ Auto-approved</td>
               </tr>
             </tbody>

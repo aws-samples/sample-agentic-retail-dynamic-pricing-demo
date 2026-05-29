@@ -58,11 +58,7 @@ class ApiHandlersConstruct(Construct):
             rest_api_name="retail-dynamic-pricing-api",
             description="REST API for Retail Dynamic Pricing system",
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=[
-                    "https://<DASHBOARD_CLOUDFRONT_DOMAIN>",
-                    "https://<STOREFRONT_CLOUDFRONT_DOMAIN>",
-                    "http://localhost:5173",
-                ],
+                allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
                 allow_headers=[
                     "Content-Type",
@@ -71,7 +67,6 @@ class ApiHandlersConstruct(Construct):
                     "X-Api-Key",
                     "X-Amz-Security-Token",
                 ],
-                allow_credentials=True,
             ),
             deploy_options=apigw.StageOptions(stage_name="prod"),
         )

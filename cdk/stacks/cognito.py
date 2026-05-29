@@ -17,11 +17,12 @@ class CognitoAuth(Construct):
         super().__init__(scope, construct_id)
 
         # Create Cognito User Pool with email sign-in
+        # Self-registration disabled: only admins can create users
         self._user_pool = cognito.UserPool(
             self,
             "DashboardUserPool",
             user_pool_name="retail-pricing-user-pool",
-            self_sign_up_enabled=True,
+            self_sign_up_enabled=False,
             sign_in_aliases=cognito.SignInAliases(email=True),
             auto_verify=cognito.AutoVerifiedAttrs(email=True),
             standard_attributes=cognito.StandardAttributes(
