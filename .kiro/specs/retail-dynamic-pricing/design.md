@@ -265,6 +265,7 @@ Each MCP Server is a Lambda function implementing the Model Context Protocol. Fo
 | GET | /monitoring/{scenarioId} | Cognito | Get monitoring metrics |
 | GET | /products | None | Product catalog (storefront) |
 | GET | /products/{id} | None | Single product detail |
+| POST | /guardrails/demo | Cognito | Guardrails enforcement demo (interactive) |
 
 **CORS Configuration**: `allowOrigins: ["https://dashboard.example.com", "https://storefront.example.com"]` — no wildcard with credentials.
 

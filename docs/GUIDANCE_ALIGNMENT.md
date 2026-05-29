@@ -63,7 +63,7 @@ AWS Guidance Paper (Mar 2026) to our implementation status.
 
 | Paper Requirement | Our Implementation | Status |
 |-------------------|-------------------|--------|
-| Regulatory Compliance (FTC, Robinson-Patman) | Guardrails block anti-competitive strategies | ✅ |
+| Regulatory Compliance (FTC, Robinson-Patman) | Guardrails block anti-competitive strategies + interactive demo | ✅ |
 | Responsible AI / Bias Mitigation | Guardrails prevent discriminatory pricing | ✅ |
 | Data Protection (encryption at rest/transit) | DynamoDB + S3 default encryption, HTTPS everywhere | ✅ |
 | Session Isolation | AgentCore Runtime microVM isolation | ✅ |

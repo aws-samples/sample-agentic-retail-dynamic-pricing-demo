@@ -252,6 +252,7 @@ cd ../..
 4. **Review scenarios** → 3 ranked recommendations with risk levels
 5. **Approve/Reject** → HIGH risk requires justification, LOW risk auto-approves
 6. **Check Storefront** → Prices update in real-time after approval
+7. **Guardrails Demo** → Scroll to "🛡️ Guardrails Enforcement" section, click any card to see compliance blocking in action (below-cost, MAP, geographic bias, predatory pricing, PII, price fixing)
 
 See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for a detailed 5-minute demo walkthrough.
 
@@ -269,6 +270,7 @@ See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for a detailed 5-minute demo walk
 | GET | /monitoring/{scenarioId} | Cognito | Monitoring metrics |
 | GET | /products | Public | Product catalog |
 | GET | /products/{id} | Public | Single product detail |
+| POST | /guardrails/demo | Cognito | Guardrails enforcement demo |
 
 ---
 
@@ -299,6 +301,9 @@ PYTHONPATH=. python -m backend.agents.testing_harness
 | [docs/deployment_guide.md](docs/deployment_guide.md) | Detailed deployment guide |
 | [docs/agent_testing_guide.md](docs/agent_testing_guide.md) | Agent testing procedures |
 | [docs/ROLLBACK_GUIDE.md](docs/ROLLBACK_GUIDE.md) | How to revert any feature |
+| [docs/SYSTEM_DEEP_DIVE.md](docs/SYSTEM_DEEP_DIVE.md) | Full system analysis, demo walkthroughs, Well-Architected alignment |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Industry terms, abbreviations, and definitions |
+| [docs/GUARDRAILS_DEMO_ROLLBACK.md](docs/GUARDRAILS_DEMO_ROLLBACK.md) | Rollback guide for guardrails demo feature |
 
 ---
 

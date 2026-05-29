@@ -122,7 +122,36 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ---
 
-### Part 6: Audit Trail & Analytics (30 seconds)
+### Part 6: Guardrails Enforcement Demo (1 minute)
+
+**Action:** Go back to Dashboard → Simulations tab. Scroll down to the **"🛡️ Guardrails Enforcement"** section.
+
+**What to say:**
+
+> "Now let's see how the system enforces compliance. These aren't just guidelines — they're structural guardrails that physically prevent non-compliant pricing."
+
+**Action:** Click **"🛡️ Test Guardrail →"** on the **"Below-Cost Rejection"** card.
+
+> "Here we're trying to price Wireless Earbuds at $55 — but the manufacturing cost is $71.50. The system immediately blocks this."
+
+**Point out the result:**
+- Rule: `below-cost`
+- Status: `✗ BLOCKED`
+- Reason: "Price $55.00 is below total unit cost $71.50"
+
+**Action:** Click **"🛡️ Test Guardrail →"** on the **"MAP Violation"** card.
+
+> "Now we're trying to advertise a Smart Watch at $249.99, but the manufacturer's Minimum Advertised Price is $279.99. Blocked instantly."
+
+**Action:** Click **"🛡️ Test Guardrail →"** on the **"Price Fixing Attempt"** card.
+
+> "And if someone tries to use the system for price coordination with competitors — that's a per se illegal Sherman Act violation. Bedrock Guardrails block it at the model level before any pricing logic even runs."
+
+> "These guardrails ensure regulatory compliance by design — FTC, Robinson-Patman Act, EU Omnibus Directive. Every check is recorded in the audit trail."
+
+---
+
+### Part 7: Audit Trail & Analytics (30 seconds)
 
 **Action:** Click the **Audit Trail** tab.
 
@@ -147,7 +176,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ---
 
-### Part 7: Revert Capability (15 seconds)
+### Part 8: Revert Capability (15 seconds)
 
 **What to say:**
 
