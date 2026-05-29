@@ -267,6 +267,23 @@ class ApiHandlersConstruct(Construct):
             apigw.LambdaIntegration(self.products_fn),
         )
 
+        # --- Guardrails Demo endpoint ---
+        # POST /guardrails/demo (authenticated) - demonstrates guardrail enforcement
+        guardrails_resource = self.api.root.add_resource("guardrails")
+        guardrails_demo_resource = guardrails_resource.add_resource("demo")
+        self.guardrails_demo_fn = self._create_handler(
+            "GuardrailsDemo",
+            "guardrails_demo",
+            "Handles POST /guardrails/demo - guardrail enforcement demonstrations",
+            environment={},
+        )
+        guardrails_demo_resource.add_method(
+            "POST",
+            apigw.LambdaIntegration(self.guardrails_demo_fn),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
         # --- Outputs ---
         cdk.CfnOutput(
             self,

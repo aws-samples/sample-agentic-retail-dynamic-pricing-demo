@@ -329,6 +329,58 @@ function SimulationsTab() {
         </div>
       </div>
 
+      {/* Guardrails Enforcement Scenarios */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">🛡️ Guardrails Enforcement</h3>
+        <p className="text-xs text-gray-600 mb-3">
+          Demonstrate how the system blocks non-compliant pricing strategies. These simulations intentionally trigger guardrail violations to show compliance enforcement in action.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <GuardrailDemoCard
+            title="Below-Cost Rejection"
+            description="Attempts to price a product below its total unit cost (COGS). The guardrail blocks this to prevent predatory loss-making."
+            icon="🚫"
+            guardrailType="below_cost"
+            regulation="Robinson-Patman Act"
+          />
+          <GuardrailDemoCard
+            title="MAP Violation"
+            description="Attempts to advertise a product below the manufacturer's Minimum Advertised Price. Blocked to protect supplier agreements."
+            icon="📋"
+            guardrailType="map_violation"
+            regulation="Colgate Doctrine / MAP Policy"
+          />
+          <GuardrailDemoCard
+            title="Geographic Price Bias"
+            description="Attempts to set prices with >15% variance across regions for the same product. Blocked to prevent discriminatory pricing."
+            icon="🌍"
+            guardrailType="geographic_bias"
+            regulation="Robinson-Patman Act / EU Geo-blocking"
+          />
+          <GuardrailDemoCard
+            title="Predatory Pricing Blocked"
+            description="Attempts to use the system for predatory pricing strategy to eliminate competitors. Bedrock Guardrails block the request."
+            icon="⚠️"
+            guardrailType="predatory_pricing"
+            regulation="Sherman Act / FTC Act"
+          />
+          <GuardrailDemoCard
+            title="PII Protection"
+            description="Attempts to include customer personal data (emails, phone numbers) in pricing analysis. System detects and blocks PII exposure."
+            icon="🔒"
+            guardrailType="pii_protection"
+            regulation="GDPR / CCPA"
+          />
+          <GuardrailDemoCard
+            title="Price Fixing Attempt"
+            description="Attempts to coordinate prices with competitors. Bedrock Guardrails immediately block any collusion-related requests."
+            icon="🤝"
+            guardrailType="price_fixing"
+            regulation="Sherman Act Section 1"
+          />
+        </div>
+      </div>
+
       {/* Strategy Comparison */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
         <h3 className="text-sm font-semibold text-gray-900 mb-3">Strategy Comparison</h3>
@@ -483,6 +535,102 @@ function SimulationCard({
       >
         {loading ? 'Triggering...' : 'Run Simulation →'}
       </button>
+    </div>
+  );
+}
+
+interface GuardrailDemoResult {
+  rule: string;
+  passed: boolean;
+  reason: string | null;
+  scenario: {
+    productId: string;
+    productName: string;
+    attemptedPrice: number;
+    costOrThreshold: number;
+  };
+}
+
+function GuardrailDemoCard({
+  title, description, icon, guardrailType, regulation,
+}: {
+  title: string;
+  description: string;
+  icon: string;
+  guardrailType: string;
+  regulation: string;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<GuardrailDemoResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRun = async () => {
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const response = await api.post('/guardrails/demo', {
+        guardrailType,
+      });
+      setResult(response.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Guardrail demo failed';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 flex flex-col">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-2xl">{icon}</span>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      </div>
+      <p className="text-xs text-gray-600 mb-2">{description}</p>
+      <p className="text-[10px] text-gray-400 mb-3 italic">Regulation: {regulation}</p>
+
+      <button
+        onClick={handleRun}
+        disabled={loading}
+        className="w-full px-3 py-2 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-3"
+      >
+        {loading ? 'Testing Guardrail...' : '🛡️ Test Guardrail →'}
+      </button>
+
+      {/* Result display */}
+      {result && (
+        <div className={`rounded-md border p-3 text-xs ${
+          result.passed
+            ? 'bg-green-50 border-green-200'
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className={`font-bold ${result.passed ? 'text-green-700' : 'text-red-700'}`}>
+              {result.passed ? '✓ PASSED' : '✗ BLOCKED'}
+            </span>
+            <span className="text-gray-500">— {result.rule}</span>
+          </div>
+          {result.scenario && (
+            <div className="text-gray-600 space-y-0.5 mb-1.5">
+              <p><span className="font-medium">Product:</span> {result.scenario.productName}</p>
+              <p><span className="font-medium">Attempted Price:</span> ${result.scenario.attemptedPrice.toFixed(2)}</p>
+              <p><span className="font-medium">Threshold:</span> ${result.scenario.costOrThreshold.toFixed(2)}</p>
+            </div>
+          )}
+          {result.reason && (
+            <p className={`font-medium ${result.passed ? 'text-green-700' : 'text-red-700'}`}>
+              {result.reason}
+            </p>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
