@@ -1,208 +1,562 @@
 /**
- * SVG Architecture Diagram showing AWS services and end-to-end process flow
- * for the Dynamic Pricing for Retail solution.
+ * SVG Architecture Diagram following AWS reference architecture guidelines.
+ * Shows the Dynamic Pricing for Retail solution architecture with grouped
+ * service zones, directional flow, and AWS-style color coding.
  */
 
 export default function ArchitectureDiagram() {
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-gray-900 mb-1">Solution Architecture</h3>
-      <p className="text-[10px] text-gray-500 mb-4">End-to-end process flow with AWS services</p>
-
-      <svg viewBox="0 0 900 520" className="w-full" xmlns="http://www.w3.org/2000/svg">
-        {/* Background sections */}
-        <rect x="10" y="10" width="880" height="500" rx="8" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1" />
-
-        {/* Section: User Layer */}
-        <rect x="20" y="20" width="860" height="65" rx="6" fill="#eff6ff" stroke="#bfdbfe" strokeWidth="1" />
-        <text x="35" y="40" fontSize="9" fill="#1e40af" fontWeight="bold">USER LAYER</text>
-
-        {/* Dashboard */}
-        <rect x="40" y="48" width="110" height="30" rx="4" fill="white" stroke="#3b82f6" strokeWidth="1.5" />
-        <text x="95" y="67" fontSize="8" fill="#1e40af" textAnchor="middle" fontWeight="600">Dashboard (React)</text>
-
-        {/* Storefront */}
-        <rect x="170" y="48" width="110" height="30" rx="4" fill="white" stroke="#3b82f6" strokeWidth="1.5" />
-        <text x="225" y="67" fontSize="8" fill="#1e40af" textAnchor="middle" fontWeight="600">Storefront (React)</text>
-
-        {/* CloudFront */}
-        <rect x="310" y="48" width="100" height="30" rx="4" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5" />
-        <text x="360" y="67" fontSize="8" fill="#92400e" textAnchor="middle" fontWeight="600">CloudFront CDN</text>
-
-        {/* Cognito */}
-        <rect x="430" y="48" width="100" height="30" rx="4" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5" />
-        <text x="480" y="67" fontSize="8" fill="#92400e" textAnchor="middle" fontWeight="600">Amazon Cognito</text>
-
-        {/* S3 */}
-        <rect x="550" y="48" width="80" height="30" rx="4" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5" />
-        <text x="590" y="67" fontSize="8" fill="#92400e" textAnchor="middle" fontWeight="600">S3 Hosting</text>
-
-        {/* Section: API Layer */}
-        <rect x="20" y="95" width="860" height="60" rx="6" fill="#f0fdf4" stroke="#bbf7d0" strokeWidth="1" />
-        <text x="35" y="115" fontSize="9" fill="#166534" fontWeight="bold">API LAYER</text>
-
-        {/* API Gateway */}
-        <rect x="40" y="120" width="130" height="28" rx="4" fill="white" stroke="#16a34a" strokeWidth="1.5" />
-        <text x="105" y="138" fontSize="8" fill="#166534" textAnchor="middle" fontWeight="600">API Gateway (REST)</text>
-
-        {/* Lambda */}
-        <rect x="200" y="120" width="160" height="28" rx="4" fill="white" stroke="#16a34a" strokeWidth="1.5" />
-        <text x="280" y="138" fontSize="8" fill="#166534" textAnchor="middle" fontWeight="600">Lambda (Thin API Wrapper)</text>
-
-        {/* Arrow API to Lambda */}
-        <line x1="170" y1="134" x2="200" y2="134" stroke="#16a34a" strokeWidth="1.5" markerEnd="url(#arrowGreen)" />
-
-        {/* DynamoDB */}
-        <rect x="400" y="120" width="120" height="28" rx="4" fill="white" stroke="#16a34a" strokeWidth="1.5" />
-        <text x="460" y="138" fontSize="8" fill="#166534" textAnchor="middle" fontWeight="600">Amazon DynamoDB</text>
-
-        {/* Arrow Lambda to DynamoDB */}
-        <line x1="360" y1="134" x2="400" y2="134" stroke="#16a34a" strokeWidth="1.5" markerEnd="url(#arrowGreen)" />
-
-        {/* DynamoDB tables */}
-        <text x="545" y="128" fontSize="7" fill="#6b7280">Products • PricingCycles</text>
-        <text x="545" y="140" fontSize="7" fill="#6b7280">PricingScenarios • Approvals</text>
-
-        {/* Section: AgentCore Layer */}
-        <rect x="20" y="165" width="860" height="200" rx="6" fill="#faf5ff" stroke="#e9d5ff" strokeWidth="1" />
-        <text x="35" y="185" fontSize="9" fill="#6b21a8" fontWeight="bold">AMAZON BEDROCK AGENTCORE</text>
-
-        {/* AgentCore Runtime box */}
-        <rect x="40" y="195" width="380" height="155" rx="5" fill="white" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="4,2" />
-        <text x="55" y="212" fontSize="8" fill="#7c3aed" fontWeight="bold">AgentCore Runtime (Serverless)</text>
-
-        {/* Orchestrator Agent */}
-        <rect x="55" y="220" width="140" height="35" rx="4" fill="#ede9fe" stroke="#8b5cf6" strokeWidth="1.5" />
-        <text x="125" y="237" fontSize="7.5" fill="#5b21b6" textAnchor="middle" fontWeight="700">Orchestrator Agent</text>
-        <text x="125" y="249" fontSize="6.5" fill="#7c3aed" textAnchor="middle">Claude Opus 4</text>
-
-        {/* Intelligence Agents */}
-        <rect x="55" y="265" width="105" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" strokeWidth="1" />
-        <text x="107" y="279" fontSize="6.5" fill="#1e40af" textAnchor="middle" fontWeight="600">Competitive Intel</text>
-        <text x="107" y="290" fontSize="6" fill="#3b82f6" textAnchor="middle">Claude Sonnet 4</text>
-
-        <rect x="170" y="265" width="105" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" strokeWidth="1" />
-        <text x="222" y="279" fontSize="6.5" fill="#1e40af" textAnchor="middle" fontWeight="600">Demand Forecasting</text>
-        <text x="222" y="290" fontSize="6" fill="#3b82f6" textAnchor="middle">Claude Sonnet 4</text>
-
-        <rect x="285" y="265" width="105" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" strokeWidth="1" />
-        <text x="337" y="279" fontSize="6.5" fill="#1e40af" textAnchor="middle" fontWeight="600">Market Intelligence</text>
-        <text x="337" y="290" fontSize="6" fill="#3b82f6" textAnchor="middle">Claude Sonnet 4</text>
-
-        {/* Strategy Synthesis */}
-        <rect x="55" y="305" width="160" height="32" rx="4" fill="#dcfce7" stroke="#16a34a" strokeWidth="1" />
-        <text x="135" y="319" fontSize="6.5" fill="#166534" textAnchor="middle" fontWeight="600">Strategy Synthesis Agent</text>
-        <text x="135" y="330" fontSize="6" fill="#16a34a" textAnchor="middle">Claude Sonnet 4</text>
-
-        {/* Implementation Monitoring */}
-        <rect x="230" y="305" width="160" height="32" rx="4" fill="#fef9c3" stroke="#ca8a04" strokeWidth="1" />
-        <text x="310" y="319" fontSize="6.5" fill="#854d0e" textAnchor="middle" fontWeight="600">Implementation Monitor</text>
-        <text x="310" y="330" fontSize="6" fill="#ca8a04" textAnchor="middle">Claude Sonnet 4</text>
-
-        {/* AgentCore Services */}
-        <rect x="440" y="195" width="200" height="155" rx="5" fill="white" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="4,2" />
-        <text x="455" y="212" fontSize="8" fill="#7c3aed" fontWeight="bold">AgentCore Services</text>
-
-        <rect x="455" y="222" width="85" height="24" rx="3" fill="#f3e8ff" stroke="#c084fc" strokeWidth="1" />
-        <text x="497" y="238" fontSize="7" fill="#7c3aed" textAnchor="middle" fontWeight="600">Gateway</text>
-
-        <rect x="550" y="222" width="75" height="24" rx="3" fill="#f3e8ff" stroke="#c084fc" strokeWidth="1" />
-        <text x="587" y="238" fontSize="7" fill="#7c3aed" textAnchor="middle" fontWeight="600">Memory</text>
-
-        <rect x="455" y="254" width="85" height="24" rx="3" fill="#f3e8ff" stroke="#c084fc" strokeWidth="1" />
-        <text x="497" y="270" fontSize="7" fill="#7c3aed" textAnchor="middle" fontWeight="600">Identity</text>
-
-        <rect x="550" y="254" width="75" height="24" rx="3" fill="#f3e8ff" stroke="#c084fc" strokeWidth="1" />
-        <text x="587" y="270" fontSize="7" fill="#7c3aed" textAnchor="middle" fontWeight="600">Observability</text>
-
-        {/* Guardrails */}
-        <rect x="455" y="290" width="170" height="28" rx="3" fill="#fef2f2" stroke="#ef4444" strokeWidth="1.5" />
-        <text x="540" y="305" fontSize="7" fill="#991b1b" textAnchor="middle" fontWeight="700">🛡️ Bedrock Guardrails</text>
-        <text x="540" y="314" fontSize="6" fill="#dc2626" textAnchor="middle">4 Denied Topic Policies</text>
-
-        {/* Foundation Models */}
-        <rect x="455" y="325" width="170" height="22" rx="3" fill="#f0f9ff" stroke="#0ea5e9" strokeWidth="1" />
-        <text x="540" y="340" fontSize="7" fill="#0c4a6e" textAnchor="middle" fontWeight="600">Foundation Models (Bedrock)</text>
-
-        {/* MCP Servers */}
-        <rect x="660" y="195" width="210" height="155" rx="5" fill="white" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,2" />
-        <text x="675" y="212" fontSize="8" fill="#92400e" fontWeight="bold">MCP SERVERS (Lambda)</text>
-
-        <rect x="675" y="222" width="180" height="22" rx="3" fill="#fff7ed" stroke="#fb923c" strokeWidth="1" />
-        <text x="765" y="237" fontSize="7" fill="#9a3412" textAnchor="middle" fontWeight="600">🏪 Competitor API Server</text>
-
-        <rect x="675" y="250" width="180" height="22" rx="3" fill="#fff7ed" stroke="#fb923c" strokeWidth="1" />
-        <text x="765" y="265" fontSize="7" fill="#9a3412" textAnchor="middle" fontWeight="600">📊 ERP / POS Server</text>
-
-        <rect x="675" y="278" width="180" height="22" rx="3" fill="#fff7ed" stroke="#fb923c" strokeWidth="1" />
-        <text x="765" y="293" fontSize="7" fill="#9a3412" textAnchor="middle" fontWeight="600">🌐 Market Signals Server</text>
-
-        <rect x="675" y="306" width="180" height="22" rx="3" fill="#fff7ed" stroke="#fb923c" strokeWidth="1" />
-        <text x="765" y="321" fontSize="7" fill="#9a3412" textAnchor="middle" fontWeight="600">💰 Cost & Finance Server</text>
-
-        {/* Section: Process Flow */}
-        <rect x="20" y="375" width="860" height="125" rx="6" fill="#f0f9ff" stroke="#bae6fd" strokeWidth="1" />
-        <text x="35" y="395" fontSize="9" fill="#0c4a6e" fontWeight="bold">END-TO-END PROCESS FLOW</text>
-
-        {/* Flow steps */}
-        <rect x="40" y="405" width="90" height="40" rx="4" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
-        <text x="85" y="422" fontSize="7" fill="#0c4a6e" textAnchor="middle" fontWeight="600">1. Request</text>
-        <text x="85" y="434" fontSize="6" fill="#0369a1" textAnchor="middle">Product Manager</text>
-
-        <text x="140" y="425" fontSize="12" fill="#0ea5e9">→</text>
-
-        <rect x="155" y="405" width="90" height="40" rx="4" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
-        <text x="200" y="422" fontSize="7" fill="#0c4a6e" textAnchor="middle" fontWeight="600">2. Orchestrate</text>
-        <text x="200" y="434" fontSize="6" fill="#0369a1" textAnchor="middle">Parallel agents</text>
-
-        <text x="255" y="425" fontSize="12" fill="#0ea5e9">→</text>
-
-        <rect x="270" y="405" width="90" height="40" rx="4" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
-        <text x="315" y="422" fontSize="7" fill="#0c4a6e" textAnchor="middle" fontWeight="600">3. Gather Intel</text>
-        <text x="315" y="434" fontSize="6" fill="#0369a1" textAnchor="middle">MCP Servers</text>
-
-        <text x="370" y="425" fontSize="12" fill="#0ea5e9">→</text>
-
-        <rect x="385" y="405" width="90" height="40" rx="4" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
-        <text x="430" y="422" fontSize="7" fill="#0c4a6e" textAnchor="middle" fontWeight="600">4. Synthesize</text>
-        <text x="430" y="434" fontSize="6" fill="#0369a1" textAnchor="middle">3 ranked scenarios</text>
-
-        <text x="485" y="425" fontSize="12" fill="#0ea5e9">→</text>
-
-        <rect x="500" y="405" width="90" height="40" rx="4" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
-        <text x="545" y="422" fontSize="7" fill="#0c4a6e" textAnchor="middle" fontWeight="600">5. Guardrails</text>
-        <text x="545" y="434" fontSize="6" fill="#0369a1" textAnchor="middle">Policy validation</text>
-
-        <text x="600" y="425" fontSize="12" fill="#0ea5e9">→</text>
-
-        <rect x="615" y="405" width="90" height="40" rx="4" fill="white" stroke="#16a34a" strokeWidth="1.5" />
-        <text x="660" y="422" fontSize="7" fill="#166534" textAnchor="middle" fontWeight="600">6. Approve</text>
-        <text x="660" y="434" fontSize="6" fill="#16a34a" textAnchor="middle">HITL or Auto</text>
-
-        <text x="715" y="425" fontSize="12" fill="#16a34a">→</text>
-
-        <rect x="730" y="405" width="90" height="40" rx="4" fill="white" stroke="#16a34a" strokeWidth="1.5" />
-        <text x="775" y="422" fontSize="7" fill="#166534" textAnchor="middle" fontWeight="600">7. Implement</text>
-        <text x="775" y="434" fontSize="6" fill="#16a34a" textAnchor="middle">Update prices</text>
-
-        {/* Timing */}
-        <rect x="40" y="455" width="780" height="3" rx="1.5" fill="#e0f2fe" />
-        <rect x="40" y="455" width="780" height="3" rx="1.5" fill="#0ea5e9" opacity="0.6" />
-        <text x="430" y="475" fontSize="8" fill="#0c4a6e" textAnchor="middle" fontWeight="bold">~55 seconds end-to-end (vs 6-10 weeks traditional)</text>
-
-        {/* Feedback loop */}
-        <path d="M 775 445 L 775 485 L 85 485 L 85 445" fill="none" stroke="#6b7280" strokeWidth="1" strokeDasharray="4,2" markerEnd="url(#arrowGray)" />
-        <text x="430" y="493" fontSize="7" fill="#6b7280" textAnchor="middle">Continuous monitoring → variance detection → corrective recommendations (closed-loop)</text>
-
-        {/* Arrow markers */}
+      <svg
+        viewBox="0 0 1100 720"
+        className="w-full"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Arrow marker definitions */}
         <defs>
-          <marker id="arrowGreen" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L6,3 L0,6 Z" fill="#16a34a" />
+          <marker
+            id="arrowOrange"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0,0 L8,4 L0,8 Z" fill="#FF9900" />
           </marker>
-          <marker id="arrowGray" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280" />
+          <marker
+            id="arrowGray"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0,0 L8,4 L0,8 Z" fill="#6B7280" />
           </marker>
         </defs>
+
+        {/* Background */}
+        <rect
+          x="0"
+          y="0"
+          width="1100"
+          height="720"
+          rx="8"
+          fill="#FAFBFC"
+          stroke="#E2E8F0"
+          strokeWidth="1"
+        />
+
+        {/* ===== Title Block (top-left) ===== */}
+        <text
+          x="24"
+          y="28"
+          fontSize="14"
+          fontWeight="bold"
+          fill="#232F3E"
+        >
+          Dynamic Pricing for Retail — Solution Architecture
+        </text>
+        <text
+          x="24"
+          y="46"
+          fontSize="11"
+          fill="#6B7280"
+        >
+          AWS Reference Architecture
+        </text>
+
+        {/* ===== Legend (top-right) ===== */}
+        <g transform="translate(780, 10)">
+          {/* Legend border */}
+          <rect
+            x="0"
+            y="0"
+            width="310"
+            height="48"
+            rx="4"
+            fill="white"
+            stroke="#E2E8F0"
+            strokeWidth="1"
+          />
+
+          {/* Presentation Layer swatch */}
+          <rect x="10" y="8" width="12" height="12" rx="2" fill="#FFF8F0" stroke="#FF9900" strokeWidth="1.5" />
+          <text x="26" y="17" fontSize="7.5" fill="#4B5563">Presentation</text>
+
+          {/* Application Layer swatch */}
+          <rect x="10" y="26" width="12" height="12" rx="2" fill="#F0FFF4" stroke="#1B660F" strokeWidth="1.5" />
+          <text x="26" y="35" fontSize="7.5" fill="#4B5563">Application</text>
+
+          {/* AI/ML Layer swatch */}
+          <rect x="100" y="8" width="12" height="12" rx="2" fill="#F5F0FF" stroke="#6B21A8" strokeWidth="1.5" />
+          <text x="116" y="17" fontSize="7.5" fill="#4B5563">AI/ML</text>
+
+          {/* Integration Layer swatch */}
+          <rect x="100" y="26" width="12" height="12" rx="2" fill="#FFF9E6" stroke="#D97706" strokeWidth="1.5" />
+          <text x="116" y="35" fontSize="7.5" fill="#4B5563">Integration</text>
+
+          {/* Process Flow swatch */}
+          <rect x="180" y="8" width="12" height="12" rx="2" fill="#F0F8FF" stroke="#0073BB" strokeWidth="1.5" />
+          <text x="196" y="17" fontSize="7.5" fill="#4B5563">Process Flow</text>
+
+          {/* Arrow direction indicator */}
+          <line x1="185" y1="32" x2="205" y2="32" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+          <text x="212" y="35" fontSize="7.5" fill="#4B5563">Data flow</text>
+        </g>
+
+        {/* ===== Layer Zones (implemented in tasks 4.2–4.5) ===== */}
+
+        {/* ===== Presentation Layer Zone ===== */}
+        <g>
+          {/* Zone box */}
+          <rect
+            x="20"
+            y="60"
+            width="1060"
+            height="80"
+            rx="6"
+            fill="#FFF8F0"
+            stroke="#FF9900"
+            strokeWidth="1.5"
+          />
+          {/* Zone label */}
+          <text x="32" y="76" fontSize="10" fontWeight="bold" fill="#8B5E00">
+            Presentation Layer
+          </text>
+
+          {/* Node: Amazon CloudFront */}
+          <rect x="40" y="86" width="180" height="44" rx="6" fill="white" stroke="#FF9900" strokeWidth="1" />
+          <text x="130" y="104" fontSize="10" fontWeight="bold" fill="#8B5E00" textAnchor="middle">
+            Amazon CloudFront
+          </text>
+          <text x="130" y="118" fontSize="8.5" fill="#92400E" textAnchor="middle">
+            CDN
+          </text>
+
+          {/* Node: Amazon S3 */}
+          <rect x="236" y="86" width="180" height="44" rx="6" fill="white" stroke="#FF9900" strokeWidth="1" />
+          <text x="326" y="104" fontSize="10" fontWeight="bold" fill="#8B5E00" textAnchor="middle">
+            Amazon S3
+          </text>
+          <text x="326" y="118" fontSize="8.5" fill="#92400E" textAnchor="middle">
+            Static Hosting
+          </text>
+
+          {/* Node: Amazon Cognito */}
+          <rect x="432" y="86" width="180" height="44" rx="6" fill="white" stroke="#FF9900" strokeWidth="1" />
+          <text x="522" y="104" fontSize="10" fontWeight="bold" fill="#8B5E00" textAnchor="middle">
+            Amazon Cognito
+          </text>
+          <text x="522" y="118" fontSize="8.5" fill="#92400E" textAnchor="middle">
+            Auth
+          </text>
+
+          {/* Node: Dashboard */}
+          <rect x="628" y="86" width="180" height="44" rx="6" fill="white" stroke="#FF9900" strokeWidth="1" />
+          <text x="718" y="104" fontSize="10" fontWeight="bold" fill="#8B5E00" textAnchor="middle">
+            Dashboard
+          </text>
+          <text x="718" y="118" fontSize="8.5" fill="#92400E" textAnchor="middle">
+            React SPA
+          </text>
+
+          {/* Node: Storefront */}
+          <rect x="824" y="86" width="180" height="44" rx="6" fill="white" stroke="#FF9900" strokeWidth="1" />
+          <text x="914" y="104" fontSize="10" fontWeight="bold" fill="#8B5E00" textAnchor="middle">
+            Storefront
+          </text>
+          <text x="914" y="118" fontSize="8.5" fill="#92400E" textAnchor="middle">
+            React SPA
+          </text>
+        </g>
+
+        {/* Application Layer zone — Task 4.3 */}
+        <g>
+          {/* Zone box */}
+          <rect
+            x="20"
+            y="160"
+            width="1060"
+            height="90"
+            rx="6"
+            fill="#F0FFF4"
+            stroke="#1B660F"
+            strokeWidth="1.5"
+          />
+          {/* Zone label */}
+          <text x="32" y="178" fontSize="10" fontWeight="bold" fill="#1B660F">
+            Application Layer
+          </text>
+
+          {/* Amazon API Gateway node */}
+          <rect x="80" y="188" width="200" height="50" rx="6" fill="white" stroke="#1B660F" strokeWidth="1" />
+          <text x="180" y="210" fontSize="10" fontWeight="bold" fill="#1B660F" textAnchor="middle">
+            Amazon API Gateway
+          </text>
+          <text x="180" y="224" fontSize="9" fill="#1B660F" textAnchor="middle">
+            REST API
+          </text>
+
+          {/* AWS Lambda node */}
+          <rect x="340" y="188" width="200" height="50" rx="6" fill="white" stroke="#1B660F" strokeWidth="1" />
+          <text x="440" y="210" fontSize="10" fontWeight="bold" fill="#1B660F" textAnchor="middle">
+            AWS Lambda
+          </text>
+          <text x="440" y="224" fontSize="9" fill="#1B660F" textAnchor="middle">
+            API Handlers
+          </text>
+
+          {/* Amazon DynamoDB node */}
+          <rect x="600" y="188" width="280" height="50" rx="6" fill="white" stroke="#1B660F" strokeWidth="1" />
+          <text x="740" y="210" fontSize="10" fontWeight="bold" fill="#1B660F" textAnchor="middle">
+            Amazon DynamoDB
+          </text>
+          <text x="740" y="224" fontSize="9" fill="#1B660F" textAnchor="middle">
+            Products, Cycles, Scenarios, Approvals
+          </text>
+        </g>
+
+        {/* Directional arrows: Presentation Layer → Application Layer */}
+        <line x1="250" y1="142" x2="250" y2="158" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="550" y1="142" x2="550" y2="158" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="850" y1="142" x2="850" y2="158" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+
+        {/* Directional arrows: Application Layer → AI/ML Layer */}
+        <line x1="250" y1="252" x2="250" y2="268" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="550" y1="252" x2="550" y2="268" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="850" y1="252" x2="850" y2="268" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+
+        {/* ===== AI/ML Layer Zone ===== */}
+        <g>
+          {/* Zone box */}
+          <rect
+            x="20"
+            y="270"
+            width="1060"
+            height="210"
+            rx="6"
+            fill="#F5F0FF"
+            stroke="#6B21A8"
+            strokeWidth="1.5"
+          />
+          {/* Zone label */}
+          <text x="32" y="288" fontSize="10" fontWeight="bold" fill="#6B21A8">
+            AI/ML Layer
+          </text>
+
+          {/* --- AgentCore Runtime sub-group --- */}
+          <rect
+            x="32"
+            y="296"
+            width="680"
+            height="130"
+            rx="4"
+            fill="none"
+            stroke="#6B21A8"
+            strokeWidth="1"
+            strokeDasharray="4,2"
+          />
+          <text x="44" y="310" fontSize="9" fontWeight="bold" fill="#6B21A8">
+            AgentCore Runtime
+          </text>
+
+          {/* Orchestrator Agent (larger/prominent) */}
+          <rect x="44" y="316" width="200" height="48" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1.2" />
+          <text x="144" y="336" fontSize="10" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Orchestrator Agent
+          </text>
+          <text x="144" y="350" fontSize="8.5" fill="#7C3AED" textAnchor="middle">
+            Claude Opus 4
+          </text>
+
+          {/* Competitive Intel Agent */}
+          <rect x="256" y="316" width="148" height="44" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="330" y="334" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Competitive Intel Agent
+          </text>
+          <text x="330" y="348" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            Claude Sonnet 4
+          </text>
+
+          {/* Demand Forecasting Agent */}
+          <rect x="416" y="316" width="148" height="44" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="490" y="334" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Demand Forecasting Agent
+          </text>
+          <text x="490" y="348" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            Claude Sonnet 4
+          </text>
+
+          {/* Market Intelligence Agent */}
+          <rect x="576" y="316" width="126" height="44" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="639" y="334" fontSize="8.5" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Market Intelligence
+          </text>
+          <text x="639" y="348" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            Claude Sonnet 4
+          </text>
+
+          {/* Strategy Synthesis Agent */}
+          <rect x="44" y="372" width="168" height="44" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="128" y="390" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Strategy Synthesis Agent
+          </text>
+          <text x="128" y="404" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            Claude Sonnet 4
+          </text>
+
+          {/* Implementation Monitor Agent */}
+          <rect x="224" y="372" width="180" height="44" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="314" y="390" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Implementation Monitor Agent
+          </text>
+          <text x="314" y="404" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            Claude Sonnet 4
+          </text>
+
+          {/* --- AgentCore Services sub-group --- */}
+          <rect
+            x="32"
+            y="432"
+            width="680"
+            height="40"
+            rx="4"
+            fill="none"
+            stroke="#6B21A8"
+            strokeWidth="1"
+            strokeDasharray="4,2"
+          />
+          <text x="44" y="446" fontSize="9" fontWeight="bold" fill="#6B21A8">
+            AgentCore Services
+          </text>
+
+          {/* Gateway */}
+          <rect x="170" y="436" width="100" height="30" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="220" y="455" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Gateway
+          </text>
+
+          {/* Memory */}
+          <rect x="282" y="436" width="100" height="30" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="332" y="455" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Memory
+          </text>
+
+          {/* Identity */}
+          <rect x="394" y="436" width="100" height="30" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="444" y="455" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Identity
+          </text>
+
+          {/* Observability */}
+          <rect x="506" y="436" width="110" height="30" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1" />
+          <text x="561" y="455" fontSize="9" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Observability
+          </text>
+
+          {/* --- Amazon Bedrock Guardrails --- */}
+          <rect x="730" y="296" width="200" height="60" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1.2" />
+          <text x="830" y="318" fontSize="9.5" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Amazon Bedrock Guardrails
+          </text>
+          <text x="830" y="334" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            4 Denied Topic Policies
+          </text>
+
+          {/* --- Amazon Bedrock Foundation Models --- */}
+          <rect x="730" y="368" width="200" height="50" rx="6" fill="white" stroke="#6B21A8" strokeWidth="1.2" />
+          <text x="830" y="390" fontSize="9.5" fontWeight="bold" fill="#6B21A8" textAnchor="middle">
+            Amazon Bedrock
+          </text>
+          <text x="830" y="404" fontSize="8" fill="#7C3AED" textAnchor="middle">
+            Foundation Models
+          </text>
+        </g>
+
+        {/* ===== Directional arrows: AI/ML Layer → Integration Layer ===== */}
+        <line x1="250" y1="482" x2="250" y2="498" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="550" y1="482" x2="550" y2="498" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="850" y1="482" x2="850" y2="498" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+
+        {/* ===== Integration Layer Zone ===== */}
+        <g>
+          {/* Zone box */}
+          <rect
+            x="20"
+            y="500"
+            width="1060"
+            height="80"
+            rx="6"
+            fill="#FFF9E6"
+            stroke="#D97706"
+            strokeWidth="1.5"
+          />
+          {/* Zone label */}
+          <text x="32" y="516" fontSize="10" fontWeight="bold" fill="#92400E">
+            Integration Layer
+          </text>
+
+          {/* Competitor API MCP Server */}
+          <rect x="40" y="524" width="240" height="44" rx="6" fill="white" stroke="#D97706" strokeWidth="1" />
+          <text x="160" y="542" fontSize="9.5" fontWeight="bold" fill="#92400E" textAnchor="middle">
+            Competitor API MCP Server
+          </text>
+          <text x="160" y="556" fontSize="8.5" fill="#B45309" textAnchor="middle">
+            Lambda
+          </text>
+
+          {/* ERP/POS MCP Server */}
+          <rect x="296" y="524" width="240" height="44" rx="6" fill="white" stroke="#D97706" strokeWidth="1" />
+          <text x="416" y="542" fontSize="9.5" fontWeight="bold" fill="#92400E" textAnchor="middle">
+            ERP/POS MCP Server
+          </text>
+          <text x="416" y="556" fontSize="8.5" fill="#B45309" textAnchor="middle">
+            Lambda
+          </text>
+
+          {/* Market Signals MCP Server */}
+          <rect x="552" y="524" width="240" height="44" rx="6" fill="white" stroke="#D97706" strokeWidth="1" />
+          <text x="672" y="542" fontSize="9.5" fontWeight="bold" fill="#92400E" textAnchor="middle">
+            Market Signals MCP Server
+          </text>
+          <text x="672" y="556" fontSize="8.5" fill="#B45309" textAnchor="middle">
+            Lambda
+          </text>
+
+          {/* Cost & Finance MCP Server */}
+          <rect x="808" y="524" width="240" height="44" rx="6" fill="white" stroke="#D97706" strokeWidth="1" />
+          <text x="928" y="542" fontSize="9.5" fontWeight="bold" fill="#92400E" textAnchor="middle">
+            Cost &amp; Finance MCP Server
+          </text>
+          <text x="928" y="556" fontSize="8.5" fill="#B45309" textAnchor="middle">
+            Lambda
+          </text>
+        </g>
+
+        {/* ===== Directional arrows: Integration Layer → Process Flow ===== */}
+        <line x1="250" y1="582" x2="250" y2="598" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="550" y1="582" x2="550" y2="598" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+        <line x1="850" y1="582" x2="850" y2="598" stroke="#FF9900" strokeWidth="1.5" markerEnd="url(#arrowOrange)" />
+
+        {/* ===== End-to-End Process Flow Zone ===== */}
+        <g>
+          {/* Zone box */}
+          <rect
+            x="20"
+            y="600"
+            width="1060"
+            height="110"
+            rx="6"
+            fill="#F0F8FF"
+            stroke="#0073BB"
+            strokeWidth="1.5"
+          />
+          {/* Zone label */}
+          <text x="32" y="616" fontSize="10" fontWeight="bold" fill="#0073BB">
+            End-to-End Process Flow
+          </text>
+
+          {/* Step 1: Request */}
+          <rect x="32" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="97" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            1. Request
+          </text>
+          <text x="97" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            Product Manager
+          </text>
+
+          {/* Arrow 1→2 */}
+          <line x1="164" y1="643" x2="176" y2="643" stroke="#0073BB" strokeWidth="1" markerEnd="url(#arrowGray)" />
+
+          {/* Step 2: Orchestrate */}
+          <rect x="178" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="243" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            2. Orchestrate
+          </text>
+          <text x="243" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            Parallel agents
+          </text>
+
+          {/* Arrow 2→3 */}
+          <line x1="310" y1="643" x2="322" y2="643" stroke="#0073BB" strokeWidth="1" markerEnd="url(#arrowGray)" />
+
+          {/* Step 3: Gather Intel */}
+          <rect x="324" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="389" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            3. Gather Intel
+          </text>
+          <text x="389" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            MCP Servers
+          </text>
+
+          {/* Arrow 3→4 */}
+          <line x1="456" y1="643" x2="468" y2="643" stroke="#0073BB" strokeWidth="1" markerEnd="url(#arrowGray)" />
+
+          {/* Step 4: Synthesize */}
+          <rect x="470" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="535" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            4. Synthesize
+          </text>
+          <text x="535" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            3 ranked scenarios
+          </text>
+
+          {/* Arrow 4→5 */}
+          <line x1="602" y1="643" x2="614" y2="643" stroke="#0073BB" strokeWidth="1" markerEnd="url(#arrowGray)" />
+
+          {/* Step 5: Guardrails */}
+          <rect x="616" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="681" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            5. Guardrails
+          </text>
+          <text x="681" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            Policy validation
+          </text>
+
+          {/* Arrow 5→6 */}
+          <line x1="748" y1="643" x2="760" y2="643" stroke="#0073BB" strokeWidth="1" markerEnd="url(#arrowGray)" />
+
+          {/* Step 6: Approve */}
+          <rect x="762" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="827" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            6. Approve
+          </text>
+          <text x="827" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            HITL or Auto
+          </text>
+
+          {/* Arrow 6→7 */}
+          <line x1="894" y1="643" x2="906" y2="643" stroke="#0073BB" strokeWidth="1" markerEnd="url(#arrowGray)" />
+
+          {/* Step 7: Implement */}
+          <rect x="908" y="624" width="130" height="38" rx="6" fill="white" stroke="#0073BB" strokeWidth="1" />
+          <text x="973" y="639" fontSize="8" fontWeight="bold" fill="#0073BB" textAnchor="middle">
+            7. Implement
+          </text>
+          <text x="973" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
+            Update prices
+          </text>
+
+          {/* Timing bar */}
+          <text x="550" y="680" fontSize="9" fill="#0073BB" textAnchor="middle" fontStyle="italic">
+            ~55 seconds end-to-end (vs 6-10 weeks traditional)
+          </text>
+
+          {/* Feedback loop: dashed line from step 7 back to step 1 */}
+          <path
+            d="M 973 664 L 973 694 L 97 694 L 97 664"
+            fill="none"
+            stroke="#6B7280"
+            strokeWidth="1"
+            strokeDasharray="4,3"
+            markerEnd="url(#arrowGray)"
+          />
+          <text x="535" y="703" fontSize="7.5" fill="#6B7280" textAnchor="middle">
+            Continuous feedback loop
+          </text>
+        </g>
       </svg>
     </div>
   );
