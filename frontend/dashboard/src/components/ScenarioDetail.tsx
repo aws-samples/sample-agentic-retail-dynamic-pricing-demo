@@ -1,7 +1,10 @@
 import type { PricingScenario, GuardrailResult } from './ScenarioList';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import ApprovalActions from './ApprovalActions';
 import api from '../lib/api';
+import Tooltip from './Tooltip';
+import { getFactorTooltip } from '../lib/methodologyData';
+import MethodologyPanel from './MethodologyPanel';
 
 interface ScenarioDetailProps {
   scenario: PricingScenario;
@@ -75,35 +78,7 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
 
       {/* Contributing Factors (shown for top 3 scenarios) */}
       {showContributingFactors && (
-        <section className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-900">Contributing Factors</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Competitive Factors */}
-            <FactorsCard
-              title="Competitive Factors"
-              icon="🏪"
-              factors={scenario.competitiveFactors}
-              colorClass="border-blue-200 bg-blue-50/50"
-            />
-
-            {/* Demand Factors */}
-            <FactorsCard
-              title="Demand Factors"
-              icon="📈"
-              factors={scenario.demandFactors}
-              colorClass="border-purple-200 bg-purple-50/50"
-            />
-
-            {/* Market Factors */}
-            <FactorsCard
-              title="Market Factors"
-              icon="🌐"
-              factors={scenario.marketFactors}
-              colorClass="border-teal-200 bg-teal-50/50"
-            />
-          </div>
-        </section>
+        <ContributingFactorsSection scenario={scenario} />
       )}
 
       {/* Data Sources and Confidence Rationale */}
@@ -226,6 +201,58 @@ interface FactorsCardProps {
   colorClass: string;
 }
 
+function ContributingFactorsSection({ scenario }: { scenario: PricingScenario }) {
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
+  const methodologyBtnRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900">Contributing Factors</h3>
+        <button
+          ref={methodologyBtnRef}
+          onClick={() => setMethodologyOpen(true)}
+          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+        >
+          📖 View Methodology
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Competitive Factors */}
+        <FactorsCard
+          title="Competitive Factors"
+          icon="🏪"
+          factors={scenario.competitiveFactors}
+          colorClass="border-blue-200 bg-blue-50/50"
+        />
+
+        {/* Demand Factors */}
+        <FactorsCard
+          title="Demand Factors"
+          icon="📈"
+          factors={scenario.demandFactors}
+          colorClass="border-purple-200 bg-purple-50/50"
+        />
+
+        {/* Market Factors */}
+        <FactorsCard
+          title="Market Factors"
+          icon="🌐"
+          factors={scenario.marketFactors}
+          colorClass="border-teal-200 bg-teal-50/50"
+        />
+      </div>
+
+      <MethodologyPanel
+        isOpen={methodologyOpen}
+        onClose={() => setMethodologyOpen(false)}
+        triggerRef={methodologyBtnRef}
+      />
+    </section>
+  );
+}
+
 function FactorsCard({ title, icon, factors, colorClass }: FactorsCardProps) {
   const entries = Object.entries(factors);
 
@@ -237,14 +264,25 @@ function FactorsCard({ title, icon, factors, colorClass }: FactorsCardProps) {
       </h4>
       {entries.length > 0 ? (
         <dl className="space-y-1.5">
-          {entries.slice(0, 6).map(([key, value]) => (
-            <div key={key} className="flex justify-between text-xs">
-              <dt className="text-gray-600 capitalize">{formatKey(key)}</dt>
-              <dd className="text-gray-900 font-medium truncate max-w-[50%] text-right">
-                {formatValue(value)}
-              </dd>
-            </div>
-          ))}
+          {entries.slice(0, 6).map(([key, value]) => {
+            const tooltip = getFactorTooltip(key);
+            return (
+              <div key={key} className="flex justify-between text-xs">
+                <dt className="text-gray-600 capitalize">
+                  {tooltip ? (
+                    <Tooltip content={tooltip}>
+                      <span className="underline decoration-dotted cursor-help">{formatKey(key)}</span>
+                    </Tooltip>
+                  ) : (
+                    formatKey(key)
+                  )}
+                </dt>
+                <dd className="text-gray-900 font-medium truncate max-w-[50%] text-right">
+                  {formatValue(value)}
+                </dd>
+              </div>
+            );
+          })}
           {entries.length > 6 && (
             <p className="text-xs text-gray-500 italic">
               +{entries.length - 6} more factors

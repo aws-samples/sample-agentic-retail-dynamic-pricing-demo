@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Product } from '../types/product';
+import { getProductImage } from '../lib/productImageMap';
 
 interface ProductCardProps {
   product: Product;
@@ -8,7 +9,7 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
   const hasPreviousPrice = product.previousPrice != null && product.previousPrice > 0;
   const priceChanged = hasPreviousPrice && product.currentPrice !== product.previousPrice;
-  const priceIncreased = hasPreviousPrice && product.currentPrice > product.previousPrice;
+  const priceIncreased = hasPreviousPrice && product.currentPrice > product.previousPrice!;
 
   return (
     <Link
@@ -17,7 +18,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     >
       <div className="aspect-square bg-gray-100 overflow-hidden">
         <img
-          src={product.imageUrl}
+          src={getProductImage(product.productId, product.category)}
           alt={product.name}
           className="w-full h-full object-cover"
           loading="lazy"

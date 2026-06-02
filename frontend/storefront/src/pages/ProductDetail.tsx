@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import { Product } from '../types/product';
+import { getProductImage } from '../lib/productImageMap';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -106,9 +107,10 @@ export default function ProductDetail() {
         {/* Product Image */}
         <div className="bg-gray-100 rounded-lg overflow-hidden aspect-square">
           <img
-            src={product.imageUrl}
+            src={getProductImage(product.productId, product.category)}
             alt={product.name}
             className="w-full h-full object-cover"
+            loading="lazy"
           />
         </div>
 
@@ -232,13 +234,18 @@ export default function ProductDetail() {
           <div className="mt-6 border-t border-gray-200 pt-4">
             <p className="text-xs text-gray-400">
               Price last updated:{' '}
-              {new Date(product.priceUpdatedAt).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {(() => {
+                if (!product.priceUpdatedAt) return 'N/A';
+                const date = new Date(product.priceUpdatedAt);
+                if (isNaN(date.getTime())) return 'N/A';
+                return date.toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+              })()}
             </p>
           </div>
         </div>
