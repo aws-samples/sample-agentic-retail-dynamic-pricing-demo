@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import api from '../lib/api';
+import { formatPricingGroup } from '../lib/productNames';
 import PipelineSidebar from '../components/PipelineSidebar';
 import ScenarioList from '../components/ScenarioList';
 
@@ -109,7 +110,7 @@ export default function CycleDetail() {
               ← Back to Dashboard
             </Link>
             <h2 className="text-xl font-semibold text-gray-900">
-              Pricing Cycle: {cycle.pricingGroup.replace('-', ' > ')}
+              Pricing Cycle: {formatPricingGroup(cycle.pricingGroup)}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
               Started: {new Date(cycle.createdAt).toLocaleString()}
@@ -128,7 +129,7 @@ export default function CycleDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
             <p className="text-xs text-gray-500 uppercase tracking-wider">Pricing Group</p>
-            <p className="text-base font-semibold text-gray-900 mt-1">{cycle.pricingGroup.replace('-', ' > ')}</p>
+            <p className="text-base font-semibold text-gray-900 mt-1">{formatPricingGroup(cycle.pricingGroup)}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
             <p className="text-xs text-gray-500 uppercase tracking-wider">Objectives</p>

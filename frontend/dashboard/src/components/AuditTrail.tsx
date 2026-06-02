@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
+import { formatPricingGroup } from '../lib/productNames';
 
 interface AuditCycle {
   cycleId: string;
@@ -173,7 +174,7 @@ function AuditRow({ cycle, isExpanded, onToggle }: { cycle: AuditCycle; isExpand
           {new Date(cycle.createdAt).toLocaleString()}
         </td>
         <td className="px-3 py-2 text-xs font-medium text-gray-900">
-          {cycle.pricingGroup?.replace('-', ' > ')}
+          {formatPricingGroup(cycle.pricingGroup ?? '')}
         </td>
         <td className="px-3 py-2">
           <div className="flex flex-wrap gap-1">

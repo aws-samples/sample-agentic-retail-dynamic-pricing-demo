@@ -1,3 +1,5 @@
+import { PRODUCT_DIRECTORY } from './productNames';
+
 export interface TreeNode {
   id: string;
   name: string;
@@ -53,12 +55,26 @@ export function parsePricingGroup(pricingGroup: string): {
   category: string;
   subcategory?: string;
   productId?: string;
+  productName?: string;
 } {
   if (pricingGroup.startsWith('product-')) {
+    const rawId = pricingGroup.replace('product-', '');
+    const info = PRODUCT_DIRECTORY[rawId];
+    if (info) {
+      return {
+        level: 'product',
+        category: info.category,
+        subcategory: info.subCategory,
+        productId: rawId,
+        productName: info.name,
+      };
+    }
+    // Fallback for unknown product IDs
     return {
       level: 'product',
-      category: 'Individual Products',
-      productId: pricingGroup,
+      category: 'Other',
+      productId: rawId,
+      productName: rawId,
     };
   }
 
@@ -163,11 +179,22 @@ export function buildTreeFromCycles(cycles: CycleData[]): TreeNode[] {
       subEntry.priceChangesCount += metrics.priceChangesCount;
       subEntry.changePercents.push(...metrics.changePercents);
     } else if (parsed.level === 'product') {
-      // Product-level → goes under "Individual Products" category directly
-      categoryEntry.directRevenue += metrics.revenue;
-      categoryEntry.directMargins.push(...metrics.margins);
-      categoryEntry.directPriceChangesCount += metrics.priceChangesCount;
-      categoryEntry.directChangePercents.push(...metrics.changePercents);
+      // Product-level → place under real category and subcategory
+      const subName = parsed.subcategory ?? 'Other';
+      if (!categoryEntry.subcategories.has(subName)) {
+        categoryEntry.subcategories.set(subName, {
+          products: new Map(),
+          revenue: 0,
+          margins: [],
+          priceChangesCount: 0,
+          changePercents: [],
+        });
+      }
+      const subEntry = categoryEntry.subcategories.get(subName)!;
+      subEntry.revenue += metrics.revenue;
+      subEntry.margins.push(...metrics.margins);
+      subEntry.priceChangesCount += metrics.priceChangesCount;
+      subEntry.changePercents.push(...metrics.changePercents);
     }
   }
 
