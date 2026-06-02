@@ -341,6 +341,7 @@ const SIMULATION_PRODUCT_OPTIONS = [
   { label: 'Grocery > Dairy', value: 'Grocery-Dairy' },
   { label: 'Grocery > Beverages', value: 'Grocery-Beverages' },
   { label: 'Home & Garden (all)', value: 'Home & Garden' },
+  { label: 'Home & Garden > Garden', value: 'Home & Garden-Garden' },
   { label: 'Home & Garden > Lighting', value: 'Home & Garden-Lighting' },
   { label: 'Home & Garden > Tools', value: 'Home & Garden-Tools' },
   { label: 'ProSound Wireless Earbuds', value: 'product-prod-elec-001' },
