@@ -58,15 +58,24 @@ def get_inline_policy(account_id: str, region: str) -> dict:
                 ],
             },
             {
+                "Sid": "ECRAuthToken",
+                "Effect": "Allow",
+                "Action": [
+                    "ecr:GetAuthorizationToken",
+                ],
+                "Resource": "*",
+            },
+            {
                 "Sid": "ECRImagePull",
                 "Effect": "Allow",
                 "Action": [
                     "ecr:GetDownloadUrlForLayer",
                     "ecr:BatchGetImage",
-                    "ecr:GetAuthorizationToken",
                     "ecr:BatchCheckLayerAvailability",
                 ],
-                "Resource": "*",
+                "Resource": [
+                    f"arn:aws:ecr:{region}:{account_id}:repository/retail-pricing-*",
+                ],
             },
             {
                 "Sid": "CloudWatchLogs",

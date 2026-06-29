@@ -141,6 +141,12 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 
 ---
 
+## Cost Disclaimer
+
+> You are responsible for the cost of the AWS services used while running this sample deployment. There is no additional cost for using this sample. For full details, see the pricing pages for each AWS service you will be using in this sample. Prices are subject to change.
+
+---
+
 ## Setup & Deployment
 
 ### 1. Clone and Install
@@ -330,6 +336,12 @@ aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-e
 
 ---
 
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+---
+
 ## License
 
-This project is an internal demo/MVP. See repository settings for access controls.
+This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.

@@ -83,12 +83,15 @@ class ApiHandlersConstruct(Construct):
         agentcore_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
-                "bedrock:InvokeAgent",
-                "bedrock:InvokeAgentRuntime",
+                "bedrock:InvokeModel",
+                "bedrock:InvokeModelWithResponseStream",
                 "bedrock-agentcore:InvokeAgentRuntime",
-                "bedrock-agentcore:*",
+                "bedrock-agentcore:InvokeAgentRuntimeForUser",
             ],
-            resources=["*"],
+            resources=[
+                f"arn:aws:bedrock-agentcore:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:runtime/*",
+                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/*",
+            ],
         )
 
         # --- Lambda Functions ---

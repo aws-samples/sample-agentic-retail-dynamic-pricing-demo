@@ -104,6 +104,29 @@ class HostingConstruct(Construct):
             enable_auto_build=True,
         )
 
+        # --- Access Logging Bucket ---
+        self.access_logs_bucket = s3.Bucket(
+            self,
+            "AccessLogsBucket",
+            removal_policy=cdk.RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            enforce_ssl=True,
+            object_ownership=s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    expiration=cdk.Duration.days(90),
+                    transitions=[
+                        s3.Transition(
+                            storage_class=s3.StorageClass.INFREQUENT_ACCESS,
+                            transition_after=cdk.Duration.days(30),
+                        ),
+                    ],
+                ),
+            ],
+        )
+
         # --- CloudFront Distribution for Dashboard ---
         self.dashboard_bucket = s3.Bucket(
             self,
@@ -112,6 +135,9 @@ class HostingConstruct(Construct):
             auto_delete_objects=True,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
+            versioned=True,
+            server_access_logs_bucket=self.access_logs_bucket,
+            server_access_logs_prefix="s3-dashboard/",
         )
 
         dashboard_oai = cloudfront.OriginAccessIdentity(
@@ -135,6 +161,8 @@ class HostingConstruct(Construct):
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
             ),
             default_root_object="index.html",
+            log_bucket=self.access_logs_bucket,
+            log_file_prefix="cloudfront-dashboard/",
             error_responses=[
                 cloudfront.ErrorResponse(
                     http_status=403,
@@ -159,6 +187,9 @@ class HostingConstruct(Construct):
             auto_delete_objects=True,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
+            versioned=True,
+            server_access_logs_bucket=self.access_logs_bucket,
+            server_access_logs_prefix="s3-storefront/",
         )
 
         storefront_oai = cloudfront.OriginAccessIdentity(
@@ -182,6 +213,8 @@ class HostingConstruct(Construct):
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
             ),
             default_root_object="index.html",
+            log_bucket=self.access_logs_bucket,
+            log_file_prefix="cloudfront-storefront/",
             error_responses=[
                 cloudfront.ErrorResponse(
                     http_status=403,

@@ -34,6 +34,8 @@ class DynamoDBTables(Construct):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl",
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery=True,
         )
 
         self.pricing_scenarios_table = dynamodb.Table(
@@ -50,6 +52,8 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery=True,
         )
 
         self.products_table = dynamodb.Table(
@@ -62,6 +66,8 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery=True,
         )
 
         self.audit_trail_table = dynamodb.Table(
@@ -78,6 +84,8 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery=True,
         )
 
         self.approvals_table = dynamodb.Table(
@@ -94,4 +102,6 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery=True,
         )
