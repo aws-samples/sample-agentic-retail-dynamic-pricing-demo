@@ -10,7 +10,6 @@ Requirements: 4.1, 9.6
 """
 
 import json
-import logging
 import os
 from decimal import Decimal
 from typing import Any
@@ -18,8 +17,12 @@ from typing import Any
 import boto3
 from boto3.dynamodb.conditions import Attr
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+try:
+    from log_config import configure_logging
+except ImportError:
+    from backend.api_handlers.log_config import configure_logging
+
+logger = configure_logging(__name__)
 
 PRICING_SCENARIOS_TABLE = os.environ.get("PRICING_SCENARIOS_TABLE", "PricingScenarios")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")

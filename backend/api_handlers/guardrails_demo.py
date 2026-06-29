@@ -9,11 +9,14 @@ The guardrail logic is duplicated here intentionally for deployment simplicity.
 """
 
 import json
-import logging
 import re
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+try:
+    from log_config import configure_logging
+except ImportError:
+    from backend.api_handlers.log_config import configure_logging
+
+logger = configure_logging(__name__)
 
 
 # --- Inline guardrail functions (self-contained for Lambda deployment) ---

@@ -7,7 +7,6 @@ Requirements: 4.3, 7.1, 7.2, 7.3, 7.5
 """
 
 import json
-import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -19,8 +18,12 @@ import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+try:
+    from log_config import configure_logging
+except ImportError:
+    from backend.api_handlers.log_config import configure_logging
+
+logger = configure_logging(__name__)
 
 APPROVALS_TABLE = os.environ.get("APPROVALS_TABLE", "Approvals")
 PRICING_SCENARIOS_TABLE = os.environ.get("PRICING_SCENARIOS_TABLE", "PricingScenarios")

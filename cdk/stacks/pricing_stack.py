@@ -28,6 +28,8 @@ class RetailDynamicPricingStack(cdk.Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         cdk.Tags.of(self).add("Project", "RetailDynamicPricing")
+        cdk.Tags.of(self).add("Environment", "demo")
+        cdk.Tags.of(self).add("ManagedBy", "CDK")
 
         # DynamoDB tables
         self.dynamodb = DynamoDBTables(self, "DynamoDB")

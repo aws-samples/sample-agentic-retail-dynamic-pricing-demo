@@ -6,7 +6,6 @@ Handles:
 """
 
 import json
-import logging
 import os
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -14,8 +13,12 @@ from typing import Any
 
 import boto3
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+try:
+    from log_config import configure_logging
+except ImportError:
+    from backend.api_handlers.log_config import configure_logging
+
+logger = configure_logging(__name__)
 
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "Products")
 
