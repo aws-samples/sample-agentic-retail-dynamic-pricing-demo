@@ -229,6 +229,15 @@ class ApiHandlersConstruct(Construct):
 
         # POST /approvals (authenticated)
         approvals_resource = self.api.root.add_resource("approvals")
+
+        # GET /billing (authenticated) - AWS Cost Explorer data for TCO tab
+        billing_resource = self.api.root.add_resource("billing")
+        billing_resource.add_method(
+            "GET",
+            apigw.LambdaIntegration(self.pricing_cycles_fn),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
         approvals_resource.add_method(
             "POST",
             apigw.LambdaIntegration(self.approvals_fn),

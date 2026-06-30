@@ -1,0 +1,252 @@
+# Known Issues and Deployment Lessons Learned
+
+This document captures issues encountered during deployment and their resolutions.
+
+---
+
+## 1. CDK fails with "No module named 'aws_cdk'" despite package being installed
+
+**Symptom:** `npx cdk deploy` fails with `ModuleNotFoundError: No module named 'aws_cdk'` even though `pip list | grep aws-cdk` shows the package is installed.
+
+**Root Cause:** CDK spawns a subprocess using `/bin/sh -c "python3 cdk/app.py"`. If the system `python3` differs from the venv's `python3` (or if `PATH` isn't inherited by the subprocess), it uses the wrong interpreter.
+
+**Additional factor:** Paths with spaces (e.g., `Kiro Exp/Retail Dynamic Pricing - BACKUP`) can break CDK's subprocess invocation.
+
+**Fix:** Use `--app` flag to explicitly point to the venv Python:
+
+```bash
+npx cdk deploy --all --app ".venv/bin/python3 cdk/app.py"
+```
+
+Or create a wrapper script (`run_cdk.sh`) that quotes paths correctly:
+
+```bash
+#!/bin/bash
+exec "$(dirname "$0")/.venv/bin/python3" cdk/app.py "$@"
+```
+
+**Prevention:** Avoid project directory names with spaces. If unavoidable, always use the `--app` override.
+
+---
+
+## 2. AgentCore Runtime creation fails with ECR permissions error
+
+**Symptom:**
+```
+ValidationException: Access denied while validating ECR URI '...'
+The execution role requires permissions for ecr:GetAuthorizationToken,
+ecr:BatchGetImage, and ecr:GetDownloadUrlForLayer operations.
+```
+
+**Root Cause:** The IAM role created by `scripts/create_agentcore_role.py` scopes ECR pull permissions to `repository/retail-pricing-*` (dash-wildcard), but the actual ECR repositories use a slash separator: `repository/retail-pricing/competitive-intelligence`.
+
+The glob `retail-pricing-*` does not match `retail-pricing/competitive-intelligence`.
+
+**Fix:** Add an inline policy with the correct resource pattern:
+
+```bash
+aws iam put-role-policy \
+  --role-name RetailPricingAgentCoreRole \
+  --policy-name ECRImagePullFix \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability"
+      ],
+      "Resource": "arn:aws:ecr:us-east-1:<ACCOUNT_ID>:repository/retail-pricing/*"
+    }]
+  }'
+```
+
+**Prevention:** The `create_agentcore_role.py` script should be updated to use `retail-pricing/*` instead of `retail-pricing-*` in the ECR resource ARN.
+
+---
+
+## 3. Gateway setup fails with missing Lambda ARN environment variables
+
+**Symptom:**
+```
+Error: Missing required environment variables: COMPETITOR_API_LAMBDA_ARN,
+ERP_POS_LAMBDA_ARN, MARKET_SIGNALS_LAMBDA_ARN, COST_FINANCE_LAMBDA_ARN
+```
+
+**Root Cause:** `scripts/setup_gateway.py` expects 4 environment variables pointing to the MCP Server Lambda ARNs deployed by CDK. These aren't set automatically after `cdk deploy`.
+
+**Fix:** Query the Lambda ARNs and export them before running the script:
+
+```bash
+aws lambda list-functions \
+  --query "Functions[?starts_with(FunctionName, 'rdp-mcp-')].{Name:FunctionName,ARN:FunctionArn}" \
+  --output table --region us-east-1
+
+export COMPETITOR_API_LAMBDA_ARN=<ARN for rdp-mcp-competitor-api>
+export ERP_POS_LAMBDA_ARN=<ARN for rdp-mcp-erp-pos>
+export MARKET_SIGNALS_LAMBDA_ARN=<ARN for rdp-mcp-market-signals>
+export COST_FINANCE_LAMBDA_ARN=<ARN for rdp-mcp-cost-finance>
+
+python3 scripts/setup_gateway.py --region us-east-1
+```
+
+**Prevention:** The deployment guide should document this dependency, or the script should auto-discover the Lambda ARNs by function name prefix.
+
+---
+
+## 4. Gateway target synchronization fails with list length constraint
+
+**Symptom:**
+```
+ValidationException: 1 validation error detected: Value '[...]' at 'targetIdList'
+failed to satisfy constraint: Member must have length less than or equal to 1
+```
+
+**Root Cause:** `scripts/setup_gateway.py` passes all 4 target IDs to `SynchronizeGatewayTargets` in one call, but the API only accepts 1 target per synchronization request.
+
+**Impact:** Low — targets are still registered and functional. Agents can invoke MCP servers. The sync step just triggers tool discovery which happens automatically on first use.
+
+**Fix:** Non-blocking. If needed, sync targets individually:
+
+```bash
+# Targets are already registered and usable without explicit sync
+```
+
+**Prevention:** The script should loop over targets and sync one at a time.
+
+---
+
+## 5. AgentCore role missing Lambda invoke permissions for MCP Servers
+
+**Symptom:**
+```
+ValidationException: Gateway execution role lacks permission to invoke Lambda function
+arn:aws:lambda:...:function:rdp-mcp-competitor-api
+```
+
+**Root Cause:** The `create_agentcore_role.py` script does not include `lambda:InvokeFunction` permissions for the MCP Server Lambda functions. The gateway needs to invoke these Lambdas on behalf of agents.
+
+**Fix:** Add inline policy:
+
+```bash
+aws iam put-role-policy \
+  --role-name RetailPricingAgentCoreRole \
+  --policy-name LambdaInvokeMcpServers \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:us-east-1:<ACCOUNT_ID>:function:rdp-mcp-*"
+    }]
+  }'
+```
+
+**Prevention:** The `create_agentcore_role.py` script should include Lambda invoke permissions scoped to `rdp-mcp-*` functions.
+
+---
+
+## 6. Pricing cycle fails with AccessDeniedException on InvokeAgentRuntime
+
+**Symptom:**
+```
+AccessDeniedException: User is not authorized to perform:
+bedrock-agentcore:InvokeAgentRuntime on resource: ...
+```
+
+**Root Cause:** Two issues:
+1. The Lambda's `ORCHESTRATOR_AGENT_ARN` environment variable pointed to a stale ARN from a previous deployment (different account).
+2. The Lambda execution role (from CDK) didn't include `bedrock-agentcore:InvokeAgentRuntime` permission — the CDK IAM policy only covers the control plane, not the data plane invoke.
+
+**Fix:**
+1. Update Lambda env var with correct orchestrator ARN from `scripts/agent_arns.env`
+2. Add invoke permissions to the Lambda role:
+
+```bash
+aws iam put-role-policy \
+  --role-name <PRICING_CYCLES_LAMBDA_ROLE> \
+  --policy-name InvokeAgentCore \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": ["bedrock-agentcore:InvokeAgentRuntime", "bedrock-agentcore:InvokeAgentRuntimeForUser"],
+      "Resource": "arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:runtime/*"
+    }]
+  }'
+```
+
+**Prevention:** The CDK stack should include `InvokeAgentRuntime` in the agentcore_policy statement, and the deploy script should automatically update the Lambda env var.
+
+---
+
+## 7. Pricing cycle fails with DynamoDB permission errors (Scan, BatchWriteItem)
+
+**Symptom:** Sequential `AccessDeniedException` errors for `dynamodb:Scan` on Products table and `dynamodb:BatchWriteItem` on PricingScenarios table.
+
+**Root Cause:** CDK's `grant_read_data()` / `grant_read_write_data()` don't include `Scan` or `BatchWriteItem` actions. The pricing cycles handler needs broader DynamoDB access than what the CDK grants provide.
+
+**Fix:** Add a comprehensive policy covering all required actions:
+
+```bash
+aws iam put-role-policy \
+  --role-name <PRICING_CYCLES_LAMBDA_ROLE> \
+  --policy-name DynamoDBPricingCyclesHandler \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
+        "dynamodb:Query", "dynamodb:Scan",
+        "dynamodb:BatchWriteItem", "dynamodb:BatchGetItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/PricingCycles",
+        "arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/PricingScenarios",
+        "arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/Products",
+        "arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/Approvals",
+        "arn:aws:dynamodb:us-east-1:<ACCOUNT_ID>:table/AuditTrail"
+      ]
+    }]
+  }'
+```
+
+**Prevention:** CDK should use explicit `PolicyStatement` with all required actions instead of relying on `grant_*` helper methods.
+
+---
+
+## 8. /billing endpoint missing from API Gateway (CORS error)
+
+**Symptom:** TCO tab shows "Loading billing data..." and browser console shows CORS error for `/billing` endpoint.
+
+**Root Cause:** The `/billing` route handler exists in `pricing_cycles.py` but was never registered as an API Gateway route in the CDK stack. The Lambda handles it internally, but API Gateway rejects the preflight OPTIONS request with no CORS headers.
+
+**Fix:** Added `/billing` GET route to `cdk/stacks/api_handlers.py` pointing to the pricing_cycles Lambda, then redeployed CDK.
+
+**Prevention:** Ensure all routes handled by Lambda code are also registered in the API Gateway CDK construct.
+
+---
+
+## 9. Cognito redirect_mismatch error on login
+
+**Symptom:** Login redirects to Cognito but returns `error=redirect_mismatch`.
+
+**Root Cause:** Two issues:
+1. No Cognito domain was configured (needed for hosted UI OAuth flows)
+2. The app client's callback URLs didn't include the `/callback` path that the frontend uses
+
+**Fix:**
+1. Create the domain: `aws cognito-idp create-user-pool-domain --domain <unique-name>`
+2. Update callback URLs to include `/callback` path:
+
+```bash
+aws cognito-idp update-user-pool-client \
+  --callback-urls '["https://<CLOUDFRONT_DOMAIN>/callback"]' \
+  --logout-urls '["https://<CLOUDFRONT_DOMAIN>"]'
+```
+
+**Prevention:** CDK should configure the Cognito domain and set callback URLs based on the CloudFront distribution domain.
+
+---
