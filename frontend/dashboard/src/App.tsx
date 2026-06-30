@@ -25,10 +25,10 @@ function DashboardHome() {
 
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: '🏠', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'predictions' as const, label: 'Price Predictions', icon: '🔮', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'simulations' as const, label: 'Simulations', icon: '🧪', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'analytics' as const, label: 'Analytics', icon: '📊', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'audit' as const, label: 'Audit Trail', icon: '📋', roles: ['PricingAnalysts', 'Operations'] },
-    { id: 'predictions' as const, label: 'Price Predictions', icon: '🔮', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'scheduling' as const, label: 'Scheduling', icon: '⏰', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'ops' as const, label: 'Operations', icon: '⚙️', roles: ['Operations'] },
   ].filter(tab => tab.roles.includes(role) || role === 'unknown');
@@ -151,14 +151,6 @@ function OverviewTab() {
           {seeding ? 'Seeding...' : seedDone ? '✓ Seeded' : '📊 Seed Historical Data'}
         </button>
         <p className="text-sm text-gray-500">Reset clears all data • Seed adds 5 sample pricing cycles</p>
-      </div>
-
-      {/* System Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <AnalyticsCard label="Avg Cycle Time" value="< 2 min" subtext="vs 6-10 weeks manual" icon="⚡" color="blue" />
-        <AnalyticsCard label="Scenarios per Cycle" value="3" subtext="ranked by business impact" icon="📊" color="purple" />
-        <AnalyticsCard label="Guardrail Policies" value="4 active" subtext="Bedrock Guardrails enforced" icon="🛡️" color="green" />
-        <AnalyticsCard label="AI Agents" value="6" subtext="on AgentCore Runtime" icon="🤖" color="indigo" />
       </div>
 
       {/* Strategy Comparison */}
@@ -320,27 +312,6 @@ function AnalyticsTab() {
     <div className="space-y-6">
       <FinancialMetrics />
       <TreeTable />
-    </div>
-  );
-}
-
-function AnalyticsCard({ label, value, subtext, icon, color }: {
-  label: string; value: string; subtext: string; icon: string; color: string;
-}) {
-  const colorMap: Record<string, string> = {
-    blue: 'bg-blue-50 border-blue-200',
-    purple: 'bg-purple-50 border-purple-200',
-    green: 'bg-green-50 border-green-200',
-    indigo: 'bg-indigo-50 border-indigo-200',
-  };
-  return (
-    <div className={`rounded-lg border p-4 ${colorMap[color] ?? 'bg-gray-50 border-gray-200'}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-lg">{icon}</span>
-        <p className="text-xs text-gray-500 font-medium uppercase">{label}</p>
-      </div>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
-      <p className="text-[10px] text-gray-500 mt-0.5">{subtext}</p>
     </div>
   );
 }
