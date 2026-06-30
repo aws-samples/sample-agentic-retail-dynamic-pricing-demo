@@ -3,7 +3,7 @@
  * Visible only to users in the 'Operations' Cognito group.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TcoRoiTab from './TcoRoiTab';
 import ArchitectureDiagram from './ArchitectureDiagram';
 
@@ -99,26 +99,50 @@ function SystemHealthSection() {
 }
 
 function MetricsSection() {
+  const [metrics, setMetrics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    import('../lib/api').then(({ default: api }) => {
+      api.get('/metrics')
+        .then((res: any) => setMetrics(res.data))
+        .catch(() => setMetrics(null))
+        .finally(() => setLoading(false));
+    });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="text-center py-8 text-sm text-gray-500">Loading metrics from CloudWatch...</div>
+    );
+  }
+
+  const lambda = metrics?.lambda || {};
+  const apiGw = metrics?.apiGateway || {};
+  const dynamo = metrics?.dynamodb || {};
+  const business = metrics?.business || {};
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Total Cycles Run" value="--" subtext="Since deployment" />
-        <MetricCard label="Avg Cycle Duration" value="< 2 min" subtext="6 agents in parallel" />
-        <MetricCard label="Scenarios Generated" value="--" subtext="3 per cycle" />
-        <MetricCard label="Approvals Processed" value="--" subtext="Auto + Human" />
+        <MetricCard label="Total Cycles Run" value={String(business.totalCycles ?? '--')} subtext="Since deployment" />
+        <MetricCard label="Scenarios Generated" value={String(business.scenariosGenerated ?? '--')} subtext="3 per cycle" />
+        <MetricCard label="Lambda Invocations" value={String(lambda.invocations ?? '--')} subtext="Last 24h" />
+        <MetricCard label="Error Rate" value={`${lambda.errorRate ?? 0}%`} subtext="Last 24h" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Bedrock Invocations" value="--" subtext="Last 24h" />
-        <MetricCard label="Lambda Invocations" value="--" subtext="Last 24h" />
-        <MetricCard label="DynamoDB Reads" value="--" subtext="Last 24h" />
-        <MetricCard label="Error Rate" value="0%" subtext="Last 24h" />
+        <MetricCard label="Lambda Duration (p90)" value={lambda.durationP90Ms ? `${lambda.durationP90Ms}ms` : '--'} subtext="Pricing cycles handler" />
+        <MetricCard label="API Requests" value={String(apiGw.requests ?? '--')} subtext="Last 24h" />
+        <MetricCard label="API Latency (p90)" value={apiGw.latencyP90Ms ? `${apiGw.latencyP90Ms}ms` : '--'} subtext="All endpoints" />
+        <MetricCard label="DynamoDB Reads" value={String(dynamo.readUnits ?? '--')} subtext="Consumed RCUs" />
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-        <strong>Live metrics:</strong> Values marked "--" require CloudWatch metric API integration.
-        Cost Explorer data populates 24-48 hours after first deployment.
-      </div>
+      {metrics?.period && (
+        <div className="text-xs text-gray-400 text-right">
+          Data period: {metrics.period} | Updated: {new Date(metrics.timestamp).toLocaleTimeString()}
+        </div>
+      )}
     </div>
   );
 }

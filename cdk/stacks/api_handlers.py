@@ -286,6 +286,35 @@ class ApiHandlersConstruct(Construct):
             authorizer=authorizer,
             authorization_type=apigw.AuthorizationType.COGNITO,
         )
+
+        # GET /metrics (authenticated) - CloudWatch operational metrics
+        self.metrics_fn = self._create_handler(
+            "Metrics",
+            "metrics",
+            "Handles GET /metrics - CloudWatch operational metrics for Ops dashboard",
+            environment={
+                "AWS_REGION_NAME": cdk.Aws.REGION,
+            },
+        )
+        self.metrics_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "cloudwatch:GetMetricStatistics",
+                    "cloudwatch:GetMetricData",
+                    "dynamodb:Scan",
+                ],
+                resources=["*"],
+            )
+        )
+        metrics_resource = self.api.root.add_resource("metrics")
+        metrics_resource.add_method(
+            "GET",
+            apigw.LambdaIntegration(self.metrics_fn),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
         approvals_resource.add_method(
             "POST",
             apigw.LambdaIntegration(self.approvals_fn),
