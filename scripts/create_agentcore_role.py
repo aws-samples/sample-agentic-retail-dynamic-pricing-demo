@@ -74,7 +74,7 @@ def get_inline_policy(account_id: str, region: str) -> dict:
                     "ecr:BatchCheckLayerAvailability",
                 ],
                 "Resource": [
-                    f"arn:aws:ecr:{region}:{account_id}:repository/retail-pricing-*",
+                    f"arn:aws:ecr:{region}:{account_id}:repository/retail-pricing/*",
                 ],
             },
             {
@@ -119,6 +119,16 @@ def get_inline_policy(account_id: str, region: str) -> dict:
                 "Resource": [
                     f"arn:aws:s3:::retail-pricing-{account_id}-{region}",
                     f"arn:aws:s3:::retail-pricing-{account_id}-{region}/*",
+                ],
+            },
+            {
+                "Sid": "LambdaInvokeMcpServers",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:InvokeFunction",
+                ],
+                "Resource": [
+                    f"arn:aws:lambda:{region}:{account_id}:function:rdp-mcp-*",
                 ],
             },
         ],

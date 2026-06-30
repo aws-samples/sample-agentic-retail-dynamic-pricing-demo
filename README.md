@@ -188,20 +188,35 @@ python scripts/deploy_agentcore.py \
   --role-arn arn:aws:iam::<ACCOUNT_ID>:role/RetailPricingAgentCoreRole
 ```
 
-### 4. Setup AgentCore Gateway & Memory
+### 4. Re-deploy CDK (links agents to Lambda)
+
+The agent deploy script saves agent ARNs to `scripts/agent_arns.env`. Re-deploy CDK
+so the pricing cycles Lambda picks up the orchestrator ARN:
 
 ```bash
+npx cdk deploy --all --require-approval never
+```
+
+### 5. Setup AgentCore Gateway & Memory
+
+```bash
+# Export MCP Server Lambda ARNs (get from: aws lambda list-functions --query "Functions[?starts_with(FunctionName,'rdp-mcp-')].[FunctionName,FunctionArn]" --output table)
+export COMPETITOR_API_LAMBDA_ARN=<ARN for rdp-mcp-competitor-api>
+export ERP_POS_LAMBDA_ARN=<ARN for rdp-mcp-erp-pos>
+export MARKET_SIGNALS_LAMBDA_ARN=<ARN for rdp-mcp-market-signals>
+export COST_FINANCE_LAMBDA_ARN=<ARN for rdp-mcp-cost-finance>
+
 python scripts/setup_gateway.py --region us-east-1
 python scripts/setup_memory.py --region us-east-1
 ```
 
-### 5. Seed Data
+### 6. Seed Data
 
 ```bash
 python scripts/seed_products.py
 ```
 
-### 6. Create Cognito Demo User
+### 7. Create Cognito Demo User
 
 ```bash
 aws cognito-idp admin-create-user \
@@ -217,7 +232,7 @@ aws cognito-idp admin-set-user-password \
   --permanent
 ```
 
-### 7. Build and Deploy Frontends
+### 8. Build and Deploy Frontends
 
 ```bash
 # Dashboard
@@ -240,7 +255,24 @@ aws s3 sync dist/ s3://<STOREFRONT_S3_BUCKET>/ --delete
 cd ../..
 ```
 
-### 8. Access the Demo
+### 9. Update Cognito Callback URLs
+
+After deploying frontends, update the Cognito app client with the actual CloudFront URL:
+
+```bash
+aws cognito-idp update-user-pool-client \
+  --user-pool-id <COGNITO_USER_POOL_ID> \
+  --client-id <COGNITO_CLIENT_ID> \
+  --callback-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>/callback"]' \
+  --logout-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>"]' \
+  --allowed-o-auth-flows "code" "implicit" \
+  --allowed-o-auth-scopes "openid" "email" "profile" \
+  --supported-identity-providers "COGNITO" \
+  --allowed-o-auth-flows-user-pool-client \
+  --region us-east-1
+```
+
+### 10. Access the Demo
 
 | Resource | URL |
 |----------|-----|

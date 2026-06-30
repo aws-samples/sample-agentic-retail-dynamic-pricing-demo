@@ -11,6 +11,11 @@ class CognitoAuth(Construct):
     Creates a User Pool with email-based sign-in and an App Client
     configured for JWT token generation, suitable for API Gateway
     Cognito authorizer integration.
+
+    The Cognito domain is created automatically using the account ID for
+    uniqueness. Callback URLs are configured with a placeholder that must
+    be updated after the CloudFront distribution is created (see post-deploy
+    steps in the README).
     """
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -42,7 +47,18 @@ class CognitoAuth(Construct):
             removal_policy=cdk.RemovalPolicy.DESTROY,
         )
 
+        # Add Cognito hosted UI domain (required for OAuth login flows)
+        # Uses account ID suffix for global uniqueness
+        self._domain = self._user_pool.add_domain(
+            "CognitoDomain",
+            cognito_domain=cognito.CognitoDomainOptions(
+                domain_prefix=f"retail-pricing-{cdk.Aws.ACCOUNT_ID}",
+            ),
+        )
+
         # Create App Client for Dashboard authentication
+        # Callback URLs use localhost for dev; update with CloudFront URL post-deploy
+        # using: aws cognito-idp update-user-pool-client --callback-urls [...]
         self._user_pool_client = self._user_pool.add_client(
             "DashboardAppClient",
             user_pool_client_name="retail-pricing-dashboard-client",
@@ -59,6 +75,14 @@ class CognitoAuth(Construct):
                     cognito.OAuthScope.OPENID,
                     cognito.OAuthScope.EMAIL,
                     cognito.OAuthScope.PROFILE,
+                ],
+                callback_urls=[
+                    "https://localhost:5173/callback",
+                    "http://localhost:5173/callback",
+                ],
+                logout_urls=[
+                    "https://localhost:5173",
+                    "http://localhost:5173",
                 ],
             ),
             id_token_validity=cdk.Duration.hours(1),
@@ -82,6 +106,13 @@ class CognitoAuth(Construct):
             description="Cognito App Client ID",
         )
 
+        cdk.CfnOutput(
+            self,
+            "CognitoDomain",
+            value=f"retail-pricing-{cdk.Aws.ACCOUNT_ID}.auth.{cdk.Aws.REGION}.amazoncognito.com",
+            description="Cognito Hosted UI Domain",
+        )
+
     @property
     def user_pool(self) -> cognito.UserPool:
         """The Cognito User Pool for API Gateway authorizer integration."""
@@ -91,3 +122,8 @@ class CognitoAuth(Construct):
     def user_pool_client(self) -> cognito.UserPoolClient:
         """The Cognito App Client for Dashboard authentication."""
         return self._user_pool_client
+
+    @property
+    def domain_prefix(self) -> str:
+        """The Cognito domain prefix for the hosted UI."""
+        return f"retail-pricing-{cdk.Aws.ACCOUNT_ID}"

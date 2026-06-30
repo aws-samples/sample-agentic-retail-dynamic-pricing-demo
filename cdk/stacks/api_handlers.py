@@ -114,8 +114,38 @@ class ApiHandlersConstruct(Construct):
             timeout_seconds=300,  # 5 min for async AgentCore invocations
         )
         dynamodb_tables.pricing_cycles_table.grant_read_write_data(self.pricing_cycles_fn)
-        dynamodb_tables.pricing_scenarios_table.grant_read_data(self.pricing_cycles_fn)
+        dynamodb_tables.pricing_scenarios_table.grant_read_write_data(self.pricing_cycles_fn)
+        dynamodb_tables.products_table.grant_read_data(self.pricing_cycles_fn)
         self.pricing_cycles_fn.add_to_role_policy(agentcore_policy)
+        # DynamoDB Scan and BatchWriteItem are not covered by grant_read_write_data
+        self.pricing_cycles_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "dynamodb:Scan",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:BatchGetItem",
+                ],
+                resources=[
+                    dynamodb_tables.pricing_cycles_table.table_arn,
+                    dynamodb_tables.pricing_scenarios_table.table_arn,
+                    dynamodb_tables.products_table.table_arn,
+                    dynamodb_tables.approvals_table.table_arn,
+                    dynamodb_tables.audit_trail_table.table_arn,
+                ],
+            )
+        )
+        # Cost Explorer access for /billing endpoint (TCO tab)
+        self.pricing_cycles_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "ce:GetCostAndUsage",
+                    "ce:GetCostForecast",
+                ],
+                resources=["*"],
+            )
+        )
         # Allow Lambda to invoke itself asynchronously for orchestrator calls
         self.pricing_cycles_fn.add_to_role_policy(
             iam.PolicyStatement(
@@ -234,6 +264,24 @@ class ApiHandlersConstruct(Construct):
         billing_resource = self.api.root.add_resource("billing")
         billing_resource.add_method(
             "GET",
+            apigw.LambdaIntegration(self.pricing_cycles_fn),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
+        # POST /reset (authenticated) - Reset demo data
+        reset_resource = self.api.root.add_resource("reset")
+        reset_resource.add_method(
+            "POST",
+            apigw.LambdaIntegration(self.pricing_cycles_fn),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
+        # POST /seed (authenticated) - Seed historical demo data
+        seed_resource = self.api.root.add_resource("seed")
+        seed_resource.add_method(
+            "POST",
             apigw.LambdaIntegration(self.pricing_cycles_fn),
             authorizer=authorizer,
             authorization_type=apigw.AuthorizationType.COGNITO,
