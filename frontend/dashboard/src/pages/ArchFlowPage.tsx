@@ -89,7 +89,7 @@ export default function ArchFlowPage() {
               </ol>
               <div className="mt-4 pt-3 border-t border-gray-100">
                 <p className="text-[10px] text-gray-500 leading-relaxed">
-                  <span className="font-semibold text-gray-700">Total time:</span> ~55 seconds end-to-end. The entire loop is closed — monitoring feeds back into future pricing decisions via AgentCore Memory.
+                  <span className="font-semibold text-gray-700">Total time:</span> under 2 minutes end-to-end. The entire loop is closed — monitoring feeds back into future pricing decisions via AgentCore Memory.
                 </p>
               </div>
             </div>

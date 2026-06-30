@@ -541,7 +541,7 @@ export default function ArchitectureDiagram() {
 
           {/* Timing bar */}
           <text x="550" y="680" fontSize="9" fill="#0073BB" textAnchor="middle" fontStyle="italic">
-            ~55 seconds end-to-end (vs 6-10 weeks traditional)
+            < 2 minutes end-to-end (vs 6-10 weeks traditional)
           </text>
 
           {/* Feedback loop: dashed line from step 7 back to step 1 */}

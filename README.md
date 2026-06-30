@@ -1,6 +1,6 @@
 # Retail Dynamic Pricing — Agentic AI Solution
 
-An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous ~55 second workflow. Built on **Amazon Bedrock AgentCore** with 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations with human-in-the-loop approval.
+An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous workflow that completes in under 2 minutes. Built on **Amazon Bedrock AgentCore** with 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations with human-in-the-loop approval.
 
 ## What It Does
 
@@ -286,7 +286,7 @@ aws cognito-idp update-user-pool-client \
 
 1. **Open Dashboard** → Log in with Cognito credentials
 2. **Simulations tab** → Select a scenario preset (e.g., "Competitor Price War")
-3. **Watch the pipeline** → 6 agents execute in ~55 seconds
+3. **Watch the pipeline** → 6 agents execute in under 2 minutes
 4. **Review scenarios** → 3 ranked recommendations with risk levels
 5. **Approve/Reject** → HIGH risk requires justification, LOW risk auto-approves
 6. **Check Storefront** → Prices update in real-time after approval

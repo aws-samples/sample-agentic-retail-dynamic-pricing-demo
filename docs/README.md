@@ -25,7 +25,7 @@
 
 | Aspect | Detail |
 |--------|--------|
-| **Purpose** | Transform retail pricing from 6-10 week manual process to ~55 second AI-driven workflow |
+| **Purpose** | Transform retail pricing from 6-10 week manual process to an AI-driven workflow completing in under 2 minutes |
 | **Architecture** | 6 AI agents on Amazon Bedrock AgentCore Runtime |
 | **Framework** | Strands Agents SDK |
 | **Models** | Claude Opus 4 (orchestrator), Claude Sonnet 4 (specialists) |

@@ -77,7 +77,7 @@ This is genuinely agentic AI (not just a pipeline or workflow automation) becaus
 
 **High-impact demo moments:**
 
-1. **~55 second end-to-end cycle** — Show the full pipeline from request to ranked scenarios (vs. 6-10 weeks manually)
+1. **Under 2 minute end-to-end cycle** — Show the full pipeline from request to ranked scenarios (vs. 6-10 weeks manually)
 2. **Real-time agent status panel** — Watch 6 agents execute with live status updates every 5 seconds
 3. **Ranked scenarios with risk classification** — Show how scenarios are automatically classified as Recommended / Review Required / Human Exception Handling
 4. **Guardrails in action** — Demonstrate a scenario being rejected for below-cost pricing or MAP violation
@@ -97,7 +97,7 @@ This is genuinely agentic AI (not just a pipeline or workflow automation) becaus
 | Metric | As-Is (Traditional) | To-Be (Paper) | Our Implementation | Status |
 |--------|---------------------|---------------|-------------------|--------|
 | Scenario Coverage | 3-5 scenarios | 50+ data-driven | 3 ranked scenarios per cycle (architecture supports 50+) | ⚠️ Partial (MVP) |
-| Pricing Cycle Time | 6-10 weeks | 2-4 days | ~55 seconds | ✅ Exceeds |
+| Pricing Cycle Time | 6-10 weeks | 2-4 days | < 2 minutes | ✅ Exceeds |
 | Market Responsiveness | Weeks | Real-time | Near real-time (on-demand trigger) | ✅ Aligned |
 
 ### Architecture Components Alignment

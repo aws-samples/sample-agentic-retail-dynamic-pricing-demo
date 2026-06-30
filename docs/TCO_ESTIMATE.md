@@ -16,7 +16,7 @@ total cost is ~$15.5K/month — delivering 26x+ ROI against a conservative 5% re
 
 ---
 
-## Per Pricing Cycle Cost Breakdown (~55 seconds)
+## Per Pricing Cycle Cost Breakdown (< 2 minutes)
 
 | Component | Service | Usage per Cycle | Unit Price | Cost/Cycle |
 |-----------|---------|-----------------|------------|------------|
@@ -25,7 +25,7 @@ total cost is ~$15.5K/month — delivering 26x+ ROI against a conservative 5% re
 | Strategy synthesis | Bedrock (Claude Sonnet 4) | ~4K input + 2K output tokens | $3/$15 per 1M tokens | $0.04 |
 | Implementation monitor | Bedrock (Claude Sonnet 4) | ~1K input + 500 output tokens | $3/$15 per 1M tokens | $0.01 |
 | Guardrail evaluation | Bedrock Guardrails | 5 evaluations × ~2K tokens | $0.75 per 1K text units | $0.004 |
-| Agent compute | AgentCore Runtime | ~55s across 6 agents | Pay-per-second | $0.02-0.05 |
+| Agent compute | AgentCore Runtime | < 2 min across 6 agents | Pay-per-second | $0.02-0.05 |
 | API handling | Lambda | 2 invocations × 60s avg | $0.0000167/GB-s | $0.002 |
 | State persistence | DynamoDB | ~20 writes + 10 reads | $1.25/M writes, $0.25/M reads | $0.0001 |
 | **TOTAL PER CYCLE** | | | | **$0.22 - $0.30** |

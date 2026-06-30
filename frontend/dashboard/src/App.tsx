@@ -142,7 +142,7 @@ function OverviewTab() {
 
       {/* System Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <AnalyticsCard label="Avg Cycle Time" value="~55s" subtext="vs 6-10 weeks manual" icon="⚡" color="blue" />
+        <AnalyticsCard label="Avg Cycle Time" value="< 2 min" subtext="vs 6-10 weeks manual" icon="⚡" color="blue" />
         <AnalyticsCard label="Scenarios per Cycle" value="3" subtext="ranked by business impact" icon="📊" color="purple" />
         <AnalyticsCard label="Guardrail Policies" value="4 active" subtext="Bedrock Guardrails enforced" icon="🛡️" color="green" />
         <AnalyticsCard label="AI Agents" value="6" subtext="on AgentCore Runtime" icon="🤖" color="indigo" />

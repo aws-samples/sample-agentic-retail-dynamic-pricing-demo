@@ -6,7 +6,7 @@
 
 ## Solution Overview
 
-An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous ~55 second workflow. Built on Amazon Bedrock AgentCore with 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations.
+An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous workflow that completes in under 2 minutes. Built on Amazon Bedrock AgentCore with 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations.
 
 ---
 

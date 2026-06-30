@@ -12,7 +12,7 @@ AWS Guidance Paper (Mar 2026) to our implementation status.
 | Metric | As-Is | To-Be (Paper) | Our Implementation | Status |
 |--------|-------|---------------|-------------------|--------|
 | Scenario Coverage | 3-5 scenarios | 50+ data-driven | 3 ranked scenarios per cycle | ⚠️ Partial (MVP) |
-| Pricing Cycle Time | 6-10 weeks | 2-4 days | ~55 seconds | ✅ Exceeds |
+| Pricing Cycle Time | 6-10 weeks | 2-4 days | < 2 minutes | ✅ Exceeds |
 | Market Responsiveness | Weeks | Real-time | Near real-time (on-demand trigger) | ✅ Aligned |
 
 ---

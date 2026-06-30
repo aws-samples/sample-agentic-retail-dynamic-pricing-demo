@@ -2,7 +2,7 @@
 
 ## Overview
 
-This demo shows how AI agents autonomously transform retail pricing from a 6-10 week manual process into a ~55 second automated workflow. The system uses Amazon Bedrock AgentCore to run 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations — with human-in-the-loop approval for high-risk decisions and fully autonomous execution for low-risk changes.
+This demo shows how AI agents autonomously transform retail pricing from a 6-10 week manual process into a automated workflow completing in under 2 minutes. The system uses Amazon Bedrock AgentCore to run 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations — with human-in-the-loop approval for high-risk decisions and fully autonomous execution for low-risk changes.
 
 ---
 
@@ -34,7 +34,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 **What to point out:**
 
-- **Stats cards** — "The system runs in ~55 seconds, generates 3 ranked scenarios per cycle, enforces 4 guardrail policies, and uses 6 AI agents on AgentCore Runtime."
+- **Stats cards** — "The system completes in under 2 minutes, generates 3 ranked scenarios per cycle, enforces 4 guardrail policies, and uses 6 AI agents on AgentCore Runtime."
 - **Architecture panel** — "Built on Amazon Bedrock AgentCore with Strands Agents SDK, using Claude Sonnet 4 for analysis and Claude Opus 4 for complex reasoning."
 - **Data Sources panel** — "Four MCP Servers provide real-time data: Competitor API for price monitoring, ERP/POS for sales history and inventory, Market Signals for trends, and Cost & Finance for margins."
 - **Compliance panel** — "Bedrock Guardrails block anti-competitive strategies. Every decision is fully auditable."
@@ -67,7 +67,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 8. **Guardrail Validation** (green) — "Amazon Bedrock Guardrails verify no anti-competitive strategies."
 9. **Implementation** (amber) — "Waiting for human approval — this is the human-in-the-loop step."
 
-> "In about 55 seconds, we have 3 ranked scenarios. Let's look at them."
+> "In under 2 minutes, we have 3 ranked scenarios. Let's look at them."
 
 **Action:** Expand the scenarios table. Point out:
 
@@ -188,7 +188,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 | Traditional Process | This Solution |
 |---|---|
-| 6-10 weeks | ~55 seconds |
+| 6-10 weeks | < 2 minutes |
 | 3-5 scenarios in Excel | 3 AI-generated ranked scenarios |
 | Manual data gathering | 4 MCP Servers (real-time) |
 | Monthly pricing committee | Instant HITL or auto-approval |

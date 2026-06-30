@@ -63,7 +63,7 @@ export default function TcoRoiTab() {
 
       {/* Per-Cycle Breakdown */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Cost per Pricing Cycle (~55 seconds)</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Cost per Pricing Cycle (< 2 minutes)</h3>
         <div className="overflow-hidden border border-gray-200 rounded-lg">
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
@@ -102,7 +102,7 @@ export default function TcoRoiTab() {
               <tr>
                 <td className="px-3 py-2 text-gray-900 font-medium">Agent compute</td>
                 <td className="px-3 py-2 text-gray-600">AgentCore Runtime</td>
-                <td className="px-3 py-2 text-gray-600">~55s across 6 agents</td>
+                <td className="px-3 py-2 text-gray-600">< 2 min across 6 agents</td>
                 <td className="px-3 py-2 text-right text-gray-900 font-medium">$0.035</td>
               </tr>
               <tr>
