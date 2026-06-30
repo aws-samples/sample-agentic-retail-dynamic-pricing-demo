@@ -48,8 +48,31 @@ export default function OpsTab() {
       {section === 'health' && <SystemHealthSection />}
       {section === 'metrics' && <MetricsSection />}
       {section === 'architecture' && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <ArchitectureDiagram />
+        <div className="space-y-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <ArchitectureDiagram />
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Recent Architecture Additions</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="bg-indigo-50 rounded-md p-3">
+                <span className="font-medium text-indigo-800">Role-Based Access (RBAC)</span>
+                <p className="text-indigo-700 mt-1">Cognito groups (PricingAnalysts, Operations) with JWT-based tab visibility. Ops tab restricted to Operations group.</p>
+              </div>
+              <div className="bg-emerald-50 rounded-md p-3">
+                <span className="font-medium text-emerald-800">Price Prediction Simulator</span>
+                <p className="text-emerald-700 mt-1">Client-side decision tree with what-if sliders. No backend calls — pure simulation for explainability demos.</p>
+              </div>
+              <div className="bg-amber-50 rounded-md p-3">
+                <span className="font-medium text-amber-800">CloudWatch Metrics API</span>
+                <p className="text-amber-700 mt-1">GET /metrics endpoint queries CloudWatch for Lambda, API Gateway, and DynamoDB metrics. Powers the Ops Metrics section.</p>
+              </div>
+              <div className="bg-slate-50 rounded-md p-3">
+                <span className="font-medium text-slate-800">Operational Dashboard</span>
+                <p className="text-slate-700 mt-1">CDK-provisioned CloudWatch dashboard (RetailDynamicPricing-Operations) with pre-built graphs for latency, errors, and throughput.</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       {section === 'tco' && <TcoRoiTab />}
