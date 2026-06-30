@@ -9,21 +9,27 @@ import MethodologyPage from './pages/MethodologyPage';
 import AuditTrail from './components/AuditTrail';
 import FinancialMetrics from './components/FinancialMetrics';
 import TreeTable from './components/TreeTable';
-import TcoRoiTab from './components/TcoRoiTab';
 import StrategyComparison from './components/StrategyComparison';
+import OpsTab from './components/OpsTab';
+import PricePredictionTab from './components/PricePredictionTab';
 import api from './lib/api';
 import { login, logout } from './lib/cognito';
+import { isOperationsUser, getUserEmail, getPrimaryRole } from './lib/roles';
 
 function DashboardHome() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'tco'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'predictions' | 'ops'>('overview');
+  const opsUser = isOperationsUser();
+  const userEmail = getUserEmail();
+  const role = getPrimaryRole();
 
   const tabs = [
-    { id: 'overview' as const, label: 'Overview', icon: '🏠' },
-    { id: 'simulations' as const, label: 'Simulations', icon: '🧪' },
-    { id: 'analytics' as const, label: 'Analytics', icon: '📊' },
-    { id: 'audit' as const, label: 'Audit Trail', icon: '📋' },
-    { id: 'tco' as const, label: 'TCO & ROI', icon: '💰' },
-  ];
+    { id: 'overview' as const, label: 'Overview', icon: '🏠', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'simulations' as const, label: 'Simulations', icon: '🧪', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'analytics' as const, label: 'Analytics', icon: '📊', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'audit' as const, label: 'Audit Trail', icon: '📋', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'predictions' as const, label: 'Price Predictions', icon: '🔮', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'ops' as const, label: 'Operations', icon: '⚙️', roles: ['Operations'] },
+  ].filter(tab => tab.roles.includes(role) || role === 'unknown');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -33,6 +39,9 @@ function DashboardHome() {
             CCOE Dynamic Pricing Solution for Retail Transformation
           </h1>
           <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              {userEmail || 'user'} ({role === 'Operations' ? 'Ops' : 'Analyst'})
+            </span>
             <Link
               to="/methodology"
               className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
@@ -73,7 +82,8 @@ function DashboardHome() {
         {activeTab === 'simulations' && <SimulationsTab />}
         {activeTab === 'analytics' && <AnalyticsTab />}
         {activeTab === 'audit' && <AuditTrail />}
-        {activeTab === 'tco' && <TcoRoiTab />}
+        {activeTab === 'predictions' && <PricePredictionTab />}
+        {activeTab === 'ops' && opsUser && <OpsTab />}
       </main>
     </div>
   );

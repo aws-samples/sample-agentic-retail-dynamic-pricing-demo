@@ -113,6 +113,25 @@ class CognitoAuth(Construct):
             description="Cognito Hosted UI Domain",
         )
 
+        # --- Cognito Groups for Role-Based Access ---
+        # PricingAnalysts: Standard users who run pricing cycles and approve scenarios
+        cognito.CfnUserPoolGroup(
+            self,
+            "PricingAnalystsGroup",
+            user_pool_id=self._user_pool.user_pool_id,
+            group_name="PricingAnalysts",
+            description="Pricing analysts who run cycles and approve scenarios",
+        )
+
+        # Operations: System operators who see metrics, health, architecture, and TCO
+        cognito.CfnUserPoolGroup(
+            self,
+            "OperationsGroup",
+            user_pool_id=self._user_pool.user_pool_id,
+            group_name="Operations",
+            description="Operations team with access to system metrics and health",
+        )
+
     @property
     def user_pool(self) -> cognito.UserPool:
         """The Cognito User Pool for API Gateway authorizer integration."""

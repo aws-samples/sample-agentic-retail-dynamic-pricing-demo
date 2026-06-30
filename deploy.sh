@@ -227,6 +227,26 @@ if [ -n "$USER_POOL_ID" ]; then
         --permanent \
         --region $REGION
     print_success "Ops user created: $OPS_USER"
+
+    # Assign users to Cognito groups
+    aws cognito-idp admin-add-user-to-group \
+        --user-pool-id $USER_POOL_ID \
+        --username $DEMO_USER \
+        --group-name PricingAnalysts \
+        --region $REGION 2>/dev/null || true
+    print_success "Demo user assigned to PricingAnalysts group"
+
+    aws cognito-idp admin-add-user-to-group \
+        --user-pool-id $USER_POOL_ID \
+        --username $OPS_USER \
+        --group-name Operations \
+        --region $REGION 2>/dev/null || true
+    aws cognito-idp admin-add-user-to-group \
+        --user-pool-id $USER_POOL_ID \
+        --username $OPS_USER \
+        --group-name PricingAnalysts \
+        --region $REGION 2>/dev/null || true
+    print_success "Ops user assigned to Operations + PricingAnalysts groups"
 else
     print_warning "Could not find User Pool ID — create users manually"
 fi
