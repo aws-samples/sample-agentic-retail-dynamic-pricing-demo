@@ -39,6 +39,7 @@ frontend/storefront/dist/
 .env.local
 .env.*.local
 scripts/agent_arns.env
+backend/agents/agentcore/agent_config.json
 
 # Kiro (internal development tooling)
 .kiro/

@@ -336,12 +336,10 @@ PYTHONPATH=. python -m backend.agents.testing_harness
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 5-minute demo walkthrough |
 | [docs/GUIDANCE_ALIGNMENT.md](docs/GUIDANCE_ALIGNMENT.md) | Mapping to AWS Guidance Paper |
 | [docs/TCO_ESTIMATE.md](docs/TCO_ESTIMATE.md) | Total Cost of Ownership analysis |
-| [docs/deployment_guide.md](docs/deployment_guide.md) | Detailed deployment guide |
 | [docs/agent_testing_guide.md](docs/agent_testing_guide.md) | Agent testing procedures |
-| [docs/ROLLBACK_GUIDE.md](docs/ROLLBACK_GUIDE.md) | How to revert any feature |
 | [docs/SYSTEM_DEEP_DIVE.md](docs/SYSTEM_DEEP_DIVE.md) | Full system analysis, demo walkthroughs, Well-Architected alignment |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Industry terms, abbreviations, and definitions |
-| [docs/GUARDRAILS_DEMO_ROLLBACK.md](docs/GUARDRAILS_DEMO_ROLLBACK.md) | Rollback guide for guardrails demo feature |
+| [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Deployment issues and resolutions |
 
 ---
 
