@@ -12,12 +12,13 @@ import TreeTable from './components/TreeTable';
 import StrategyComparison from './components/StrategyComparison';
 import OpsTab from './components/OpsTab';
 import PricePredictionTab from './components/PricePredictionTab';
+import SchedulingTab from './components/SchedulingTab';
 import api from './lib/api';
 import { login, logout } from './lib/cognito';
 import { isOperationsUser, getUserEmail, getPrimaryRole } from './lib/roles';
 
 function DashboardHome() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'predictions' | 'ops'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'predictions' | 'scheduling' | 'ops'>('overview');
   const opsUser = isOperationsUser();
   const userEmail = getUserEmail();
   const role = getPrimaryRole();
@@ -28,6 +29,7 @@ function DashboardHome() {
     { id: 'analytics' as const, label: 'Analytics', icon: '📊', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'audit' as const, label: 'Audit Trail', icon: '📋', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'predictions' as const, label: 'Price Predictions', icon: '🔮', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'scheduling' as const, label: 'Scheduling', icon: '⏰', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'ops' as const, label: 'Operations', icon: '⚙️', roles: ['Operations'] },
   ].filter(tab => tab.roles.includes(role) || role === 'unknown');
 
@@ -83,6 +85,7 @@ function DashboardHome() {
         {activeTab === 'analytics' && <AnalyticsTab />}
         {activeTab === 'audit' && <AuditTrail />}
         {activeTab === 'predictions' && <PricePredictionTab />}
+        {activeTab === 'scheduling' && <SchedulingTab />}
         {activeTab === 'ops' && opsUser && <OpsTab />}
       </main>
     </div>
@@ -304,107 +307,6 @@ function SimulationsTab() {
             guardrailType="price_fixing"
             regulation="Sherman Act Section 1"
           />
-        </div>
-      </div>
-
-      {/* Intelligent Scheduling (Production Concept) */}
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Intelligent Scheduling (Production-Ready)</h3>
-        <p className="text-xs text-gray-600 mb-4">
-          In production, pricing cycles can run autonomously based on intelligent triggers — no manual intervention required for low-risk scenarios.
-        </p>
-
-        <div className="bg-gradient-to-r from-gray-50 to-indigo-50 rounded-lg border border-gray-200 p-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Schedule Configuration */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-                <span className="text-base">⏰</span> Schedule Configuration
-              </h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between bg-white rounded-md p-2.5 border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-800">Daily Price Review</span>
-                    <p className="text-xs text-gray-500">Mon-Fri, 6:00 AM EST</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span>
-                </div>
-                <div className="flex items-center justify-between bg-white rounded-md p-2.5 border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-800">Weekly Category Optimization</span>
-                    <p className="text-xs text-gray-500">Every Monday, 4:00 AM EST</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span>
-                </div>
-                <div className="flex items-center justify-between bg-white rounded-md p-2.5 border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-800">Monthly Strategic Review</span>
-                    <p className="text-xs text-gray-500">1st of month, 8:00 AM EST</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Paused</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Event-Driven Triggers */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-                <span className="text-base">⚡</span> Event-Driven Triggers
-              </h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between bg-white rounded-md p-2.5 border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-800">Competitor Price Drop {'>'} 10%</span>
-                    <p className="text-xs text-gray-500">Auto-triggers cycle for affected category</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Armed</span>
-                </div>
-                <div className="flex items-center justify-between bg-white rounded-md p-2.5 border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-800">{'Inventory < 15% threshold'}</span>
-                    <p className="text-xs text-gray-500">Triggers clearance pricing evaluation</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Armed</span>
-                </div>
-                <div className="flex items-center justify-between bg-white rounded-md p-2.5 border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-800">{'Demand Spike > 30% MoM'}</span>
-                    <p className="text-xs text-gray-500">Triggers revenue maximization cycle</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Monitor</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Auto-Execution Rules */}
-          <div className="mt-5 pt-4 border-t border-gray-200">
-            <h4 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
-              <span className="text-base">🤖</span> Autonomous Execution Rules
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 text-center">
-                <p className="text-xs font-semibold text-emerald-800">LOW Risk</p>
-                <p className="text-xs text-emerald-700 mt-1">Auto-approve and implement</p>
-                <p className="text-xs text-emerald-600 mt-0.5">No human intervention</p>
-              </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-center">
-                <p className="text-xs font-semibold text-amber-800">MEDIUM Risk</p>
-                <p className="text-xs text-amber-700 mt-1">Generate + notify analyst</p>
-                <p className="text-xs text-amber-600 mt-0.5">4-hour approval window</p>
-              </div>
-              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-center">
-                <p className="text-xs font-semibold text-red-800">HIGH Risk</p>
-                <p className="text-xs text-red-700 mt-1">Generate + escalate to manager</p>
-                <p className="text-xs text-red-600 mt-0.5">Requires justification</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Implementation Note */}
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-3 text-xs text-blue-800">
-            <strong>Production implementation:</strong> Uses Amazon EventBridge Scheduler for time-based triggers and EventBridge Rules for event-driven triggers. Each trigger invokes the pricing cycle Lambda, which orchestrates agents on AgentCore. STP (Straight-Through Processing) for LOW risk eliminates human bottlenecks while maintaining governance for high-impact decisions.
-          </div>
         </div>
       </div>
 
