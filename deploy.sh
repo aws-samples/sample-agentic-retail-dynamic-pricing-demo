@@ -117,7 +117,7 @@ else
     print_success "Virtual environment already exists"
 fi
 source .venv/bin/activate
-pip install -e . --quiet
+pip3 install -e . --quiet
 print_success "Dependencies installed"
 
 # Step 2: Deploy Infrastructure (CDK) — first pass
