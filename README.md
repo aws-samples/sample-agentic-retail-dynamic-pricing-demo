@@ -9,6 +9,9 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 - **Enforces compliance** via Amazon Bedrock Guardrails (blocks predatory pricing, price fixing, discrimination, gouging)
 - **Routes approvals by risk level** — LOW risk auto-approved (Straight-Through Processing), MEDIUM/HIGH routed to humans
 - **Provides full audit trail** for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive)
+- **Price Prediction Simulator** — Interactive decision tree with drill-down explainability showing exactly how each pricing factor contributes to recommendations
+- **Role-based access** — Pricing Analysts see simulations/scenarios/predictions; Operations team sees system health, metrics, architecture, and TCO
+- **One-click deployment** — Automated `deploy.sh` script handles all infrastructure, agents, and frontend deployment
 
 ---
 
@@ -149,6 +152,25 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 
 ## Setup & Deployment
 
+### Quick Deploy (Recommended)
+
+```bash
+git clone <REPOSITORY_URL>
+cd "Retail Dynamic Pricing"
+chmod +x deploy.sh
+./deploy.sh
+```
+
+The script automates all steps below, including prerequisites check, CDK deployment, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments.
+
+After deployment completes, run the validation script:
+
+```bash
+python3 scripts/verify_deployment.py
+```
+
+### Manual Deployment
+
 ### 1. Clone and Install
 
 ```bash
@@ -281,13 +303,24 @@ aws cognito-idp update-user-pool-client \
 
 ## Running the Demo
 
+### As Pricing Analyst (`demo@example.com` / `DemoPass2024!`)
+
 1. **Open Dashboard** → Log in with Cognito credentials
 2. **Simulations tab** → Select a scenario preset (e.g., "Competitor Price War")
 3. **Watch the pipeline** → 6 agents execute in under 2 minutes
 4. **Review scenarios** → 3 ranked recommendations with risk levels
 5. **Approve/Reject** → HIGH risk requires justification, LOW risk auto-approves
 6. **Check Storefront** → Prices update in real-time after approval
-7. **Guardrails Demo** → Scroll to "🛡️ Guardrails Enforcement" section, click any card to see compliance blocking in action (below-cost, MAP, geographic bias, predatory pricing, PII, price fixing)
+7. **Price Predictions tab** → Select a product, click Simulate, explore the decision tree with drill-down explainability
+8. **Guardrails Demo** → Scroll to "Guardrails Enforcement" section, click any card to see compliance blocking in action
+
+### As Operations (`ops@example.com` / `OpsPass2024!`)
+
+1. **Log in** → Notice the "Operations" tab appears (not visible to Pricing Analysts)
+2. **Operations → System Health** → All 12 services with status and latency
+3. **Operations → Metrics** → Operational KPIs (cycles run, error rates, invocations)
+4. **Operations → Architecture** → System architecture diagram
+5. **Operations → TCO & ROI** → Cost breakdown per cycle, monthly projections, AWS billing data
 
 See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for a detailed 5-minute demo walkthrough.
 
