@@ -53,23 +53,31 @@ export default function OpsTab() {
             <ArchitectureDiagram />
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Recent Architecture Additions</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="bg-indigo-50 rounded-md p-3">
-                <span className="font-medium text-indigo-800">Role-Based Access (RBAC)</span>
-                <p className="text-indigo-700 mt-1">Cognito groups (PricingAnalysts, Operations) with JWT-based tab visibility. Ops tab restricted to Operations group.</p>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">How It Works — Technical Architecture</h4>
+            <div className="space-y-3 text-xs text-gray-700 leading-relaxed">
+              <div className="border-l-2 border-indigo-400 pl-3">
+                <span className="font-semibold text-indigo-800">1. Request Ingestion</span>
+                <p className="mt-0.5">The React Dashboard (served via CloudFront + S3) authenticates users through Amazon Cognito. Authenticated requests flow through API Gateway REST endpoints to Lambda handlers.</p>
               </div>
-              <div className="bg-emerald-50 rounded-md p-3">
-                <span className="font-medium text-emerald-800">Price Prediction Simulator</span>
-                <p className="text-emerald-700 mt-1">Client-side decision tree with what-if sliders. No backend calls — pure simulation for explainability demos.</p>
+              <div className="border-l-2 border-blue-400 pl-3">
+                <span className="font-semibold text-blue-800">2. Agent Orchestration</span>
+                <p className="mt-0.5">The Pricing Cycles Lambda invokes the Orchestrator Agent on AgentCore Runtime via SigV4-signed HTTP. The Orchestrator coordinates 5 specialist agents (Competitive Intelligence, Demand Forecasting, Market Intelligence, Strategy Synthesis, Implementation Monitoring) running as containerized runtimes on AgentCore.</p>
               </div>
-              <div className="bg-amber-50 rounded-md p-3">
-                <span className="font-medium text-amber-800">CloudWatch Metrics API</span>
-                <p className="text-amber-700 mt-1">GET /metrics endpoint queries CloudWatch for Lambda, API Gateway, and DynamoDB metrics. Powers the Ops Metrics section.</p>
+              <div className="border-l-2 border-emerald-400 pl-3">
+                <span className="font-semibold text-emerald-800">3. Data Integration (MCP)</span>
+                <p className="mt-0.5">Agents access external data through 4 MCP Servers (Lambda functions) registered on AgentCore Gateway: Competitor API, ERP/POS, Market Signals, and Cost & Finance. The Gateway provides tool discovery and routing.</p>
               </div>
-              <div className="bg-slate-50 rounded-md p-3">
-                <span className="font-medium text-slate-800">Operational Dashboard</span>
-                <p className="text-slate-700 mt-1">CDK-provisioned CloudWatch dashboard (RetailDynamicPricing-Operations) with pre-built graphs for latency, errors, and throughput.</p>
+              <div className="border-l-2 border-amber-400 pl-3">
+                <span className="font-semibold text-amber-800">4. Scenario Generation & Compliance</span>
+                <p className="mt-0.5">Strategy Synthesis generates 3 ranked pricing scenarios. Each passes through Bedrock Guardrails (4 policies: anti-predatory, anti-discrimination, MAP compliance, price gouging prevention) before storage in DynamoDB.</p>
+              </div>
+              <div className="border-l-2 border-red-400 pl-3">
+                <span className="font-semibold text-red-800">5. Approval & Implementation</span>
+                <p className="mt-0.5">Risk classification routes scenarios: LOW risk auto-approves (STP), MEDIUM/HIGH routes to human reviewers. Approved prices update the Products table and propagate to the Storefront in real-time.</p>
+              </div>
+              <div className="border-l-2 border-slate-400 pl-3">
+                <span className="font-semibold text-slate-800">6. Observability & Memory</span>
+                <p className="mt-0.5">All operations emit structured JSON logs to CloudWatch. AgentCore Memory persists historical outcomes for cross-session learning. The CloudWatch operational dashboard (CDK-provisioned) tracks Lambda latency, API errors, and DynamoDB throughput.</p>
               </div>
             </div>
           </div>

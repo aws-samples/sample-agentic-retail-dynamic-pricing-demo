@@ -466,6 +466,7 @@ function PricePredictionTab() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
   const [showResults, setShowResults] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [whatIfAdjustments, setWhatIfAdjustments] = useState({ competitor: 0, demand: 0, cogs: 0, sentiment: 0 });
 
   const categories = Object.keys(categoryData);
   const subcategories = selectedCategory ? Object.keys(categoryData[selectedCategory]) : [];
@@ -510,7 +511,12 @@ function PricePredictionTab() {
   const currentFactors = selectedScenario ? buildFactors(selectedScenario) : [];
   const weightedScore = currentFactors.reduce((sum, f) => sum + f.score * (f.weight / 100), 0);
   const recommendedPrice = selectedProduct && selectedScenario
-    ? +(selectedProduct.basePrice * (1 - selectedScenario.discountPct / 100)).toFixed(2)
+    ? +(selectedProduct.basePrice * (1 - selectedScenario.discountPct / 100)
+        * (1 + whatIfAdjustments.competitor / 200)
+        * (1 - whatIfAdjustments.demand / 150)
+        * (1 + whatIfAdjustments.cogs / 100)
+        * (1 + whatIfAdjustments.sentiment / 200)
+      ).toFixed(2)
     : 0;
 
   const getRiskColor = (risk: string) => {
@@ -673,28 +679,28 @@ function PricePredictionTab() {
                 description="What if competitors drop or raise prices?"
                 min={-20} max={20} step={1} unit="%"
                 defaultValue={0}
-                onChange={() => {}}
+                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, competitor: v }))}
               />
               <WhatIfSlider
                 label="Demand Change"
                 description="What if demand increases or decreases?"
                 min={-30} max={30} step={5} unit="%"
                 defaultValue={0}
-                onChange={() => {}}
+                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, demand: v }))}
               />
               <WhatIfSlider
                 label="COGS Increase"
                 description="What if supply costs rise?"
                 min={0} max={25} step={1} unit="%"
                 defaultValue={0}
-                onChange={() => {}}
+                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, cogs: v }))}
               />
               <WhatIfSlider
                 label="Market Sentiment Shift"
                 description="What if consumer confidence changes?"
                 min={-30} max={30} step={5} unit=" pts"
                 defaultValue={0}
-                onChange={() => {}}
+                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, sentiment: v }))}
               />
             </div>
             <div className="mt-4 bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
