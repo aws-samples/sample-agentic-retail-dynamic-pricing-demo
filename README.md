@@ -158,10 +158,7 @@ cd "Retail Dynamic Pricing"
 # Python environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Verify tests pass
-PYTHONPATH=. pytest tests/ -v
+pip install -e .
 ```
 
 ### 2. Deploy Infrastructure (CDK)
@@ -301,11 +298,15 @@ See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for a detailed 5-minute demo walk
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | /pricing-cycles | Cognito | Initiate a pricing cycle |
+| GET | /pricing-cycles | Cognito | List all pricing cycles |
 | GET | /pricing-cycles/{id} | Cognito | Get cycle status |
 | GET | /pricing-cycles/{id}/scenarios | Cognito | List scenarios (paginated) |
 | POST | /approvals | Cognito | Approve/reject a scenario |
 | GET | /agents/status | Cognito | Agent execution status |
 | GET | /monitoring/{scenarioId} | Cognito | Monitoring metrics |
+| GET | /billing | Cognito | AWS Cost Explorer data |
+| POST | /reset | Cognito | Reset demo data |
+| POST | /seed | Cognito | Seed historical demo data |
 | GET | /products | Public | Product catalog |
 | GET | /products/{id} | Public | Single product detail |
 | POST | /guardrails/demo | Cognito | Guardrails enforcement demo |

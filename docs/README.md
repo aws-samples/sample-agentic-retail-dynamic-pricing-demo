@@ -11,13 +11,12 @@
 | [QUICK_START.md](QUICK_START.md) | Concise setup and deployment steps |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Solution architecture, data flow, agent design |
 | [DEMO_SCRIPT.md](DEMO_SCRIPT.md) | 5-minute demo walkthrough script |
-| [deployment_guide.md](deployment_guide.md) | Detailed deployment guide with environment variables |
 | [agent_testing_guide.md](agent_testing_guide.md) | Agent testing procedures and harness usage |
 | [GUIDANCE_ALIGNMENT.md](GUIDANCE_ALIGNMENT.md) | Mapping to AWS Guidance Paper |
 | [TCO_ESTIMATE.md](TCO_ESTIMATE.md) | Total Cost of Ownership analysis |
-| [ROLLBACK_GUIDE.md](ROLLBACK_GUIDE.md) | Consolidated rollback instructions for all features |
-| [GUARDRAILS_ROLLBACK.md](GUARDRAILS_ROLLBACK.md) | Bedrock Guardrails integration details |
-| [MCP_DATA_INTEGRATION_ROLLBACK.md](MCP_DATA_INTEGRATION_ROLLBACK.md) | MCP data parsing integration details |
+| [SYSTEM_DEEP_DIVE.md](SYSTEM_DEEP_DIVE.md) | Full system analysis and Well-Architected alignment |
+| [GLOSSARY.md](GLOSSARY.md) | Industry terms, abbreviations, and definitions |
+| [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Deployment issues and resolutions |
 
 ---
 
@@ -56,7 +55,7 @@
 - Amazon Bedrock Guardrails
 - AWS Lambda (Python 3.12)
 - Amazon API Gateway (REST)
-- Amazon DynamoDB (4 tables, on-demand)
+- Amazon DynamoDB (5 tables, on-demand)
 - Amazon Cognito (User Pool + Hosted UI)
 - Amazon CloudFront (2 distributions)
 - Amazon S3 (static hosting)
