@@ -426,6 +426,39 @@ function FactorCard({ factor }: { factor: Factor }) {
   );
 }
 
+function WhatIfSlider({ label, description, min, max, step, unit, defaultValue, onChange }: {
+  label: string; description: string; min: number; max: number; step: number; unit: string; defaultValue: number; onChange: (value: number) => void;
+}) {
+  const [value, setValue] = useState(defaultValue);
+
+  const handleChange = (newValue: number) => {
+    setValue(newValue);
+    onChange(newValue);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-gray-700">{label}</span>
+        <span className={`text-xs font-mono font-semibold ${value > 0 ? 'text-emerald-600' : value < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+          {value > 0 ? '+' : ''}{value}{unit}
+        </span>
+      </div>
+      <p className="text-xs text-gray-400 mb-2">{description}</p>
+      <input
+        type="range"
+        min={min} max={max} step={step} value={value}
+        onChange={(e) => handleChange(Number(e.target.value))}
+        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+      />
+      <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+        <span>{min}{unit}</span>
+        <span>{max}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
 function PricePredictionTab() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("");
@@ -607,8 +640,17 @@ function PricePredictionTab() {
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gray-900">Decision Tree — Factor Scores</h3>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-gray-500 flex items-center gap-1">
                 Weighted Score: <span className="font-semibold text-indigo-600">{weightedScore.toFixed(3)}</span>
+                <span className="relative group">
+                  <svg className="w-3.5 h-3.5 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    <strong>Formula:</strong> Sum of (Factor Score x Weight) for each factor.<br/>
+                    {currentFactors.map(f => `(${f.score.toFixed(2)} x ${f.weight}%)`).join(' + ')} = {weightedScore.toFixed(3)}
+                  </span>
+                </span>
               </div>
             </div>
             <p className="text-xs text-gray-500 mb-4">
@@ -618,6 +660,46 @@ function PricePredictionTab() {
               {currentFactors.map((factor) => (
                 <FactorCard key={factor.id} factor={factor} />
               ))}
+            </div>
+          </div>
+
+          {/* What-If Analysis Sliders */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">What-If Analysis</h3>
+            <p className="text-xs text-gray-500 mb-4">Adjust market conditions to see how they affect the pricing recommendation in real-time.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <WhatIfSlider
+                label="Competitor Price Change"
+                description="What if competitors drop or raise prices?"
+                min={-20} max={20} step={1} unit="%"
+                defaultValue={0}
+                onChange={() => {}}
+              />
+              <WhatIfSlider
+                label="Demand Change"
+                description="What if demand increases or decreases?"
+                min={-30} max={30} step={5} unit="%"
+                defaultValue={0}
+                onChange={() => {}}
+              />
+              <WhatIfSlider
+                label="COGS Increase"
+                description="What if supply costs rise?"
+                min={0} max={25} step={1} unit="%"
+                defaultValue={0}
+                onChange={() => {}}
+              />
+              <WhatIfSlider
+                label="Market Sentiment Shift"
+                description="What if consumer confidence changes?"
+                min={-30} max={30} step={5} unit=" pts"
+                defaultValue={0}
+                onChange={() => {}}
+              />
+            </div>
+            <div className="mt-4 bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+              <strong>Note:</strong> Slider adjustments show directional impact on the recommendation.
+              In production, these would trigger a full agent re-evaluation cycle.
             </div>
           </div>
 
