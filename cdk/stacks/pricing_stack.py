@@ -85,3 +85,182 @@ class RetailDynamicPricingStack(cdk.Stack):
                 ),
             ],
         )
+
+        # --- CloudWatch Operational Dashboard ---
+        # Provides pre-built monitoring for Lambda functions, DynamoDB,
+        # and API Gateway performance metrics.
+        dashboard = cloudwatch.Dashboard(
+            self,
+            "OperationalDashboard",
+            dashboard_name="RetailDynamicPricing-Operations",
+        )
+
+        # Lambda metrics (pricing cycles handler — the most critical function)
+        pricing_fn_name = "rdp-api-pricing-cycles"
+
+        dashboard.add_widgets(
+            cloudwatch.TextWidget(
+                markdown="# Retail Dynamic Pricing — Operational Metrics\n"
+                "Real-time monitoring of the pricing pipeline components.",
+                width=24,
+                height=2,
+            ),
+        )
+
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Lambda Invocations (All Handlers)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/Lambda",
+                        metric_name="Invocations",
+                        dimensions_map={"FunctionName": pricing_fn_name},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/Lambda",
+                        metric_name="Invocations",
+                        dimensions_map={"FunctionName": "rdp-api-approvals"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/Lambda",
+                        metric_name="Invocations",
+                        dimensions_map={"FunctionName": "rdp-api-products"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=12,
+                height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="Lambda Errors",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/Lambda",
+                        metric_name="Errors",
+                        dimensions_map={"FunctionName": pricing_fn_name},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=6,
+                height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="Lambda Duration (p90)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/Lambda",
+                        metric_name="Duration",
+                        dimensions_map={"FunctionName": pricing_fn_name},
+                        statistic="p90",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=6,
+                height=6,
+            ),
+        )
+
+        # DynamoDB metrics
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="DynamoDB Read/Write Capacity (Products)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/DynamoDB",
+                        metric_name="ConsumedReadCapacityUnits",
+                        dimensions_map={"TableName": "Products"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/DynamoDB",
+                        metric_name="ConsumedWriteCapacityUnits",
+                        dimensions_map={"TableName": "Products"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=12,
+                height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="DynamoDB Throttled Requests",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/DynamoDB",
+                        metric_name="ThrottledRequests",
+                        dimensions_map={"TableName": "PricingCycles"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/DynamoDB",
+                        metric_name="ThrottledRequests",
+                        dimensions_map={"TableName": "PricingScenarios"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=12,
+                height=6,
+            ),
+        )
+
+        # API Gateway metrics
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="API Gateway Latency (p50/p90/p99)",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/ApiGateway",
+                        metric_name="Latency",
+                        dimensions_map={"ApiName": "retail-dynamic-pricing-api"},
+                        statistic="p50",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/ApiGateway",
+                        metric_name="Latency",
+                        dimensions_map={"ApiName": "retail-dynamic-pricing-api"},
+                        statistic="p90",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/ApiGateway",
+                        metric_name="Latency",
+                        dimensions_map={"ApiName": "retail-dynamic-pricing-api"},
+                        statistic="p99",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=12,
+                height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="API Gateway 4xx/5xx Errors",
+                left=[
+                    cloudwatch.Metric(
+                        namespace="AWS/ApiGateway",
+                        metric_name="4XXError",
+                        dimensions_map={"ApiName": "retail-dynamic-pricing-api"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                    cloudwatch.Metric(
+                        namespace="AWS/ApiGateway",
+                        metric_name="5XXError",
+                        dimensions_map={"ApiName": "retail-dynamic-pricing-api"},
+                        statistic="Sum",
+                        period=cdk.Duration.minutes(5),
+                    ),
+                ],
+                width=12,
+                height=6,
+            ),
+        )
