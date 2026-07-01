@@ -1,0 +1,111 @@
+** Third-Party Licenses **
+
+This file contains the licenses for third-party libraries used by this project.
+
+------
+
+** Python Dependencies **
+
+Name: boto3
+License: Apache License 2.0
+URL: https://github.com/boto/boto3
+
+Name: aws-cdk-lib
+License: Apache License 2.0
+URL: https://github.com/aws/aws-cdk
+
+Name: constructs
+License: Apache License 2.0
+URL: https://github.com/aws/constructs
+
+Name: pydantic
+License: MIT License
+URL: https://github.com/pydantic/pydantic
+
+Name: strands-agents
+License: Apache License 2.0
+URL: https://github.com/strands-agents/sdk-python
+
+Name: strands-agents-tools
+License: Apache License 2.0
+URL: https://github.com/strands-agents/tools-python
+
+Name: bedrock-agentcore
+License: Apache License 2.0
+URL: https://github.com/aws/bedrock-agentcore-python
+
+------
+
+** Python Dev Dependencies **
+
+Name: pytest
+License: MIT License
+URL: https://github.com/pytest-dev/pytest
+
+Name: hypothesis
+License: Mozilla Public License 2.0
+URL: https://github.com/HypothesisWorks/hypothesis
+
+Name: pytest-cov
+License: MIT License
+URL: https://github.com/pytest-dev/pytest-cov
+
+Name: moto
+License: Apache License 2.0
+URL: https://github.com/getmoto/moto
+
+------
+
+** JavaScript/TypeScript Dependencies **
+
+Name: react
+License: MIT License
+URL: https://github.com/facebook/react
+
+Name: react-dom
+License: MIT License
+URL: https://github.com/facebook/react
+
+Name: react-router-dom
+License: MIT License
+URL: https://github.com/remix-run/react-router
+
+Name: axios
+License: MIT License
+URL: https://github.com/axios/axios
+
+------
+
+** JavaScript/TypeScript Dev Dependencies **
+
+Name: vite
+License: MIT License
+URL: https://github.com/vitejs/vite
+
+Name: typescript
+License: Apache License 2.0
+URL: https://github.com/microsoft/TypeScript
+
+Name: tailwindcss
+License: MIT License
+URL: https://github.com/tailwindlabs/tailwindcss
+
+Name: postcss
+License: MIT License
+URL: https://github.com/postcss/postcss
+
+Name: autoprefixer
+License: MIT License
+URL: https://github.com/postcss/autoprefixer
+
+Name: @vitejs/plugin-react
+License: MIT License
+URL: https://github.com/vitejs/vite-plugin-react
+
+------
+
+** Build System **
+
+Name: setuptools
+License: MIT License
+URL: https://github.com/pypa/setuptools
