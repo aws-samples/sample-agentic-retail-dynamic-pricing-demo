@@ -129,26 +129,38 @@ def setup_gateway(region: str = "us-east-1") -> str:
     target_ids = []
     for target in mcp_targets:
         print(f"  Registering: {target['name']} ({target['lambdaArn']})")
-        response = client.create_gateway_target(
-            gatewayIdentifier=gateway_id,
-            name=target["name"],
-            description=target["description"],
-            targetConfiguration={
-                "mcp": {
-                    "lambda": {
-                        "lambdaArn": target["lambdaArn"],
-                        "toolSchema": target["toolSchema"],
+        try:
+            response = client.create_gateway_target(
+                gatewayIdentifier=gateway_id,
+                name=target["name"],
+                description=target["description"],
+                targetConfiguration={
+                    "mcp": {
+                        "lambda": {
+                            "lambdaArn": target["lambdaArn"],
+                            "toolSchema": target["toolSchema"],
+                        }
                     }
-                }
-            },
-            credentialProviderConfigurations=[
-                {
-                    "credentialProviderType": "GATEWAY_IAM_ROLE",
-                }
-            ],
-        )
-        target_id = response.get("targetId", response.get("name", target["name"]))
-        target_ids.append(target_id)
+                },
+                credentialProviderConfigurations=[
+                    {
+                        "credentialProviderType": "GATEWAY_IAM_ROLE",
+                    }
+                ],
+            )
+            target_id = response.get("targetId", response.get("name", target["name"]))
+            target_ids.append(target_id)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConflictException":
+                print(f"    Target '{target['name']}' already exists — skipping")
+                # Look up existing target ID for synchronization
+                existing_targets = client.list_gateway_targets(gatewayIdentifier=gateway_id)
+                for t in existing_targets.get("items", []):
+                    if t.get("name") == target["name"]:
+                        target_ids.append(t["targetId"])
+                        break
+            else:
+                raise
 
     # Synchronize to discover tools from all targets
     print("\nSynchronizing gateway targets (discovering tools)...")

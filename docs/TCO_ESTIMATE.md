@@ -1,5 +1,5 @@
 # Total Cost of Ownership (TCO) Estimate
-## Dynamic Pricing for Retail — Agentic AI Solution
+## CCOE Dynamic Pricing Solution for Retail Transformation
 
 **Date:** May 2026
 **Account:** <ACCOUNT_ID>

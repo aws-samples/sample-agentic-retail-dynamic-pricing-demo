@@ -1,4 +1,4 @@
-# Dynamic Pricing for Retail — Documentation Index
+# CCOE Dynamic Pricing Solution for Retail Transformation — Documentation
 
 ## Agentic AI Solution powered by Amazon Bedrock AgentCore
 
@@ -12,10 +12,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Solution architecture, data flow, agent design |
 | [DEMO_SCRIPT.md](DEMO_SCRIPT.md) | 5-minute demo walkthrough script |
 | [agent_testing_guide.md](agent_testing_guide.md) | Agent testing procedures and harness usage |
-| [GUIDANCE_ALIGNMENT.md](GUIDANCE_ALIGNMENT.md) | Mapping to AWS Guidance Paper |
 | [TCO_ESTIMATE.md](TCO_ESTIMATE.md) | Total Cost of Ownership analysis |
-| [SYSTEM_DEEP_DIVE.md](SYSTEM_DEEP_DIVE.md) | Full system analysis and Well-Architected alignment |
-| [GLOSSARY.md](GLOSSARY.md) | Industry terms, abbreviations, and definitions |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Deployment issues and resolutions |
 
 ---

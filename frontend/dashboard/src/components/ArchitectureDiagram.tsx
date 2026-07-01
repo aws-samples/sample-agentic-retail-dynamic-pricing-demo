@@ -56,7 +56,7 @@ export default function ArchitectureDiagram() {
           fontWeight="bold"
           fill="#232F3E"
         >
-          Dynamic Pricing for Retail — Solution Architecture
+          CCOE Dynamic Pricing Solution for Retail Transformation — Architecture
         </text>
         <text
           x="24"

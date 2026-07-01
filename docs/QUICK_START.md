@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-## Dynamic Pricing for Retail — Agentic AI Solution
+## CCOE Dynamic Pricing Solution for Retail Transformation
 
 ### Prerequisites
 

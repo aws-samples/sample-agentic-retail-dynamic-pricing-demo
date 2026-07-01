@@ -155,13 +155,13 @@ export MARKET_SIGNALS_LAMBDA_ARN=$(aws lambda get-function --function-name rdp-m
 export COST_FINANCE_LAMBDA_ARN=$(aws lambda get-function --function-name rdp-mcp-cost-finance --query "Configuration.FunctionArn" --output text --region $REGION 2>/dev/null || echo "")
 
 if [ -n "$COMPETITOR_API_LAMBDA_ARN" ]; then
-    python3 scripts/setup_gateway.py --region $REGION || print_warning "Gateway setup had issues (may need retry after 30s)"
+    python3 scripts/setup_gateway.py --region $REGION || print_warning "Gateway setup had issues (non-critical, resources may already exist)"
     print_success "Gateway targets registered"
 else
     print_warning "MCP Server Lambdas not found — skipping gateway setup"
 fi
 
-python3 scripts/setup_memory.py --region $REGION
+python3 scripts/setup_memory.py --region $REGION || print_warning "Memory setup had issues (non-critical, may already exist)"
 print_success "AgentCore Memory provisioned"
 
 # Step 6: Seed Data

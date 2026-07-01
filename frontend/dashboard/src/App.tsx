@@ -153,8 +153,8 @@ function OverviewTab() {
         <p className="text-sm text-gray-500">Reset clears all data • Seed adds 5 sample pricing cycles</p>
       </div>
 
-      {/* Strategy Comparison */}
-      <StrategyComparison />
+      {/* Strategy Comparison — Ops users only */}
+      {isOperationsUser() && <StrategyComparison />}
 
 
     </div>
@@ -553,7 +553,7 @@ function App() {
                     <div className="flex items-center gap-4">
                       <Link to="/" className="text-sm text-blue-600 hover:text-blue-800">&larr; Back</Link>
                       <h1 className="text-2xl font-semibold text-gray-900">
-                        Dynamic Pricing for Retail
+                        CCOE Dynamic Pricing Solution for Retail Transformation
                       </h1>
                     </div>
                     <button
@@ -579,7 +579,7 @@ function App() {
                 <header className="bg-white shadow-sm border-b border-gray-200">
                   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <h1 className="text-2xl font-semibold text-gray-900">
-                      Dynamic Pricing for Retail
+                      CCOE Dynamic Pricing Solution for Retail Transformation
                     </h1>
                     <button
                       onClick={logout}

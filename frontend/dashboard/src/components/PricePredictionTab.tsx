@@ -38,11 +38,6 @@ interface Factor {
   calculation: string;
 }
 
-interface GlossaryTerm {
-  term: string;
-  definition: string;
-}
-
 const categoryData: Record<string, Record<string, ProductData[]>> = {
   Electronics: {
     Audio: [
@@ -328,16 +323,6 @@ function buildFactors(scenario: ScenarioPreset): Factor[] {
   ];
 }
 
-const glossary: GlossaryTerm[] = [
-  { term: "Elasticity", definition: "A measure of how much demand for a product changes when its price changes. High elasticity means small price changes cause large demand shifts." },
-  { term: "COGS", definition: "Cost of Goods Sold — the direct costs attributable to producing the goods sold, including materials, labor, and manufacturing overhead." },
-  { term: "MAP", definition: "Minimum Advertised Price — the lowest price a retailer can advertise a product for, set by the manufacturer to protect brand value." },
-  { term: "Margin", definition: "The difference between the selling price and cost, expressed as a percentage of the selling price. Gross margin excludes operating expenses." },
-  { term: "MoM Trend", definition: "Month-over-Month Trend — the percentage change in a metric compared to the previous month, used to identify short-term momentum." },
-  { term: "Seasonality", definition: "Predictable fluctuations in demand that occur at regular intervals (weekly, monthly, annually) based on time-related patterns." },
-  { term: "Price Sensitivity", definition: "The degree to which consumers alter their purchasing behavior in response to price changes. Higher sensitivity means customers are more likely to switch or stop buying." },
-];
-
 function ScoreBar({ score, color }: { score: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -459,6 +444,176 @@ function WhatIfSlider({ label, description, min, max, step, unit, defaultValue, 
   );
 }
 
+function WhatIfAnalysis() {
+  const [wiCategory, setWiCategory] = useState<string>("");
+  const [wiSubcategory, setWiSubcategory] = useState<string>("");
+  const [wiProductId, setWiProductId] = useState<string>("");
+  const [adjustments, setAdjustments] = useState({ competitor: 0, demand: 0, cogs: 0, sentiment: 0 });
+
+  const wiCategories = Object.keys(categoryData);
+  const wiSubcategories = wiCategory ? Object.keys(categoryData[wiCategory]) : [];
+  const wiProducts = wiCategory && wiSubcategory ? categoryData[wiCategory][wiSubcategory] || [] : [];
+
+  // Resolve products for the what-if scope
+  const getWiProducts = (): ProductData[] => {
+    if (wiProductId) {
+      const product = wiProducts.find((p) => p.id === wiProductId);
+      return product ? [product] : [];
+    }
+    if (wiSubcategory && wiCategory) {
+      return categoryData[wiCategory][wiSubcategory] || [];
+    }
+    if (wiCategory) {
+      return Object.values(categoryData[wiCategory]).flat();
+    }
+    return [];
+  };
+
+  const whatIfProducts = getWiProducts();
+  const hasSelection = wiCategory !== "";
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">What-If Analysis</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Select a product scope and adjust market conditions to see real-time impact on pricing from current catalog prices.
+      </p>
+
+      {/* Product scope picker */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div>
+          <label htmlFor="wi-category" className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+          <select
+            id="wi-category"
+            value={wiCategory}
+            onChange={(e) => { setWiCategory(e.target.value); setWiSubcategory(""); setWiProductId(""); }}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+          >
+            <option value="">Select category...</option>
+            {wiCategories.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="wi-subcategory" className="block text-xs font-medium text-gray-700 mb-1">Subcategory (optional)</label>
+          <select
+            id="wi-subcategory"
+            value={wiSubcategory}
+            onChange={(e) => { setWiSubcategory(e.target.value); setWiProductId(""); }}
+            disabled={!wiCategory}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-50 disabled:text-gray-400"
+          >
+            <option value="">All subcategories</option>
+            {wiSubcategories.map((sub) => (
+              <option key={sub} value={sub}>{sub}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="wi-product" className="block text-xs font-medium text-gray-700 mb-1">Product (optional)</label>
+          <select
+            id="wi-product"
+            value={wiProductId}
+            onChange={(e) => setWiProductId(e.target.value)}
+            disabled={!wiSubcategory}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-50 disabled:text-gray-400"
+          >
+            <option value="">All products</option>
+            {wiProducts.map((prod) => (
+              <option key={prod.id} value={prod.id}>{prod.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Sliders — always visible once a category is selected */}
+      {hasSelection && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <WhatIfSlider
+              label="Competitor Price Change"
+              description="What if competitors drop or raise prices?"
+              min={-20} max={20} step={1} unit="%"
+              defaultValue={0}
+              onChange={(v) => setAdjustments(a => ({ ...a, competitor: v }))}
+            />
+            <WhatIfSlider
+              label="Demand Change"
+              description="What if demand increases or decreases?"
+              min={-30} max={30} step={5} unit="%"
+              defaultValue={0}
+              onChange={(v) => setAdjustments(a => ({ ...a, demand: v }))}
+            />
+            <WhatIfSlider
+              label="COGS Increase"
+              description="What if supply costs rise?"
+              min={0} max={25} step={1} unit="%"
+              defaultValue={0}
+              onChange={(v) => setAdjustments(a => ({ ...a, cogs: v }))}
+            />
+            <WhatIfSlider
+              label="Market Sentiment Shift"
+              description="What if consumer confidence changes?"
+              min={-30} max={30} step={5} unit=" pts"
+              defaultValue={0}
+              onChange={(v) => setAdjustments(a => ({ ...a, sentiment: v }))}
+            />
+          </div>
+
+          {/* Real-time impact table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">Product</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">Subcategory</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500">Current Price</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500">Adjusted Price</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500">Impact</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {whatIfProducts.map((prod) => {
+                  const adjusted = +(prod.basePrice
+                    * (1 + adjustments.competitor / 200)
+                    * (1 - adjustments.demand / 150)
+                    * (1 + adjustments.cogs / 100)
+                    * (1 + adjustments.sentiment / 200)
+                  ).toFixed(2);
+                  const impact = ((adjusted - prod.basePrice) / prod.basePrice * 100).toFixed(1);
+                  return (
+                    <tr key={prod.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-900 font-medium">{prod.name}</td>
+                      <td className="px-3 py-2 text-gray-500">{prod.subcategory}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">${prod.basePrice.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-amber-700">${adjusted.toFixed(2)}</td>
+                      <td className={`px-3 py-2 text-right font-medium ${Number(impact) > 0 ? 'text-emerald-600' : Number(impact) < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                        {Number(impact) > 0 ? '+' : ''}{impact}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 bg-amber-50 rounded-lg p-3 text-xs text-amber-800">
+            <strong>Note:</strong> This shows directional pricing impact from current catalog prices based on market condition changes.
+            No scenario or simulation run is required. In production, these shifts would trigger an automated agent re-evaluation.
+          </div>
+        </>
+      )}
+
+      {!hasSelection && (
+        <div className="text-center py-8 text-gray-400">
+          <p className="text-sm">Select a category above to start exploring pricing sensitivity.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PricePredictionTab() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("");
@@ -466,13 +621,29 @@ function PricePredictionTab() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
   const [showResults, setShowResults] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
-  const [whatIfAdjustments, setWhatIfAdjustments] = useState({ competitor: 0, demand: 0, cogs: 0, sentiment: 0 });
 
   const categories = Object.keys(categoryData);
   const subcategories = selectedCategory ? Object.keys(categoryData[selectedCategory]) : [];
   const products = selectedCategory && selectedSubcategory ? categoryData[selectedCategory][selectedSubcategory] || [] : [];
   const selectedProduct = products.find((p) => p.id === selectedProductId);
   const selectedScenario = scenarios.find((s) => s.id === selectedScenarioId);
+
+  // Resolve the effective product list based on selection level
+  const getSimulationProducts = (): ProductData[] => {
+    if (selectedProductId) {
+      const product = products.find((p) => p.id === selectedProductId);
+      return product ? [product] : [];
+    }
+    if (selectedSubcategory && selectedCategory) {
+      return categoryData[selectedCategory][selectedSubcategory] || [];
+    }
+    if (selectedCategory) {
+      return Object.values(categoryData[selectedCategory]).flat();
+    }
+    return [];
+  };
+
+  const simulationProducts = getSimulationProducts();
 
   const handleCategoryChange = (value: string) => {
     setSelectedCategory(value);
@@ -497,7 +668,7 @@ function PricePredictionTab() {
     setShowResults(false);
   };
 
-  const canSimulate = selectedProductId && selectedScenarioId;
+  const canSimulate = selectedCategory && selectedScenarioId;
 
   const handleSimulate = () => {
     if (!canSimulate) return;
@@ -511,12 +682,7 @@ function PricePredictionTab() {
   const currentFactors = selectedScenario ? buildFactors(selectedScenario) : [];
   const weightedScore = currentFactors.reduce((sum, f) => sum + f.score * (f.weight / 100), 0);
   const recommendedPrice = selectedProduct && selectedScenario
-    ? +(selectedProduct.basePrice * (1 - selectedScenario.discountPct / 100)
-        * (1 + whatIfAdjustments.competitor / 200)
-        * (1 - whatIfAdjustments.demand / 150)
-        * (1 + whatIfAdjustments.cogs / 100)
-        * (1 + whatIfAdjustments.sentiment / 200)
-      ).toFixed(2)
+    ? +(selectedProduct.basePrice * (1 - selectedScenario.discountPct / 100)).toFixed(2)
     : 0;
 
   const getRiskColor = (risk: string) => {
@@ -542,7 +708,7 @@ function PricePredictionTab() {
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Price Prediction Simulator</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Select a product and scenario to explore how AI pricing recommendations are derived through a multi-factor decision tree.
+          Select a category, subcategory, or individual product and a scenario to explore how AI pricing recommendations are derived through a multi-factor decision tree.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -641,7 +807,7 @@ function PricePredictionTab() {
         )}
       </div>
 
-      {showResults && selectedProduct && selectedScenario && (
+      {showResults && simulationProducts.length > 0 && selectedScenario && (
         <>
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
@@ -669,87 +835,93 @@ function PricePredictionTab() {
             </div>
           </div>
 
-          {/* What-If Analysis Sliders */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">What-If Analysis</h3>
-            <p className="text-xs text-gray-500 mb-4">Adjust market conditions to see how they affect the pricing recommendation in real-time.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <WhatIfSlider
-                label="Competitor Price Change"
-                description="What if competitors drop or raise prices?"
-                min={-20} max={20} step={1} unit="%"
-                defaultValue={0}
-                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, competitor: v }))}
-              />
-              <WhatIfSlider
-                label="Demand Change"
-                description="What if demand increases or decreases?"
-                min={-30} max={30} step={5} unit="%"
-                defaultValue={0}
-                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, demand: v }))}
-              />
-              <WhatIfSlider
-                label="COGS Increase"
-                description="What if supply costs rise?"
-                min={0} max={25} step={1} unit="%"
-                defaultValue={0}
-                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, cogs: v }))}
-              />
-              <WhatIfSlider
-                label="Market Sentiment Shift"
-                description="What if consumer confidence changes?"
-                min={-30} max={30} step={5} unit=" pts"
-                defaultValue={0}
-                onChange={(v) => setWhatIfAdjustments(a => ({ ...a, sentiment: v }))}
-              />
-            </div>
-            <div className="mt-4 bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
-              <strong>Note:</strong> Slider adjustments show directional impact on the recommendation.
-              In production, these would trigger a full agent re-evaluation cycle.
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">Pricing Recommendation</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-indigo-50 rounded-lg p-4 text-center">
-                <p className="text-xs text-indigo-600 font-medium mb-1">Recommended Price</p>
-                <p className="text-2xl font-bold text-indigo-900">${recommendedPrice.toFixed(2)}</p>
-                <p className="text-xs text-gray-500 mt-1">from ${selectedProduct.basePrice.toFixed(2)}</p>
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Pricing Recommendation{simulationProducts.length > 1 ? 's' : ''}</h3>
+            {simulationProducts.length === 1 && selectedProduct ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-indigo-50 rounded-lg p-4 text-center">
+                  <p className="text-xs text-indigo-600 font-medium mb-1">Recommended Price</p>
+                  <p className="text-2xl font-bold text-indigo-900">${recommendedPrice.toFixed(2)}</p>
+                  <p className="text-xs text-gray-500 mt-1">from ${selectedProduct.basePrice.toFixed(2)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-xs text-gray-600 font-medium mb-1">Confidence Score</p>
+                  <p className="text-2xl font-bold text-gray-900">{selectedScenario.confidence}%</p>
+                  <p className="text-xs text-gray-500 mt-1">model certainty</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-xs text-gray-600 font-medium mb-1">Risk Level</p>
+                  <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(selectedScenario.riskLevel)}`}>
+                    {selectedScenario.riskLevel}
+                  </span>
+                  <p className="text-xs text-gray-500 mt-2">based on market volatility</p>
+                </div>
+                <div className="bg-emerald-50 rounded-lg p-4 text-center">
+                  <p className="text-xs text-emerald-600 font-medium mb-1">Revenue Impact</p>
+                  <p className="text-sm font-semibold text-emerald-900 mt-2">{selectedScenario.revenueImpact}</p>
+                  <p className="text-xs text-gray-500 mt-1">30-day forecast</p>
+                </div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-xs text-gray-600 font-medium mb-1">Confidence Score</p>
-                <p className="text-2xl font-bold text-gray-900">{selectedScenario.confidence}%</p>
-                <p className="text-xs text-gray-500 mt-1">model certainty</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-xs text-gray-600 font-medium mb-1">Risk Level</p>
-                <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(selectedScenario.riskLevel)}`}>
-                  {selectedScenario.riskLevel}
-                </span>
-                <p className="text-xs text-gray-500 mt-2">based on market volatility</p>
-              </div>
-              <div className="bg-emerald-50 rounded-lg p-4 text-center">
-                <p className="text-xs text-emerald-600 font-medium mb-1">Revenue Impact</p>
-                <p className="text-sm font-semibold text-emerald-900 mt-2">{selectedScenario.revenueImpact}</p>
-                <p className="text-xs text-gray-500 mt-1">30-day forecast</p>
-              </div>
-            </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-3">
+                  Simulating {simulationProducts.length} product{simulationProducts.length > 1 ? 's' : ''} in {selectedCategory}{selectedSubcategory ? ` > ${selectedSubcategory}` : ' (all subcategories)'}
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Product</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Subcategory</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-500">Current</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-500">Recommended</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-500">Change</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {simulationProducts.map((prod) => {
+                        const recPrice = +(prod.basePrice * (1 - selectedScenario.discountPct / 100)).toFixed(2);
+                        const changePct = ((recPrice - prod.basePrice) / prod.basePrice * 100).toFixed(1);
+                        return (
+                          <tr key={prod.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-900 font-medium">{prod.name}</td>
+                            <td className="px-3 py-2 text-gray-500">{prod.subcategory}</td>
+                            <td className="px-3 py-2 text-right text-gray-700">${prod.basePrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-indigo-700">${recPrice.toFixed(2)}</td>
+                            <td className={`px-3 py-2 text-right font-medium ${Number(changePct) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {Number(changePct) > 0 ? '+' : ''}{changePct}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-600 font-medium">Confidence</p>
+                    <p className="text-lg font-bold text-gray-900">{selectedScenario.confidence}%</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-600 font-medium">Risk Level</p>
+                    <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(selectedScenario.riskLevel)}`}>
+                      {selectedScenario.riskLevel}
+                    </span>
+                  </div>
+                  <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-emerald-600 font-medium">Revenue Impact</p>
+                    <p className="text-sm font-semibold text-emerald-900 mt-1">{selectedScenario.revenueImpact}</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Glossary — Retail Pricing Terms</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {glossary.map((item) => (
-            <div key={item.term} className="flex gap-2">
-              <span className="text-xs font-semibold text-indigo-700 whitespace-nowrap min-w-[100px]">{item.term}</span>
-              <span className="text-xs text-gray-600">{item.definition}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Standalone What-If Analysis */}
+      <WhatIfAnalysis />
+
     </div>
   );
 }

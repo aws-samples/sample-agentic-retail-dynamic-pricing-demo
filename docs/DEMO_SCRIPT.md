@@ -1,4 +1,4 @@
-# Dynamic Pricing for Retail — Demo Script (5 minutes)
+# CCOE Dynamic Pricing Solution for Retail Transformation — Demo Script (5 minutes)
 
 ## Overview
 

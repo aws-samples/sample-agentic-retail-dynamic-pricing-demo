@@ -2,8 +2,6 @@ import type { PricingScenario, GuardrailResult } from './ScenarioList';
 import { useState, useRef } from 'react';
 import ApprovalActions from './ApprovalActions';
 import api from '../lib/api';
-import Tooltip from './Tooltip';
-import { getFactorTooltip } from '../lib/methodologyData';
 import MethodologyPanel from './MethodologyPanel';
 
 interface ScenarioDetailProps {
@@ -109,11 +107,7 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
       </section>
 
       {/* Summary Metrics */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard
-          label="Composite Score"
-          value={scenario.compositeScore.toFixed(2)}
-        />
+      <section className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard
           label="Confidence"
           value={`${scenario.confidenceScore}/100`}
@@ -199,6 +193,8 @@ interface FactorsCardProps {
   icon: string;
   factors: Record<string, unknown>;
   colorClass: string;
+  explanation?: string;
+  formula?: string;
 }
 
 function ContributingFactorsSection({ scenario }: { scenario: PricingScenario }) {
@@ -218,13 +214,15 @@ function ContributingFactorsSection({ scenario }: { scenario: PricingScenario })
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="space-y-2">
         {/* Competitive Factors */}
         <FactorsCard
           title="Competitive Factors"
           icon="🏪"
           factors={scenario.competitiveFactors}
           colorClass="border-blue-200 bg-blue-50/50"
+          explanation="Analyzes competitor pricing positions, price gaps, and competitive activity to determine how aggressively the market is pricing similar products."
+          formula="Competitive Score = (Avg Price Gap x 0.4) + (Position Rank x 0.35) + (Activity Index x 0.25)"
         />
 
         {/* Demand Factors */}
@@ -233,6 +231,8 @@ function ContributingFactorsSection({ scenario }: { scenario: PricingScenario })
           icon="📈"
           factors={scenario.demandFactors}
           colorClass="border-purple-200 bg-purple-50/50"
+          explanation="Evaluates sales velocity, inventory levels, price elasticity, and seasonal demand patterns to understand how price-sensitive the current market is."
+          formula="Demand Score = (Sales Velocity x 0.35) + (Elasticity Index x 0.30) + (Inventory Pressure x 0.20) + (Seasonality x 0.15)"
         />
 
         {/* Market Factors */}
@@ -241,6 +241,8 @@ function ContributingFactorsSection({ scenario }: { scenario: PricingScenario })
           icon="🌐"
           factors={scenario.marketFactors}
           colorClass="border-teal-200 bg-teal-50/50"
+          explanation="Incorporates macroeconomic signals, consumer sentiment, category growth trends, and external market conditions that influence pricing power."
+          formula="Market Score = (Category Growth x 0.40) + (Consumer Sentiment x 0.35) + (Economic Indicator x 0.25)"
         />
       </div>
 
@@ -253,44 +255,56 @@ function ContributingFactorsSection({ scenario }: { scenario: PricingScenario })
   );
 }
 
-function FactorsCard({ title, icon, factors, colorClass }: FactorsCardProps) {
+function FactorsCard({ title, icon, factors, colorClass, explanation, formula }: FactorsCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const entries = Object.entries(factors);
+  const factorCount = entries.length;
 
   return (
-    <div className={`rounded-md border p-4 ${colorClass}`}>
-      <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5 mb-2">
-        <span>{icon}</span>
-        {title}
-      </h4>
-      {entries.length > 0 ? (
-        <dl className="space-y-1.5">
-          {entries.slice(0, 6).map(([key, value]) => {
-            const tooltip = getFactorTooltip(key);
-            return (
-              <div key={key} className="flex justify-between text-xs">
-                <dt className="text-gray-600 capitalize">
-                  {tooltip ? (
-                    <Tooltip content={tooltip}>
-                      <span className="underline decoration-dotted cursor-help">{formatKey(key)}</span>
-                    </Tooltip>
-                  ) : (
-                    formatKey(key)
-                  )}
-                </dt>
-                <dd className="text-gray-900 font-medium truncate max-w-[50%] text-right">
-                  {formatValue(value)}
-                </dd>
-              </div>
-            );
-          })}
-          {entries.length > 6 && (
-            <p className="text-xs text-gray-500 italic">
-              +{entries.length - 6} more factors
-            </p>
+    <div className={`rounded-md border overflow-hidden ${colorClass}`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/30 transition-colors"
+        aria-expanded={expanded}
+        aria-label={`${title} details`}
+      >
+        <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+          <span>{icon}</span>
+          {title}
+        </h4>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{factorCount} factors</span>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-gray-200/50 space-y-3">
+          {explanation && (
+            <div className="mt-3">
+              <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Explanation</h5>
+              <p className="text-xs text-gray-700 leading-relaxed">{explanation}</p>
+            </div>
           )}
-        </dl>
-      ) : (
-        <p className="text-xs text-gray-500">No data available</p>
+
+          {formula && (
+            <div>
+              <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Formula</h5>
+              <code className="text-xs bg-white/60 text-gray-800 px-2 py-1 rounded block">{formula}</code>
+            </div>
+          )}
+
+          {entries.length === 0 && (
+            <p className="text-xs text-gray-500 mt-2">No data available</p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -406,26 +420,6 @@ function MetricCard({ label, value, valueClass = 'text-gray-900' }: MetricCardPr
 }
 
 // Utility functions
-
-function formatKey(key: string): string {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/_/g, ' ')
-    .trim();
-}
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return 'N/A';
-  if (typeof value === 'number') {
-    if (Number.isInteger(value)) return value.toString();
-    return value.toFixed(2);
-  }
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return `[${value.length} items]`;
-  if (typeof value === 'object') return `{${Object.keys(value).length} fields}`;
-  return String(value);
-}
 
 function riskLevelColor(level: string): string {
   switch (level) {

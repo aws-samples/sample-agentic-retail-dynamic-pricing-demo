@@ -21,6 +21,9 @@ from bedrock_agentcore.memory import MemoryClient
 def setup_memory(region: str = "us-east-1") -> str:
     """Create the AgentCore Memory resource.
 
+    Idempotent — if memory with the same name already exists, returns the
+    existing memory ID instead of failing.
+
     Args:
         region: AWS region to create the memory resource in.
 
@@ -30,6 +33,20 @@ def setup_memory(region: str = "us-east-1") -> str:
     client = MemoryClient(region_name=region)
 
     print(f"Creating AgentCore Memory in {region}...")
+
+    # Check if memory already exists
+    try:
+        existing_memories = client.list_memories()
+        for mem in existing_memories.get("memories", []):
+            if mem.get("name") == "RetailDynamicPricingMemory":
+                memory_id = mem.get("id")
+                print(f"  Memory already exists: {memory_id}")
+                print(f"\nExport this for your agent containers:")
+                print(f"  export AGENTCORE_MEMORY_ID={memory_id}")
+                return memory_id
+    except Exception:
+        pass  # list_memories may not be available; fall through to create
+
     memory = client.create_memory_and_wait(
         name="RetailDynamicPricingMemory",
         description=(
