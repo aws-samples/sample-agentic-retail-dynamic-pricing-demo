@@ -20,6 +20,7 @@ Requirements: 1.9, 1.10, 10.1, 10.2, 10.4
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -272,6 +273,7 @@ class SessionManager:
                 "data_type": data_type,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "ttl": expiry_timestamp,
+                "integrity_hash": self._compute_integrity_hash(data),
             },
         }
 
@@ -324,7 +326,22 @@ class SessionManager:
             value = response.body.get("value")
             if value:
                 try:
-                    return json.loads(value)
+                    parsed_data = json.loads(value)
+
+                    # Security: Validate memory integrity hash if present
+                    metadata = response.body.get("metadata", {})
+                    stored_hash = metadata.get("integrity_hash")
+                    if stored_hash:
+                        computed_hash = self._compute_integrity_hash(parsed_data)
+                        if computed_hash != stored_hash:
+                            logger.warning(
+                                "Memory integrity violation detected for key '%s' "
+                                "in session %s. Stored hash does not match content.",
+                                key,
+                                session_id,
+                            )
+
+                    return parsed_data
                 except json.JSONDecodeError:
                     logger.warning(
                         "Failed to parse short-term data for key '%s' in session %s",
@@ -339,6 +356,26 @@ class SessionManager:
             session_id,
         )
         return None
+
+    # -----------------------------------------------------------------------
+    # Memory Integrity
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_integrity_hash(data: dict[str, Any]) -> str:
+        """Compute SHA-256 hash of data payload for tamper detection.
+
+        Uses canonical JSON serialization (sorted keys) to ensure
+        consistent hashing regardless of dict ordering.
+
+        Args:
+            data: The data payload to hash.
+
+        Returns:
+            Hex-encoded SHA-256 hash string.
+        """
+        canonical = json.dumps(data, sort_keys=True, default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     # -----------------------------------------------------------------------
     # Long-Term Memory (100 cycles) — Requirements 10.2, 10.4

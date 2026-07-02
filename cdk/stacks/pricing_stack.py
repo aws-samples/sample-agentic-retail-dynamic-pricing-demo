@@ -49,6 +49,7 @@ class RetailDynamicPricingStack(cdk.Stack):
             "ApiHandlers",
             dynamodb_tables=self.dynamodb,
             cognito_auth=self.cognito,
+            hosting=self.hosting,
         )
 
         # --- AWS Budget Alarm for Bedrock Spend ---

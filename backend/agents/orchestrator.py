@@ -331,6 +331,10 @@ def _invoke_agent_with_retry(
                 timeout_seconds=timeout_seconds,
             )
 
+            # Security: Validate agent output for prompt injection patterns
+            from backend.orchestration.input_sanitizer import sanitize_agent_output
+            output_data = sanitize_agent_output(output_data, agent_name)
+
             duration_ms = int((time.time() - start_time) * 1000)
 
             logger.info(

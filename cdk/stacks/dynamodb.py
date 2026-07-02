@@ -3,6 +3,7 @@
 from constructs import Construct
 import aws_cdk as cdk
 import aws_cdk.aws_dynamodb as dynamodb
+import aws_cdk.aws_kms as kms
 
 
 class DynamoDBTables(Construct):
@@ -18,6 +19,27 @@ class DynamoDBTables(Construct):
 
     def __init__(self, scope: Construct, construct_id: str) -> None:
         super().__init__(scope, construct_id)
+
+        # Security: Optionally use KMS CMK for sensitive table encryption.
+        # Enable with: cdk deploy --context use_cmk_encryption=true
+        # WARNING: Switching existing tables from AWS_MANAGED to CUSTOMER_MANAGED
+        # causes table REPLACEMENT (data loss). Only use on fresh deployments.
+        use_cmk = self.node.try_get_context("use_cmk_encryption") or False
+
+        if use_cmk:
+            self.pricing_data_key = kms.Key(
+                self,
+                "PricingDataKey",
+                description="CMK for encrypting sensitive pricing data at rest",
+                enable_key_rotation=True,
+                removal_policy=cdk.RemovalPolicy.RETAIN,
+            )
+            sensitive_encryption = dynamodb.TableEncryption.CUSTOMER_MANAGED
+            sensitive_encryption_key = self.pricing_data_key
+        else:
+            self.pricing_data_key = None
+            sensitive_encryption = dynamodb.TableEncryption.AWS_MANAGED
+            sensitive_encryption_key = None
 
         self.pricing_cycles_table = dynamodb.Table(
             self,
@@ -52,7 +74,8 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
-            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            encryption=sensitive_encryption,
+            encryption_key=sensitive_encryption_key,
             point_in_time_recovery=True,
         )
 
@@ -68,6 +91,9 @@ class DynamoDBTables(Construct):
             removal_policy=cdk.RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.AWS_MANAGED,
             point_in_time_recovery=True,
+            # Security: Enable streams for change detection and alerting
+            # on unauthorized out-of-band price modifications
+            stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
         )
 
         self.audit_trail_table = dynamodb.Table(
@@ -84,7 +110,8 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
-            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            encryption=sensitive_encryption,
+            encryption_key=sensitive_encryption_key,
             point_in_time_recovery=True,
         )
 
@@ -102,6 +129,7 @@ class DynamoDBTables(Construct):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
-            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            encryption=sensitive_encryption,
+            encryption_key=sensitive_encryption_key,
             point_in_time_recovery=True,
         )

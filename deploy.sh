@@ -120,6 +120,20 @@ source .venv/bin/activate
 .venv/bin/pip install -e . --quiet
 print_success "Dependencies installed"
 
+# Step 1.5: Security — Dependency vulnerability scan
+print_step "1.5" "Scanning dependencies for known vulnerabilities"
+.venv/bin/pip install pip-audit --quiet
+if .venv/bin/pip-audit --strict --progress-spinner off 2>&1 | tail -5; then
+    print_success "No known vulnerabilities found in dependencies"
+else
+    echo ""
+    echo "WARNING: Vulnerable dependencies detected."
+    echo "  Run 'pip-audit' to see details and 'pip-audit --fix' to auto-fix."
+    echo "  Continuing deployment — review and remediate vulnerabilities."
+    echo ""
+    print_warning "Deployment continuing with known vulnerabilities (review recommended)"
+fi
+
 # Step 2: Deploy Infrastructure (CDK) — first pass
 print_step "2" "Deploying infrastructure (CDK)"
 npx cdk bootstrap aws://$ACCOUNT_ID/$REGION --app ".venv/bin/python3 cdk/app.py" 2>/dev/null || true

@@ -47,25 +47,41 @@ class ApiHandlersConstruct(Construct):
         *,
         dynamodb_tables: "DynamoDBTables",
         cognito_auth: "CognitoAuth",
+        hosting: "HostingConstruct",
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # --- REST API ---
+        # Security: Restrict CORS to known CloudFront origins + localhost dev
+        allowed_origins = [
+            cdk.Fn.sub(
+                "https://${Domain}",
+                {"Domain": hosting.dashboard_distribution.distribution_domain_name},
+            ),
+            cdk.Fn.sub(
+                "https://${Domain}",
+                {"Domain": hosting.storefront_distribution.distribution_domain_name},
+            ),
+            "http://localhost:5173",
+            "https://localhost:5173",
+        ]
+
         self.api = apigw.RestApi(
             self,
             "PricingApi",
             rest_api_name="retail-dynamic-pricing-api",
             description="REST API for Retail Dynamic Pricing system",
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS,
-                allow_methods=apigw.Cors.ALL_METHODS,
+                allow_origins=allowed_origins,
+                allow_methods=["GET", "POST", "OPTIONS"],
                 allow_headers=[
                     "Content-Type",
                     "Authorization",
                     "X-Amz-Date",
                     "X-Api-Key",
                     "X-Amz-Security-Token",
+                    "X-CSRF-Token",
                 ],
             ),
             deploy_options=apigw.StageOptions(stage_name="prod"),
@@ -170,6 +186,19 @@ class ApiHandlersConstruct(Construct):
         )
         dynamodb_tables.pricing_scenarios_table.grant_read_data(self.scenarios_fn)
 
+        # --- Security: Audit Trail Immutability ---
+        # Deny UpdateItem and DeleteItem on AuditTrail table for all handlers
+        # except pricing_cycles_fn which needs BatchWriteItem for /reset (demo only).
+        # This ensures audit records are append-only and tamper-resistant.
+        audit_trail_immutability_deny = iam.PolicyStatement(
+            effect=iam.Effect.DENY,
+            actions=[
+                "dynamodb:DeleteItem",
+                "dynamodb:UpdateItem",
+            ],
+            resources=[dynamodb_tables.audit_trail_table.table_arn],
+        )
+
         # Approvals handler
         self.approvals_fn = self._create_handler(
             "Approvals",
@@ -179,13 +208,17 @@ class ApiHandlersConstruct(Construct):
                 "APPROVALS_TABLE": dynamodb_tables.approvals_table.table_name,
                 "PRICING_SCENARIOS_TABLE": dynamodb_tables.pricing_scenarios_table.table_name,
                 "PRODUCTS_TABLE": dynamodb_tables.products_table.table_name,
+                "PRICING_CYCLES_TABLE": dynamodb_tables.pricing_cycles_table.table_name,
                 "AWS_REGION_NAME": cdk.Aws.REGION,
             },
         )
         dynamodb_tables.approvals_table.grant_read_write_data(self.approvals_fn)
         dynamodb_tables.pricing_scenarios_table.grant_read_write_data(self.approvals_fn)
         dynamodb_tables.products_table.grant_read_write_data(self.approvals_fn)
+        dynamodb_tables.pricing_cycles_table.grant_read_data(self.approvals_fn)
         self.approvals_fn.add_to_role_policy(agentcore_policy)
+        # Apply audit trail immutability to approvals handler
+        self.approvals_fn.add_to_role_policy(audit_trail_immutability_deny)
 
         # Agents Status handler
         self.agents_status_fn = self._create_handler(

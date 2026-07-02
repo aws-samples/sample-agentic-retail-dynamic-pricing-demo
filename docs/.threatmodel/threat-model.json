@@ -1,0 +1,484 @@
+{
+  "schema": 1,
+  "applicationInfo": {
+    "name": "Threat Model Export",
+    "description": "Retail Dynamic Pricing is an agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous workflow completing in under 2 minutes. Built on Amazon Bedrock AgentCore with 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations with human-in-the-loop approval. The system enforces compliance via Amazon Bedrock Guardrails (blocks predatory pricing, price fixing, discrimination, gouging), routes approvals by risk level (LOW auto-approved, MEDIUM/HIGH routed to humans), and provides full audit trail for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive). It serves both Pricing Analysts (who run pricing cycles and approve scenarios) and Operations teams (who monitor system health and metrics)."
+  },
+  "architecture": {
+    "description": ""
+  },
+  "dataflow": {
+    "description": ""
+  },
+  "assumptions": [
+    {
+      "id": "A001",
+      "numericId": 1,
+      "content": "Amazon Bedrock AgentCore Runtime, Gateway, and Memory services are managed by AWS and provide adequate isolation between tenants.",
+      "displayOrder": 1,
+      "metadata": []
+    },
+    {
+      "id": "A002",
+      "numericId": 2,
+      "content": "Cognito User Pool is the sole identity provider and all dashboard API access requires valid JWT tokens. Self-registration is disabled and only admins create users.",
+      "displayOrder": 2,
+      "metadata": []
+    },
+    {
+      "id": "A003",
+      "numericId": 3,
+      "content": "All inter-service communication occurs over AWS internal networks using HTTPS/TLS. No VPC is used for Lambda functions (they run in AWS-managed networking).",
+      "displayOrder": 3,
+      "metadata": []
+    },
+    {
+      "id": "A004",
+      "numericId": 4,
+      "content": "MCP Server data is simulated for this demo. In production, MCP servers would connect to real external data sources (competitor APIs, ERP systems, market feeds).",
+      "displayOrder": 4,
+      "metadata": []
+    },
+    {
+      "id": "A005",
+      "numericId": 5,
+      "content": "Bedrock Guardrails effectively catch all pricing compliance violations (predatory pricing, price fixing, discrimination, gouging) as configured.",
+      "displayOrder": 5,
+      "metadata": []
+    },
+    {
+      "id": "A006",
+      "numericId": 6,
+      "content": "AWS CloudTrail is enabled for the account and captures all API calls including DynamoDB data events and Bedrock/AgentCore invocations.",
+      "displayOrder": 6,
+      "metadata": []
+    },
+    {
+      "id": "A007",
+      "numericId": 7,
+      "content": "Deploy.sh hardcoded demo credentials (DemoPass2024!, OpsPass2024!) are only used for initial setup and users are expected to change passwords or the deployment is for demo/testing only.",
+      "displayOrder": 7,
+      "metadata": []
+    },
+    {
+      "id": "A008",
+      "numericId": 8,
+      "content": "The public /products endpoint is intentionally unauthenticated as it serves consumer-facing product catalog data that is not considered sensitive.",
+      "displayOrder": 8,
+      "metadata": []
+    }
+  ],
+  "mitigations": [
+    {
+      "id": "a7e9d496-8d98-4e54-a7a7-2293c365b891",
+      "numericId": 1,
+      "status": "mitigationIdentified",
+      "content": "Implement input sanitization and validation on all MCP server responses before passing to agents. Add output validation on agent responses. Use Bedrock Guardrails content filters to detect and block adversarial prompt patterns in agent inputs and outputs.",
+      "displayOrder": 1,
+      "metadata": []
+    },
+    {
+      "id": "9416120d-8f56-4920-86e0-3b9764d6de26",
+      "numericId": 2,
+      "status": "mitigationIdentified",
+      "content": "Implement dual-approval requirement for HIGH-risk scenarios requiring two different PricingAnalysts to approve. Add separation of duties so the person initiating a pricing cycle cannot approve their own scenarios.",
+      "displayOrder": 2,
+      "metadata": []
+    },
+    {
+      "id": "aba740ff-f26b-4368-841c-49a7b364b9b9",
+      "numericId": 3,
+      "status": "mitigationIdentified",
+      "content": "Enable Cognito Advanced Security Features with adaptive authentication, compromised credential detection, and account takeover protection. Configure MFA requirement for all dashboard users.",
+      "displayOrder": 3,
+      "metadata": []
+    },
+    {
+      "id": "dbae0ac1-aeff-4ced-a8a9-e847d36fa04d",
+      "numericId": 4,
+      "status": "mitigationIdentified",
+      "content": "Implement field-level encryption for sensitive pricing data in DynamoDB. Use AWS KMS customer-managed keys with strict key policies. Enable DynamoDB Streams for change detection and alerting on unauthorized access patterns.",
+      "displayOrder": 4,
+      "metadata": []
+    },
+    {
+      "id": "9faba915-4efa-49cd-b648-ebce44c75ff8",
+      "numericId": 5,
+      "status": "mitigationIdentified",
+      "content": "Make AuditTrail table immutable using DynamoDB condition expressions that prevent updates/deletes. Enable DynamoDB Streams to replicate audit records to a separate AWS account for tamper-evident storage.",
+      "displayOrder": 5,
+      "metadata": []
+    },
+    {
+      "id": "150133ab-12a7-487a-8b5a-2aba666abf2e",
+      "numericId": 6,
+      "status": "mitigationIdentified",
+      "content": "Configure API Gateway throttling and usage plans for the public /products endpoint. Implement per-IP rate limiting, request quotas, and optional WAF rules to block scraping patterns.",
+      "displayOrder": 6,
+      "metadata": []
+    },
+    {
+      "id": "20a0b8a0-416c-41af-b390-3364462a344c",
+      "numericId": 7,
+      "status": "mitigationIdentified",
+      "content": "Implement memory integrity validation with checksums on AgentCore Memory writes. Add anomaly detection on long-term memory content to identify statistical drift or poisoned entries. Periodic human review of memory content.",
+      "displayOrder": 7,
+      "metadata": []
+    },
+    {
+      "id": "1f63d542-43af-4122-ab6a-bd462ac03dd4",
+      "numericId": 8,
+      "status": "mitigationIdentified",
+      "content": "Restrict CORS policy from ALL_ORIGINS to specific allowed origins (CloudFront distribution domains only). Add CSRF token validation for state-changing operations (POST /pricing-cycles, POST /approvals).",
+      "displayOrder": 8,
+      "metadata": []
+    },
+    {
+      "id": "27993aac-d219-4671-a71f-d2201ea01f6e",
+      "numericId": 9,
+      "status": "mitigationIdentified",
+      "content": "Implement IAM policy conditions restricting DynamoDB writes to Products table only through the Approvals Lambda execution role. Add SCPs preventing direct console access to production tables. Enable CloudTrail data events for write operations.",
+      "displayOrder": 9,
+      "metadata": []
+    },
+    {
+      "id": "bbfb424e-1163-437e-8304-05484cf883a9",
+      "numericId": 10,
+      "status": "mitigationIdentified",
+      "content": "Implement multi-layered guardrail validation: automated Bedrock Guardrails + local rules engine + statistical outlier detection on price changes. Add human review queue for edge cases that pass rules but show unusual patterns.",
+      "displayOrder": 10,
+      "metadata": []
+    },
+    {
+      "id": "95452e30-dd1e-4fb7-b95b-a8f7a4fab897",
+      "numericId": 11,
+      "status": "mitigationIdentified",
+      "content": "Pin all Python dependencies to exact versions in requirements.txt. Enable Dependabot/pip-audit in CI/CD pipeline. Use Lambda layers with verified checksums. Implement binary authorization for container images.",
+      "displayOrder": 11,
+      "metadata": []
+    },
+    {
+      "id": "7c464785-597f-4e85-85c4-716cab4ac6d7",
+      "numericId": 12,
+      "status": "mitigationIdentified",
+      "content": "SigV4 signatures include timestamp (X-Amz-Date) with 5-minute validity window preventing replay attacks. Ensure Lambda requests include unique request IDs. Enable CloudTrail logging for all AgentCore API calls.",
+      "displayOrder": 12,
+      "metadata": []
+    }
+  ],
+  "assumptionLinks": [],
+  "mitigationLinks": [
+    {
+      "linkedId": "712a1001-7899-44c4-8368-79f18757f157",
+      "mitigationId": "a7e9d496-8d98-4e54-a7a7-2293c365b891"
+    },
+    {
+      "linkedId": "ba88b4c3-3374-4b86-bba3-fc4d7a94aeb5",
+      "mitigationId": "9416120d-8f56-4920-86e0-3b9764d6de26"
+    },
+    {
+      "linkedId": "423df532-eef1-4a90-8670-040bb1d9a61a",
+      "mitigationId": "aba740ff-f26b-4368-841c-49a7b364b9b9"
+    },
+    {
+      "linkedId": "67afeae7-6435-4e08-9b49-62ddc467af36",
+      "mitigationId": "dbae0ac1-aeff-4ced-a8a9-e847d36fa04d"
+    },
+    {
+      "linkedId": "40029576-7ebc-46a0-89d8-29d4e6063638",
+      "mitigationId": "9faba915-4efa-49cd-b648-ebce44c75ff8"
+    },
+    {
+      "linkedId": "f1cf1d85-aa03-455d-bb18-371a13bd1a17",
+      "mitigationId": "150133ab-12a7-487a-8b5a-2aba666abf2e"
+    },
+    {
+      "linkedId": "035e6d3d-ffc8-4ace-b9e8-7cbafc3514e9",
+      "mitigationId": "20a0b8a0-416c-41af-b390-3364462a344c"
+    },
+    {
+      "linkedId": "b6d97455-019a-44ff-a465-09c21e045168",
+      "mitigationId": "1f63d542-43af-4122-ab6a-bd462ac03dd4"
+    },
+    {
+      "linkedId": "3a13850f-d79a-49bf-906c-f6aa4ccf8ed4",
+      "mitigationId": "27993aac-d219-4671-a71f-d2201ea01f6e"
+    },
+    {
+      "linkedId": "0abce1bc-5eec-4bde-aa55-31bc3fc02d6c",
+      "mitigationId": "bbfb424e-1163-437e-8304-05484cf883a9"
+    },
+    {
+      "linkedId": "835bc066-6d2d-4f55-8fd9-f378a4584f64",
+      "mitigationId": "95452e30-dd1e-4fb7-b95b-a8f7a4fab897"
+    },
+    {
+      "linkedId": "ca27a198-cfc1-4617-8b6b-35ee98ade13a",
+      "mitigationId": "7c464785-597f-4e85-85c4-716cab4ac6d7"
+    }
+  ],
+  "threats": [
+    {
+      "id": "712a1001-7899-44c4-8368-79f18757f157",
+      "numericId": 1,
+      "threatSource": "AI/ML Adversary crafting malicious inputs",
+      "prerequisites": "Access to any agent input channel (MCP server responses, user-provided parameters, or memory content)",
+      "threatAction": "Injects adversarial prompts into MCP server data or pricing cycle parameters to manipulate agent reasoning and produce biased pricing",
+      "threatImpact": "Agents generate manipulated pricing recommendations that bypass guardrails, causing financial loss or regulatory violations",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A009"
+      ],
+      "statement": "A AI/ML Adversary crafting malicious inputs Access to any agent input channel (MCP server responses, user-provided parameters, or memory content) can Injects adversarial prompts into MCP server data or pricing cycle parameters to manipulate agent reasoning and produce biased pricing, which leads to Agents generate manipulated pricing recommendations that bypass guardrails, causing financial loss or regulatory violations",
+      "displayOrder": 1,
+      "status": "threatIdentified",
+      "tags": [
+        "prompt-injection",
+        "ai-safety",
+        "STRIDE-T"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "ba88b4c3-3374-4b86-bba3-fc4d7a94aeb5",
+      "numericId": 2,
+      "threatSource": "Malicious insider with PricingAnalysts group membership",
+      "prerequisites": "Valid Cognito credentials with PricingAnalysts role and knowledge of approval workflow",
+      "threatAction": "Approves fraudulent HIGH-risk pricing scenarios or manipulates scenario parameters before approval to benefit a specific party",
+      "threatImpact": "Unauthorized price changes applied to production products causing financial loss, regulatory non-compliance, or competitive disadvantage",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A013",
+        "A008"
+      ],
+      "statement": "A Malicious insider with PricingAnalysts group membership Valid Cognito credentials with PricingAnalysts role and knowledge of approval workflow can Approves fraudulent HIGH-risk pricing scenarios or manipulates scenario parameters before approval to benefit a specific party, which leads to Unauthorized price changes applied to production products causing financial loss, regulatory non-compliance, or competitive disadvantage",
+      "displayOrder": 2,
+      "status": "threatIdentified",
+      "tags": [
+        "insider-threat",
+        "approval-fraud",
+        "STRIDE-E"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "423df532-eef1-4a90-8670-040bb1d9a61a",
+      "numericId": 3,
+      "threatSource": "External attacker targeting Cognito authentication",
+      "prerequisites": "Knowledge of Cognito User Pool ID and client ID (exposed in frontend config)",
+      "threatAction": "Performs credential stuffing or brute-force attacks against Cognito login using leaked credential databases",
+      "threatImpact": "Unauthorized access to dashboard, ability to initiate pricing cycles, view confidential pricing strategies, or approve scenarios",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A012"
+      ],
+      "statement": "A External attacker targeting Cognito authentication Knowledge of Cognito User Pool ID and client ID (exposed in frontend config) can Performs credential stuffing or brute-force attacks against Cognito login using leaked credential databases, which leads to Unauthorized access to dashboard, ability to initiate pricing cycles, view confidential pricing strategies, or approve scenarios",
+      "displayOrder": 3,
+      "status": "threatIdentified",
+      "tags": [
+        "credential-stuffing",
+        "authentication-bypass",
+        "STRIDE-S"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "67afeae7-6435-4e08-9b49-62ddc467af36",
+      "numericId": 4,
+      "threatSource": "Competitor or cybercriminal targeting pricing data",
+      "prerequisites": "Compromised credentials or exploited vulnerability in API Gateway or Lambda handlers",
+      "threatAction": "Exfiltrates pricing scenarios, competitive intelligence, cost structures, and demand forecasts from DynamoDB or API responses",
+      "threatImpact": "Loss of proprietary pricing strategies and competitive intelligence worth significant business value to competitors",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A009"
+      ],
+      "statement": "A Competitor or cybercriminal targeting pricing data Compromised credentials or exploited vulnerability in API Gateway or Lambda handlers can Exfiltrates pricing scenarios, competitive intelligence, cost structures, and demand forecasts from DynamoDB or API responses, which leads to Loss of proprietary pricing strategies and competitive intelligence worth significant business value to competitors",
+      "displayOrder": 4,
+      "status": "threatIdentified",
+      "tags": [
+        "data-exfiltration",
+        "trade-secrets",
+        "STRIDE-I"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "40029576-7ebc-46a0-89d8-29d4e6063638",
+      "numericId": 5,
+      "threatSource": "Attacker targeting audit trail integrity",
+      "prerequisites": "Write access to AuditTrail or Approvals DynamoDB tables via compromised Lambda role or direct API manipulation",
+      "threatAction": "Modifies or deletes audit trail records to conceal unauthorized pricing changes or compliance violations",
+      "threatImpact": "Regulatory non-compliance (FTC, EU Omnibus), inability to prove pricing decisions were lawful, legal liability",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A011"
+      ],
+      "statement": "A Attacker targeting audit trail integrity Write access to AuditTrail or Approvals DynamoDB tables via compromised Lambda role or direct API manipulation can Modifies or deletes audit trail records to conceal unauthorized pricing changes or compliance violations, which leads to Regulatory non-compliance (FTC, EU Omnibus), inability to prove pricing decisions were lawful, legal liability",
+      "displayOrder": 5,
+      "status": "threatIdentified",
+      "tags": [
+        "audit-tampering",
+        "regulatory-risk",
+        "STRIDE-T"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "f1cf1d85-aa03-455d-bb18-371a13bd1a17",
+      "numericId": 6,
+      "threatSource": "Automated bot targeting public /products endpoint",
+      "prerequisites": "Knowledge of API Gateway URL (publicly accessible) and product endpoint path",
+      "threatAction": "Sends high-volume requests to /products API to scrape entire catalog and real-time pricing or exhaust Lambda concurrency",
+      "threatImpact": "Competitors gain real-time pricing intelligence; legitimate users experience degraded performance or service unavailability",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A010"
+      ],
+      "statement": "A Automated bot targeting public /products endpoint Knowledge of API Gateway URL (publicly accessible) and product endpoint path can Sends high-volume requests to /products API to scrape entire catalog and real-time pricing or exhaust Lambda concurrency, which leads to Competitors gain real-time pricing intelligence; legitimate users experience degraded performance or service unavailability",
+      "displayOrder": 6,
+      "status": "threatIdentified",
+      "tags": [
+        "api-abuse",
+        "rate-limiting",
+        "STRIDE-D"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "035e6d3d-ffc8-4ace-b9e8-7cbafc3514e9",
+      "numericId": 7,
+      "threatSource": "AI/ML adversary targeting AgentCore Memory",
+      "prerequisites": "Access to agent execution flow or ability to influence data written to AgentCore Memory via manipulated MCP responses",
+      "threatAction": "Poisons long-term memory with biased historical data causing agents to systematically produce skewed recommendations",
+      "threatImpact": "Gradual degradation of pricing quality; subtle biases compound over 100 cycles creating systematic financial damage",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A014",
+        "A008"
+      ],
+      "statement": "A AI/ML adversary targeting AgentCore Memory Access to agent execution flow or ability to influence data written to AgentCore Memory via manipulated MCP responses can Poisons long-term memory with biased historical data causing agents to systematically produce skewed recommendations, which leads to Gradual degradation of pricing quality; subtle biases compound over 100 cycles creating systematic financial damage",
+      "displayOrder": 7,
+      "status": "threatIdentified",
+      "tags": [
+        "data-poisoning",
+        "memory-manipulation",
+        "STRIDE-T"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "b6d97455-019a-44ff-a465-09c21e045168",
+      "numericId": 8,
+      "threatSource": "Attacker exploiting overly permissive CORS configuration",
+      "prerequisites": "CORS allows ALL_ORIGINS on API Gateway; attacker creates malicious website visited by authenticated user",
+      "threatAction": "Exploits permissive CORS policy to make cross-origin requests from malicious site using victim's active Cognito session",
+      "threatImpact": "Unauthorized actions on behalf of authenticated user including initiating pricing cycles or approving scenarios",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A012",
+        "A013"
+      ],
+      "statement": "A Attacker exploiting overly permissive CORS configuration CORS allows ALL_ORIGINS on API Gateway; attacker creates malicious website visited by authenticated user can Exploits permissive CORS policy to make cross-origin requests from malicious site using victim's active Cognito session, which leads to Unauthorized actions on behalf of authenticated user including initiating pricing cycles or approving scenarios",
+      "displayOrder": 8,
+      "status": "threatIdentified",
+      "tags": [
+        "cors-abuse",
+        "csrf",
+        "STRIDE-S"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "3a13850f-d79a-49bf-906c-f6aa4ccf8ed4",
+      "numericId": 9,
+      "threatSource": "Insider or attacker with AWS console access",
+      "prerequisites": "IAM credentials with DynamoDB write permissions or compromised Lambda execution role",
+      "threatAction": "Directly modifies Products table to change live consumer-facing prices bypassing the entire approval workflow and guardrails",
+      "threatImpact": "Unauthorized price changes visible to consumers; potential predatory pricing, reputational damage, regulatory penalties",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A010",
+        "A013"
+      ],
+      "statement": "A Insider or attacker with AWS console access IAM credentials with DynamoDB write permissions or compromised Lambda execution role can Directly modifies Products table to change live consumer-facing prices bypassing the entire approval workflow and guardrails, which leads to Unauthorized price changes visible to consumers; potential predatory pricing, reputational damage, regulatory penalties",
+      "displayOrder": 9,
+      "status": "threatIdentified",
+      "tags": [
+        "workflow-bypass",
+        "direct-db-access",
+        "STRIDE-E"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "0abce1bc-5eec-4bde-aa55-31bc3fc02d6c",
+      "numericId": 10,
+      "threatSource": "Attacker or insider targeting guardrail bypass",
+      "prerequisites": "Understanding of guardrail rules and ability to craft scenarios that technically pass validation but are ethically problematic",
+      "threatAction": "Crafts inputs that produce scenarios passing automated guardrail checks but violating spirit of pricing regulations",
+      "threatImpact": "Compliant-appearing but harmful pricing reaches production; regulatory investigation, fines, reputational damage",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A011"
+      ],
+      "statement": "A Attacker or insider targeting guardrail bypass Understanding of guardrail rules and ability to craft scenarios that technically pass validation but are ethically problematic can Crafts inputs that produce scenarios passing automated guardrail checks but violating spirit of pricing regulations, which leads to Compliant-appearing but harmful pricing reaches production; regulatory investigation, fines, reputational damage",
+      "displayOrder": 10,
+      "status": "threatIdentified",
+      "tags": [
+        "guardrail-evasion",
+        "compliance-bypass",
+        "STRIDE-T"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "835bc066-6d2d-4f55-8fd9-f378a4584f64",
+      "numericId": 11,
+      "threatSource": "External attacker targeting Lambda supply chain",
+      "prerequisites": "Compromised Python dependency in requirements or malicious package in Lambda layer",
+      "threatAction": "Introduces malicious code via compromised dependency that exfiltrates data, modifies pricing logic, or creates backdoors",
+      "threatImpact": "Complete compromise of backend compute; data exfiltration, pricing manipulation, persistent unauthorized access",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A009",
+        "A012"
+      ],
+      "statement": "A External attacker targeting Lambda supply chain Compromised Python dependency in requirements or malicious package in Lambda layer can Introduces malicious code via compromised dependency that exfiltrates data, modifies pricing logic, or creates backdoors, which leads to Complete compromise of backend compute; data exfiltration, pricing manipulation, persistent unauthorized access",
+      "displayOrder": 11,
+      "status": "threatIdentified",
+      "tags": [
+        "supply-chain",
+        "dependency-compromise",
+        "STRIDE-T"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "ca27a198-cfc1-4617-8b6b-35ee98ade13a",
+      "numericId": 12,
+      "threatSource": "Attacker intercepting or replaying SigV4 requests",
+      "prerequisites": "Ability to observe or reconstruct SigV4-signed requests between Lambda and AgentCore",
+      "threatAction": "Captures and replays SigV4-signed AgentCore invocation requests to trigger unauthorized agent executions",
+      "threatImpact": "Unauthorized agent invocations consuming resources; potential access to confidential agent outputs and memory data",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A012",
+        "A014"
+      ],
+      "statement": "A Attacker intercepting or replaying SigV4 requests Ability to observe or reconstruct SigV4-signed requests between Lambda and AgentCore can Captures and replays SigV4-signed AgentCore invocation requests to trigger unauthorized agent executions, which leads to Unauthorized agent invocations consuming resources; potential access to confidential agent outputs and memory data",
+      "displayOrder": 12,
+      "status": "threatIdentified",
+      "tags": [
+        "replay-attack",
+        "sigv4",
+        "STRIDE-R"
+      ],
+      "metadata": []
+    }
+  ]
+}

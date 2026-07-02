@@ -152,7 +152,7 @@ def test_mcp_server_lambda_runtime_and_config():
 
 
 def test_cognito_user_pool_created():
-    """Verify Cognito User Pool is created with email sign-in."""
+    """Verify Cognito User Pool is created with email sign-in and security hardening."""
     app = cdk.App()
     stack = RetailDynamicPricingStack(app, "TestStack")
     template = Template.from_stack(stack)
@@ -166,13 +166,15 @@ def test_cognito_user_pool_created():
             "AutoVerifiedAttributes": ["email"],
             "Policies": {
                 "PasswordPolicy": {
-                    "MinimumLength": 8,
+                    "MinimumLength": 12,
                     "RequireLowercase": True,
                     "RequireUppercase": True,
                     "RequireNumbers": True,
-                    "RequireSymbols": False,
+                    "RequireSymbols": True,
                 },
             },
+            "MfaConfiguration": "ON",
+            "EnabledMfas": ["SOFTWARE_TOKEN_MFA"],
         },
     )
 
@@ -243,7 +245,7 @@ def test_api_handler_lambda_runtime():
             "FunctionName": "rdp-api-pricing-cycles",
             "Runtime": "python3.12",
             "MemorySize": 256,
-            "Timeout": 30,
+            "Timeout": 300,
         },
     )
 
@@ -303,7 +305,7 @@ def test_api_handler_has_agentcore_permissions():
     stack = RetailDynamicPricingStack(app, "TestStack")
     template = Template.from_stack(stack)
 
-    # Verify IAM policy with bedrock permissions exists
+    # Verify IAM policy with bedrock/agentcore permissions exists
     template.has_resource_properties(
         "AWS::IAM::Policy",
         {
@@ -311,8 +313,10 @@ def test_api_handler_has_agentcore_permissions():
                 "Statement": Match.array_with([
                     Match.object_like({
                         "Action": [
-                            "bedrock:InvokeAgent",
-                            "bedrock:InvokeAgentRuntime",
+                            "bedrock:InvokeModel",
+                            "bedrock:InvokeModelWithResponseStream",
+                            "bedrock-agentcore:InvokeAgentRuntime",
+                            "bedrock-agentcore:InvokeAgentRuntimeForUser",
                         ],
                         "Effect": "Allow",
                     }),

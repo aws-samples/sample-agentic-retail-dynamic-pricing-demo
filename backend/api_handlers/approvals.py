@@ -230,6 +230,31 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
     claims = authorizer.get("claims", {})
     actor_id = claims.get("sub", claims.get("cognito:username", "system"))
 
+    # --- Separation of Duties Check ---
+    # The user who initiated the pricing cycle cannot approve their own scenarios
+    if cycle_id:
+        pricing_cycles_table_name = os.environ.get("PRICING_CYCLES_TABLE", "PricingCycles")
+        cycles_table = dynamodb.Table(pricing_cycles_table_name)
+        try:
+            cycle_response = cycles_table.query(
+                KeyConditionExpression="cycleId = :cid",
+                ExpressionAttributeValues={":cid": cycle_id},
+                Limit=1,
+            )
+            cycle_items = cycle_response.get("Items", [])
+            if cycle_items:
+                initiator_id = cycle_items[0].get("initiatedBy", "")
+                if initiator_id and initiator_id == actor_id:
+                    return _response(403, {
+                        "error": "Separation of duties violation: the cycle initiator cannot approve their own scenarios",
+                    })
+        except Exception as e:
+            logger.warning(
+                "Could not verify separation of duties for cycle %s: %s",
+                cycle_id,
+                e,
+            )
+
     now = _iso_now()
     dynamodb = _get_dynamodb_resource()
 

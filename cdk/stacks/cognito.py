@@ -37,14 +37,20 @@ class CognitoAuth(Construct):
                 ),
             ),
             password_policy=cognito.PasswordPolicy(
-                min_length=8,
+                min_length=12,
                 require_lowercase=True,
                 require_uppercase=True,
                 require_digits=True,
-                require_symbols=False,
+                require_symbols=True,
             ),
             account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            # Security: Require TOTP MFA for all users
+            mfa=cognito.Mfa.REQUIRED,
+            mfa_second_factor=cognito.MfaSecondFactor(
+                sms=False,
+                otp=True,
+            ),
         )
 
         # Add Cognito hosted UI domain (required for OAuth login flows)
