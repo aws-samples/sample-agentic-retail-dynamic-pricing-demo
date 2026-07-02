@@ -250,3 +250,19 @@ aws cognito-idp update-user-pool-client \
 **Prevention:** CDK should configure the Cognito domain and set callback URLs based on the CloudFront distribution domain.
 
 ---
+
+## 10. Cognito Advanced Security fails with ESSENTIALS pricing tier
+
+**Symptom:**
+```
+Resource handler returned message: "The following features need to be disabled
+for the ESSENTIALS pricing tier configured: Threat Protection"
+```
+
+**Root Cause:** The Cognito User Pool was created on the ESSENTIALS pricing tier. `AdvancedSecurityMode.ENFORCED` (Threat Protection) requires the **Plus** pricing tier ($0.0150/MAU vs $0.0065/MAU for Essentials).
+
+**Fix:** Removed `advanced_security_mode=cognito.AdvancedSecurityMode.ENFORCED` from the CDK Cognito construct. MFA (TOTP) remains enabled as it works on all tiers and provides the primary defense against credential stuffing.
+
+**Prevention:** Before enabling Cognito Advanced Security features, verify the User Pool pricing tier supports it. For production workloads where compromised credential detection is critical, upgrade to the Plus tier via the AWS Console before deploying with `AdvancedSecurityMode.ENFORCED`.
+
+---

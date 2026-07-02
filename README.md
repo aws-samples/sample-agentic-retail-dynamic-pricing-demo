@@ -241,7 +241,7 @@ python scripts/seed_products.py
 aws cognito-idp admin-create-user \
   --user-pool-id <COGNITO_USER_POOL_ID> \
   --username demo@example.com \
-  --temporary-password TempPass123! \
+  --temporary-password TempPass2024!Secure \
   --message-action SUPPRESS
 
 aws cognito-idp admin-set-user-password \
@@ -250,6 +250,8 @@ aws cognito-idp admin-set-user-password \
   --password <COGNITO_DEMO_PASSWORD> \
   --permanent
 ```
+
+> **Note:** Passwords must be at least 12 characters with uppercase, lowercase, digits, and symbols. MFA (TOTP) enrollment is required on first login — users will need an authenticator app (e.g., Google Authenticator, Authy).
 
 ### 8. Build and Deploy Frontends
 
@@ -403,6 +405,19 @@ aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-e
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+A comprehensive STRIDE threat model has been completed for this solution. See [`docs/.threatmodel/`](docs/.threatmodel/) for the full analysis (Threat Composer JSON + Markdown report).
+
+**Security controls implemented:**
+- CORS restricted to known CloudFront origins
+- Cognito MFA (TOTP) required for all dashboard users
+- Separation of duties enforcement (cycle initiator cannot approve)
+- Dependency vulnerability scanning (pip-audit) in deployment pipeline
+- Audit trail immutability (IAM deny on mutations)
+- DynamoDB Streams for price change detection
+- Prompt injection sanitizer for AI agent inputs/outputs
+- Optional KMS CMK encryption for sensitive tables
+- Memory integrity hashing (SHA-256) for AgentCore Memory
 
 ---
 
