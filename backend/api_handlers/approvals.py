@@ -287,7 +287,7 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
             )
             cycle_items = cycle_response.get("Items", [])
             if cycle_items:
-                initiator_id = cycle_items[0].get("initiatedBy", "")
+                initiator_id = cycle_items[0].get("requestedBy", "")
                 if initiator_id and initiator_id == actor_id:
                     return _response(403, {
                         "error": "Separation of duties violation: the cycle initiator cannot approve their own scenarios",
