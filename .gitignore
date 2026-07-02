@@ -48,3 +48,7 @@ backend/agents/agentcore/agent_config.json
 # OS
 .DS_Store
 Thumbs.db
+
+
+# Security scan exports (not for public repo)
+ProbeScanExport-*.csv
