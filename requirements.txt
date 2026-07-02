@@ -11,6 +11,7 @@ annotated-types==0.7.0
 anyio==4.13.0
 attrs==25.4.0
 aws-cdk-lib==2.257.0
+cdk-nag==2.35.82
 aws-cdk.asset-awscli-v1==2.2.273
 aws-cdk.asset-node-proxy-agent-v6==2.1.2
 aws-cdk.cloud-assembly-schema==53.27.0
