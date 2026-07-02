@@ -204,7 +204,6 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
     scenario_id = body.get("scenarioId")
     action = body.get("action", "")  # APPROVED or REJECTED
     comment = body.get("comment", "")
-    risk_level = body.get("riskLevel", "")
     cycle_id = body.get("cycleId", "")
 
     # Validate required fields
@@ -215,6 +214,49 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
         return _response(400, {
             "error": "action must be 'APPROVED' or 'REJECTED'",
         })
+
+    # [C1 FIX] Initialize DynamoDB resource BEFORE any table access
+    dynamodb = _get_dynamodb_resource()
+
+    # [C2 FIX] Fetch authoritative riskLevel from stored scenario data (server-side)
+    # Do NOT trust client-supplied riskLevel — it could be tampered to bypass governance.
+    risk_level = ""
+    stored_scenario = None
+    if cycle_id and scenario_id:
+        scenarios_table = dynamodb.Table(PRICING_SCENARIOS_TABLE)
+        try:
+            scenario_response = scenarios_table.get_item(
+                Key={"cycleId": cycle_id, "scenarioId": scenario_id}
+            )
+            if "Item" in scenario_response:
+                stored_scenario = _convert_decimals_to_float(scenario_response["Item"])
+                risk_level = stored_scenario.get("riskLevel", "")
+                logger.info(
+                    "Fetched authoritative riskLevel '%s' for scenario %s from DynamoDB",
+                    risk_level, scenario_id,
+                )
+        except Exception as e:
+            logger.error(
+                "Failed to fetch scenario %s for risk validation: %s",
+                scenario_id, e,
+            )
+            return _response(500, {
+                "error": "Unable to validate scenario data. Please retry.",
+            })
+
+    # If we couldn't determine risk level, reject the request
+    if not risk_level and action == "APPROVED":
+        # Fall back to client-supplied only if scenario fetch wasn't possible
+        client_risk = body.get("riskLevel", "")
+        if not client_risk:
+            return _response(400, {
+                "error": "Unable to determine scenario risk level for approval validation",
+            })
+        risk_level = client_risk
+        logger.warning(
+            "Using client-supplied riskLevel '%s' for scenario %s (server-side fetch unavailable)",
+            risk_level, scenario_id,
+        )
 
     # Validate HIGH risk requires >= 50 character justification (Requirement 7.3)
     if risk_level == "HIGH" and action == "APPROVED":
@@ -230,8 +272,10 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
     claims = authorizer.get("claims", {})
     actor_id = claims.get("sub", claims.get("cognito:username", "system"))
 
-    # --- Separation of Duties Check ---
-    # The user who initiated the pricing cycle cannot approve their own scenarios
+    # --- [C1 FIX] Separation of Duties Check ---
+    # The user who initiated the pricing cycle cannot approve their own scenarios.
+    # Now uses the already-initialized dynamodb resource (fixes UnboundLocalError).
+    # Fails CLOSED: if the check cannot be performed, the approval is rejected.
     if cycle_id:
         pricing_cycles_table_name = os.environ.get("PRICING_CYCLES_TABLE", "PricingCycles")
         cycles_table = dynamodb.Table(pricing_cycles_table_name)
@@ -249,14 +293,16 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
                         "error": "Separation of duties violation: the cycle initiator cannot approve their own scenarios",
                     })
         except Exception as e:
-            logger.warning(
-                "Could not verify separation of duties for cycle %s: %s",
-                cycle_id,
-                e,
+            logger.error(
+                "Separation of duties check failed for cycle %s: %s. "
+                "Failing closed — approval rejected.",
+                cycle_id, e,
             )
+            return _response(500, {
+                "error": "Unable to verify separation of duties. Please retry.",
+            })
 
     now = _iso_now()
-    dynamodb = _get_dynamodb_resource()
 
     # Step 1: Write approval record to Approvals table
     approvals_table = dynamodb.Table(APPROVALS_TABLE)
@@ -312,15 +358,17 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
     # Step 3: If APPROVED, trigger Implementation Monitoring Agent (Requirement 7.5)
     implementation_result = None
     if action == "APPROVED":
-        # Build scenario dict for implementation trigger
-        scenario_data = {
+        # [C3 FIX] Use the already-fetched stored_scenario as the authoritative source
+        # for price changes. Do NOT trust client-supplied price data.
+        scenario_data = stored_scenario if stored_scenario else {
             "scenarioId": scenario_id,
             "cycleId": cycle_id,
         }
 
-        # Try to fetch the full scenario for price changes
-        if cycle_id:
+        # If we don't have the stored scenario yet, fetch it now
+        if not stored_scenario and cycle_id:
             try:
+                scenarios_table = dynamodb.Table(PRICING_SCENARIOS_TABLE)
                 response = scenarios_table.get_item(
                     Key={"cycleId": cycle_id, "scenarioId": scenario_id}
                 )
@@ -353,7 +401,9 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
                 "error": str(e),
             }
 
-        # Step 4: Update product prices in Products table on approval (Requirement 7.5)
+        # [C3 FIX] Step 4: Update product prices ONLY from authoritative stored scenario data
+        # Price changes come exclusively from the DynamoDB-stored scenario, never from
+        # client request body. This prevents price manipulation via tampered requests.
         price_changes = scenario_data.get("priceChanges", [])
         if price_changes:
             _update_product_prices(dynamodb, price_changes)

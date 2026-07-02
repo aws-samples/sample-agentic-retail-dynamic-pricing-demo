@@ -492,6 +492,34 @@ def run_pricing_cycle(
     demand_data = _get_agent_data(agent_results, "Demand Forecasting")
     market_data = _get_agent_data(agent_results, "Market Intelligence")
 
+    # [C4 FIX] Sanitize MCP-sourced intelligence data before Strategy Synthesis.
+    # Each specialist agent consumes MCP tool responses that could contain
+    # adversarial content. While sanitize_agent_output catches injection in the
+    # agent's final output, we also sanitize the extracted data dictionaries
+    # before they're serialized into the Strategy Synthesis prompt.
+    from backend.orchestration.input_sanitizer import sanitize_mcp_response
+    if competitive_data:
+        try:
+            sanitize_mcp_response(competitive_data, "competitive_intelligence_output")
+        except Exception as e:
+            logger.warning("Injection detected in competitive data: %s", e)
+            competitive_data = {}
+            degraded_agents.append("Competitive Intelligence (sanitized)")
+    if demand_data:
+        try:
+            sanitize_mcp_response(demand_data, "demand_forecasting_output")
+        except Exception as e:
+            logger.warning("Injection detected in demand data: %s", e)
+            demand_data = {}
+            degraded_agents.append("Demand Forecasting (sanitized)")
+    if market_data:
+        try:
+            sanitize_mcp_response(market_data, "market_intelligence_output")
+        except Exception as e:
+            logger.warning("Injection detected in market data: %s", e)
+            market_data = {}
+            degraded_agents.append("Market Intelligence (sanitized)")
+
     logger.info(
         "Invoking Strategy Synthesis Agent with %d/%d intelligence inputs",
         len(successful_results),

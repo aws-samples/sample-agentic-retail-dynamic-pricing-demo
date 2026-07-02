@@ -328,18 +328,23 @@ class SessionManager:
                 try:
                     parsed_data = json.loads(value)
 
-                    # Security: Validate memory integrity hash if present
+                    # [H5 FIX] Security: Validate memory integrity hash — FAIL CLOSED.
+                    # If the stored hash does not match the computed hash, the data
+                    # has been tampered with. Reject it entirely rather than using
+                    # potentially poisoned data that could bias pricing recommendations.
                     metadata = response.body.get("metadata", {})
                     stored_hash = metadata.get("integrity_hash")
                     if stored_hash:
                         computed_hash = self._compute_integrity_hash(parsed_data)
                         if computed_hash != stored_hash:
-                            logger.warning(
-                                "Memory integrity violation detected for key '%s' "
-                                "in session %s. Stored hash does not match content.",
+                            logger.error(
+                                "SECURITY: Memory integrity violation for key '%s' "
+                                "in session %s. Stored hash does not match content. "
+                                "Rejecting tampered data (fail-closed).",
                                 key,
                                 session_id,
                             )
+                            return None
 
                     return parsed_data
                 except json.JSONDecodeError:

@@ -75,7 +75,11 @@ class CognitoAuth(Construct):
             o_auth=cognito.OAuthSettings(
                 flows=cognito.OAuthFlows(
                     authorization_code_grant=True,
-                    implicit_code_grant=True,
+                    # [H2 FIX] Removed implicit_code_grant=True.
+                    # Implicit grant exposes tokens in URL fragments, vulnerable to
+                    # theft via XSS, referer leakage, or browser history.
+                    # Authorization code flow with PKCE is the secure alternative.
+                    implicit_code_grant=False,
                 ),
                 scopes=[
                     cognito.OAuthScope.OPENID,

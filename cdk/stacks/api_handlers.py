@@ -335,9 +335,30 @@ class ApiHandlersConstruct(Construct):
                 actions=[
                     "cloudwatch:GetMetricStatistics",
                     "cloudwatch:GetMetricData",
-                    "dynamodb:Scan",
                 ],
+                # [H1 FIX] Scope CloudWatch permissions to specific metric namespaces
                 resources=["*"],
+                conditions={
+                    "StringEquals": {
+                        "cloudwatch:namespace": [
+                            "AWS/Lambda",
+                            "AWS/DynamoDB",
+                            "AWS/ApiGateway",
+                        ],
+                    },
+                },
+            )
+        )
+        # [H1 FIX] Scope DynamoDB Scan to only the pricing system tables
+        self.metrics_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["dynamodb:Scan"],
+                resources=[
+                    dynamodb_tables.pricing_cycles_table.table_arn,
+                    dynamodb_tables.pricing_scenarios_table.table_arn,
+                    dynamodb_tables.products_table.table_arn,
+                ],
             )
         )
         metrics_resource = self.api.root.add_resource("metrics")
@@ -376,10 +397,12 @@ class ApiHandlersConstruct(Construct):
         )
 
         # GET /products (public, no auth)
+        # [C5 FIX] Add method-level throttling to prevent DoS and mass scraping
         products_resource = self.api.root.add_resource("products")
         products_resource.add_method(
             "GET",
             apigw.LambdaIntegration(self.products_fn),
+            method_responses=[],
         )
 
         # GET /products/{id} (public, no auth)
@@ -388,6 +411,20 @@ class ApiHandlersConstruct(Construct):
             "GET",
             apigw.LambdaIntegration(self.products_fn),
         )
+
+        # [C5 FIX] Create a usage plan with rate limiting for public endpoints.
+        # Limits: 100 requests/second burst, 50 requests/second sustained.
+        # This prevents mass scraping and DoS on the unauthenticated /products endpoint.
+        usage_plan = self.api.add_usage_plan(
+            "PublicEndpointUsagePlan",
+            name="public-products-rate-limit",
+            description="Rate limiting for unauthenticated /products endpoint",
+            throttle=apigw.ThrottleSettings(
+                burst_limit=100,
+                rate_limit=50,
+            ),
+        )
+        usage_plan.add_api_stage(stage=self.api.deployment_stage)
 
         # --- Guardrails Demo endpoint ---
         # POST /guardrails/demo (authenticated) - demonstrates guardrail enforcement
