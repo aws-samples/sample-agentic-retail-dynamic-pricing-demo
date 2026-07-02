@@ -409,15 +409,34 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 A comprehensive STRIDE threat model has been completed for this solution. See [`docs/.threatmodel/`](docs/.threatmodel/) for the full analysis (Threat Composer JSON + Markdown report).
 
 **Security controls implemented:**
+- CloudFront Response Headers Policy — CSP, HSTS (2yr preload), X-Frame-Options DENY, X-Content-Type-Options, Referrer-Policy
+- API input validation — prompt injection scanning and field length limits at the API boundary before data reaches AI agents
+- API Gateway usage plan with rate limiting (100 burst / 50 sustained requests per second)
+- OAuth 2.0 authorization code flow only (implicit grant disabled)
 - CORS restricted to known CloudFront origins
 - Cognito MFA (TOTP) required for all dashboard users
 - Separation of duties enforcement (cycle initiator cannot approve)
 - Dependency vulnerability scanning (pip-audit) in deployment pipeline
 - Audit trail immutability (IAM deny on mutations)
 - DynamoDB Streams for price change detection
-- Prompt injection sanitizer for AI agent inputs/outputs
+- Prompt injection sanitizer for AI agent inputs/outputs (input_sanitizer.py)
 - Optional KMS CMK encryption for sensitive tables
-- Memory integrity hashing (SHA-256) for AgentCore Memory
+- Memory integrity hashing (SHA-256) for AgentCore Memory with fail-closed verification
+
+---
+
+## Demo Limitations & Production Considerations
+
+This solution is a functional demonstration. Several features illustrate production patterns without full backend implementation:
+
+| Feature | Demo Behavior | Production Implementation |
+|---------|---------------|---------------------------|
+| **Scheduling Tab** | Displays configuration UI for autonomous pricing schedules (frequency, triggers, approval windows). Settings are persisted locally in the browser but do not trigger actual scheduled executions. | Integrate with Amazon EventBridge Scheduler to create cron/rate rules that invoke `POST /pricing-cycles`. Add a DynamoDB `Schedules` table to persist configuration server-side, with Lambda-backed CRUD endpoints. |
+| **MCP Server Data** | Returns simulated market, competitor, ERP, and cost data generated at request time. | Connect to real data sources — competitor price feeds, POS/ERP APIs, market data providers — and implement caching/staleness checks. |
+| **Server-side RBAC** | Frontend routing restricts tabs by role; all authenticated users can invoke any API endpoint. | Add `cognito:groups` claim validation in Lambda authorizers. Enforce role-based access at the API layer, not just the UI. |
+| **Hardcoded Demo Credentials** | `deploy.sh` creates demo users with preset passwords. MFA is still required. | Use SSM Parameter Store or Secrets Manager for initial credentials. Rotate on first use. |
+| **Guardrails Enforcement** | Bedrock Guardrails validate at the model level. Application-layer guardrails use hardcoded pass/fail for demo scenarios. | Call Bedrock Guardrails API at price-modification points (before writing to Products table) for runtime validation. |
+| **Kill Switches** | `SKIP_INPUT_SANITIZATION` and `DISABLE_BEDROCK_GUARDRAILS` env vars allow bypassing controls for local testing. | Remove or protect via AWS Service Control Policies (SCPs) and AWS Config rules. Never deploy to production. |
 
 ---
 

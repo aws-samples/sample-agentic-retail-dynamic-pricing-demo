@@ -27,6 +27,19 @@ try:
 except ImportError:
     from backend.api_handlers.log_config import configure_logging
 
+try:
+    from input_sanitizer import (
+        sanitize_text,
+        sanitize_dict,
+        PromptInjectionDetectedError,
+    )
+except ImportError:
+    from backend.orchestration.input_sanitizer import (
+        sanitize_text,
+        sanitize_dict,
+        PromptInjectionDetectedError,
+    )
+
 logger = configure_logging(__name__)
 
 PRICING_CYCLES_TABLE = os.environ.get("PRICING_CYCLES_TABLE", "PricingCycles")
@@ -341,6 +354,55 @@ def _create_pricing_cycle(event: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(constraints, dict):
         return _response(400, {
             "error": "Field 'constraints' must be an object"
+        })
+
+    # --- Input sanitization (BSC AWS-3, AWS-307) ---
+    # Scan user-supplied fields for prompt injection patterns before
+    # they flow into the AI agent orchestrator.
+    try:
+        sanitize_text(pricing_group, context="api:pricingGroup")
+        for i, obj in enumerate(objectives):
+            if isinstance(obj, str):
+                sanitize_text(obj, context=f"api:objectives[{i}]")
+            elif isinstance(obj, dict):
+                sanitize_dict(obj, context=f"api:objectives[{i}]")
+        if constraints:
+            sanitize_dict(constraints, context="api:constraints")
+    except PromptInjectionDetectedError as e:
+        logger.warning(
+            "Prompt injection blocked at API boundary: %s", e
+        )
+        return _response(400, {
+            "error": "Request rejected: input contains disallowed patterns",
+            "detail": f"Detected pattern: {e.pattern_name}",
+        })
+
+    # Enforce field length limits to prevent abuse
+    _MAX_PRICING_GROUP_LEN = 128
+    _MAX_OBJECTIVE_LEN = 500
+    _MAX_OBJECTIVES_COUNT = 10
+    _MAX_CONSTRAINTS_DEPTH_STR_LEN = 1000
+
+    if len(pricing_group) > _MAX_PRICING_GROUP_LEN:
+        return _response(400, {
+            "error": f"'pricingGroup' exceeds maximum length of {_MAX_PRICING_GROUP_LEN} characters"
+        })
+
+    if len(objectives) > _MAX_OBJECTIVES_COUNT:
+        return _response(400, {
+            "error": f"'objectives' exceeds maximum of {_MAX_OBJECTIVES_COUNT} items"
+        })
+
+    for i, obj in enumerate(objectives):
+        if isinstance(obj, str) and len(obj) > _MAX_OBJECTIVE_LEN:
+            return _response(400, {
+                "error": f"objectives[{i}] exceeds maximum length of {_MAX_OBJECTIVE_LEN} characters"
+            })
+
+    constraints_str = json.dumps(constraints)
+    if len(constraints_str) > _MAX_CONSTRAINTS_DEPTH_STR_LEN:
+        return _response(400, {
+            "error": f"'constraints' object exceeds maximum serialized size of {_MAX_CONSTRAINTS_DEPTH_STR_LEN} characters"
         })
 
     # Generate unique cycle ID

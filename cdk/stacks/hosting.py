@@ -127,6 +127,50 @@ class HostingConstruct(Construct):
             ],
         )
 
+        # --- Security Response Headers Policy ---
+        # Applied to all CloudFront distributions to set CSP, HSTS,
+        # X-Frame-Options, X-Content-Type-Options, and Referrer-Policy.
+        # Satisfies BSC AWS-26 (Set Secure HTTP Headers for Websites).
+        security_headers_policy = cloudfront.ResponseHeadersPolicy(
+            self,
+            "SecurityHeadersPolicy",
+            response_headers_policy_name="RetailPricing-SecurityHeaders",
+            comment="Security headers for Retail Dynamic Pricing Demo",
+            security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
+                content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
+                    content_security_policy=(
+                        "default-src 'self'; "
+                        "script-src 'self'; "
+                        "style-src 'self' 'unsafe-inline'; "
+                        "img-src 'self' data:; "
+                        "font-src 'self'; "
+                        "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; "
+                        "frame-ancestors 'none'; "
+                        "base-uri 'self'; "
+                        "form-action 'self'"
+                    ),
+                    override=True,
+                ),
+                content_type_options=cloudfront.ResponseHeadersContentTypeOptions(
+                    override=True,
+                ),
+                frame_options=cloudfront.ResponseHeadersFrameOptions(
+                    frame_option=cloudfront.HeadersFrameOption.DENY,
+                    override=True,
+                ),
+                referrer_policy=cloudfront.ResponseHeadersReferrerPolicy(
+                    referrer_policy=cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+                    override=True,
+                ),
+                strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
+                    access_control_max_age=cdk.Duration.seconds(63072000),
+                    include_subdomains=True,
+                    preload=True,
+                    override=True,
+                ),
+            ),
+        )
+
         # --- CloudFront Distribution for Dashboard ---
         self.dashboard_bucket = s3.Bucket(
             self,
@@ -159,6 +203,7 @@ class HostingConstruct(Construct):
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+                response_headers_policy=security_headers_policy,
             ),
             default_root_object="index.html",
             log_bucket=self.access_logs_bucket,
@@ -211,6 +256,7 @@ class HostingConstruct(Construct):
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+                response_headers_policy=security_headers_policy,
             ),
             default_root_object="index.html",
             log_bucket=self.access_logs_bucket,
