@@ -577,7 +577,7 @@ function WhatIfAnalysis() {
                 {whatIfProducts.map((prod) => {
                   const adjusted = +(prod.basePrice
                     * (1 + adjustments.competitor / 200)
-                    * (1 - adjustments.demand / 150)
+                    * (1 + adjustments.demand / 150)
                     * (1 + adjustments.cogs / 100)
                     * (1 + adjustments.sentiment / 200)
                   ).toFixed(2);
