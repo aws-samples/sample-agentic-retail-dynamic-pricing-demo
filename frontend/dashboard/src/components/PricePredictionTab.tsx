@@ -13,7 +13,7 @@ interface ScenarioPreset {
   name: string;
   objectives: string[];
   scores: { competitive: number; demand: number; margin: number; market: number };
-  discountPct: number;
+  changePct: number;
   confidence: number;
   riskLevel: "Low" | "Medium" | "High";
   revenueImpact: string;
@@ -93,7 +93,7 @@ const scenarios: ScenarioPreset[] = [
     name: "Competitor Price War",
     objectives: ["Competitive Positioning", "Market Share Growth"],
     scores: { competitive: 0.92, demand: 0.65, margin: 0.40, market: 0.78 },
-    discountPct: 12,
+    changePct: -12,
     confidence: 84,
     riskLevel: "High",
     revenueImpact: "+8.4% projected revenue increase",
@@ -103,7 +103,7 @@ const scenarios: ScenarioPreset[] = [
     name: "Supply Chain Disruption",
     objectives: ["Margin Protection", "Revenue Maximization"],
     scores: { competitive: 0.45, demand: 0.72, margin: 0.85, market: 0.55 },
-    discountPct: 5,
+    changePct: 5,
     confidence: 78,
     riskLevel: "Medium",
     revenueImpact: "+2.1% projected revenue increase",
@@ -113,7 +113,7 @@ const scenarios: ScenarioPreset[] = [
     name: "Low Inventory Alert",
     objectives: ["Revenue Maximization", "Margin Protection"],
     scores: { competitive: 0.55, demand: 0.90, margin: 0.75, market: 0.50 },
-    discountPct: 7,
+    changePct: 7,
     confidence: 81,
     riskLevel: "Medium",
     revenueImpact: "+5.6% projected revenue increase",
@@ -123,7 +123,7 @@ const scenarios: ScenarioPreset[] = [
     name: "High Stock Clearance",
     objectives: ["Market Share Growth", "Revenue Maximization"],
     scores: { competitive: 0.68, demand: 0.40, margin: 0.30, market: 0.62 },
-    discountPct: 15,
+    changePct: -15,
     confidence: 72,
     riskLevel: "High",
     revenueImpact: "+11.2% projected revenue increase",
@@ -133,7 +133,7 @@ const scenarios: ScenarioPreset[] = [
     name: "Seasonal Demand Surge",
     objectives: ["Revenue Maximization", "Competitive Positioning"],
     scores: { competitive: 0.72, demand: 0.95, margin: 0.60, market: 0.80 },
-    discountPct: 8,
+    changePct: 8,
     confidence: 92,
     riskLevel: "Low",
     revenueImpact: "+9.7% projected revenue increase",
@@ -143,7 +143,7 @@ const scenarios: ScenarioPreset[] = [
     name: "New Market Entry",
     objectives: ["Market Share Growth", "Competitive Positioning"],
     scores: { competitive: 0.80, demand: 0.55, margin: 0.50, market: 0.88 },
-    discountPct: 10,
+    changePct: -10,
     confidence: 70,
     riskLevel: "Medium",
     revenueImpact: "+6.3% projected revenue increase",
@@ -682,7 +682,7 @@ function PricePredictionTab() {
   const currentFactors = selectedScenario ? buildFactors(selectedScenario) : [];
   const weightedScore = currentFactors.reduce((sum, f) => sum + f.score * (f.weight / 100), 0);
   const recommendedPrice = selectedProduct && selectedScenario
-    ? +(selectedProduct.basePrice * (1 - selectedScenario.discountPct / 100)).toFixed(2)
+    ? +(selectedProduct.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2)
     : 0;
 
   const getRiskColor = (risk: string) => {
@@ -880,16 +880,16 @@ function PricePredictionTab() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {simulationProducts.map((prod) => {
-                        const recPrice = +(prod.basePrice * (1 - selectedScenario.discountPct / 100)).toFixed(2);
-                        const changePct = ((recPrice - prod.basePrice) / prod.basePrice * 100).toFixed(1);
+                        const recPrice = +(prod.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2);
+                        const pctChange = ((recPrice - prod.basePrice) / prod.basePrice * 100).toFixed(1);
                         return (
                           <tr key={prod.id} className="hover:bg-gray-50">
                             <td className="px-3 py-2 text-gray-900 font-medium">{prod.name}</td>
                             <td className="px-3 py-2 text-gray-500">{prod.subcategory}</td>
                             <td className="px-3 py-2 text-right text-gray-700">${prod.basePrice.toFixed(2)}</td>
                             <td className="px-3 py-2 text-right font-semibold text-indigo-700">${recPrice.toFixed(2)}</td>
-                            <td className={`px-3 py-2 text-right font-medium ${Number(changePct) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {Number(changePct) > 0 ? '+' : ''}{changePct}%
+                            <td className={`px-3 py-2 text-right font-medium ${Number(pctChange) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {Number(pctChange) > 0 ? '+' : ''}{pctChange}%
                             </td>
                           </tr>
                         );
