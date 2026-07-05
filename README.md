@@ -131,6 +131,41 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 
 ---
 
+## Model Configuration
+
+The AI models used by the pricing agents are configurable. The system scans your Bedrock model access, flags deprecated (LEGACY) models, and recommends the best available option.
+
+### During Initial Deployment
+
+Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see a table of available models with status indicators and choose one interactively. The selected model ID is written to `model-config.json` and used by all agents.
+
+### Switching Models After Deployment
+
+To change the model on an existing deployment:
+
+```bash
+bash scripts/switch_model.sh
+```
+
+This will:
+1. Scan available Bedrock models and show recommendations
+2. Flag any LEGACY models with end-of-life dates
+3. Update `model-config.json`
+4. Optionally redeploy AgentCore agents to apply immediately
+
+Options:
+- `--non-interactive` — auto-select the recommended model
+- `--region us-west-2` — target a specific region
+
+### Model Tiers
+
+| Tier | Used By | Purpose |
+|------|---------|---------|
+| Opus | Orchestrator, Strategy Synthesis | Complex multi-step reasoning |
+| Sonnet | Competitive, Demand, Market, Implementation agents | Data analysis |
+
+---
+
 ## Prerequisites
 
 - **Python 3.12+**
