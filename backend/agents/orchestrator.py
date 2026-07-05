@@ -42,7 +42,7 @@ from backend.agents.strategy_synthesis import synthesize_pricing_strategies
 logger = logging.getLogger(__name__)
 
 # Model configuration for orchestrator (Requirement 1.6)
-ORCHESTRATOR_MODEL = "us.anthropic.claude-opus-4-7"
+from shared.model_config import ORCHESTRATOR_MODEL
 
 # Timeout and retry configuration (Requirements 1.5, 1.8)
 AGENT_TIMEOUT_SECONDS = 120

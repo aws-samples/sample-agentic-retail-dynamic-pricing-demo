@@ -22,7 +22,7 @@ from strands.tools.mcp import MCPClient
 logger = logging.getLogger(__name__)
 
 # Model configuration for intelligence agents (Requirement 1.7)
-DEMAND_FORECASTING_MODEL = "us.anthropic.claude-sonnet-4-6"
+from shared.model_config import SPECIALIST_MODEL as DEMAND_FORECASTING_MODEL
 
 # System prompt focused on demand analysis
 DEMAND_FORECASTING_SYSTEM_PROMPT = """You are a Demand Forecasting Agent specializing in retail pricing intelligence.

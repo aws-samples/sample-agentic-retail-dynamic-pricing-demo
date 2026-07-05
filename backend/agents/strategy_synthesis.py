@@ -19,6 +19,7 @@ from typing import Any
 from strands import Agent, tool
 from strands.tools.mcp import MCPClient
 
+from shared.model_config import ORCHESTRATOR_MODEL
 from shared.guardrails import (
     RegionalPrice,
     check_below_cost,
@@ -390,7 +391,7 @@ def create_strategy_synthesis_agent(
 
     # Create the Strategy Synthesis Agent
     agent = Agent(
-        model="us.anthropic.claude-opus-4-7",
+        model=ORCHESTRATOR_MODEL,
         system_prompt=STRATEGY_SYNTHESIS_SYSTEM_PROMPT,
         tools=tools,
     )

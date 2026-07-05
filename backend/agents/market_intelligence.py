@@ -19,7 +19,7 @@ from strands.models.bedrock import BedrockModel
 from strands.tools.mcp import MCPClient
 
 # Model configuration for intelligence agents (Requirement 1.7)
-MARKET_INTELLIGENCE_MODEL = "us.anthropic.claude-sonnet-4-6"
+from shared.model_config import SPECIALIST_MODEL as MARKET_INTELLIGENCE_MODEL
 
 # System prompt focused on market analysis and opportunity detection
 MARKET_INTELLIGENCE_SYSTEM_PROMPT = """You are a Market Intelligence Agent specializing in retail market analysis and opportunity detection.

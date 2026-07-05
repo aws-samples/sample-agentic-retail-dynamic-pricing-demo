@@ -21,6 +21,7 @@ from typing import Any
 import boto3
 from strands import Agent, tool
 
+from shared.model_config import SPECIALIST_MODEL
 from shared.variance_detection import VarianceResult, detect_variance
 
 logger = logging.getLogger(__name__)
@@ -540,7 +541,7 @@ def create_implementation_monitoring_agent() -> Agent:
         Configured Strands Agent for implementation monitoring.
     """
     agent = Agent(
-        model="us.anthropic.claude-sonnet-4-6",
+        model=SPECIALIST_MODEL,
         system_prompt=IMPLEMENTATION_MONITORING_SYSTEM_PROMPT,
         tools=[
             execute_price_update,

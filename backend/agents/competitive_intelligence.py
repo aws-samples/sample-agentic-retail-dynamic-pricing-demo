@@ -22,7 +22,7 @@ from strands.tools.mcp import MCPClient
 logger = logging.getLogger(__name__)
 
 # Model configuration for intelligence agents (Requirement 1.7)
-COMPETITIVE_INTELLIGENCE_MODEL = "us.anthropic.claude-sonnet-4-6"
+from shared.model_config import SPECIALIST_MODEL as COMPETITIVE_INTELLIGENCE_MODEL
 
 # ---------------------------------------------------------------------------
 # Structured output schema for competitive factors
