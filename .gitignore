@@ -16,6 +16,7 @@ ENV/
 # CDK
 cdk.out/
 cdk-outputs.json
+model-config.json
 .cdk.staging/
 
 # IDE

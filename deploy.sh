@@ -134,6 +134,12 @@ else
     print_warning "Deployment continuing with known vulnerabilities (review recommended)"
 fi
 
+# Step 1.7: Model Selection
+print_step "1.7" "Selecting AI model (Bedrock)"
+echo "Scanning available models and checking access..."
+python3 scripts/select_model.py --region $REGION
+print_success "Model selected — config written to model-config.json"
+
 # Step 2: Deploy Infrastructure (CDK) — first pass
 print_step "2" "Deploying infrastructure (CDK)"
 npx cdk bootstrap aws://$ACCOUNT_ID/$REGION --app ".venv/bin/python3 cdk/app.py" 2>/dev/null || true
