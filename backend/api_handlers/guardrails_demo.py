@@ -8,6 +8,7 @@ because the Lambda deployment package only includes the api_handlers/ directory.
 The guardrail logic is duplicated here intentionally for deployment simplicity.
 """
 
+import os
 import json
 import re
 
@@ -225,7 +226,7 @@ def _response(status_code: int, body: dict) -> dict:
         "statusCode": status_code,
         "headers": {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": os.environ.get("ALLOWED_ORIGIN", "*"),
             "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token",
             "Access-Control-Allow-Methods": "POST,OPTIONS",
         },

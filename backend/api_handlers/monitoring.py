@@ -192,7 +192,7 @@ def _response(status_code: int, body: dict) -> dict[str, Any]:
         "statusCode": status_code,
         "headers": {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": os.environ.get("ALLOWED_ORIGIN", "*"),
         },
         "body": json.dumps(body, default=str),
     }
