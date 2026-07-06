@@ -142,7 +142,7 @@ class HostingConstruct(Construct):
                         "default-src 'self'; "
                         "script-src 'self'; "
                         "style-src 'self' 'unsafe-inline'; "
-                        "img-src 'self' data:; "
+                        "img-src 'self' data: https://images.unsplash.com; "
                         "font-src 'self'; "
                         "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; "
                         "frame-ancestors 'none'; "

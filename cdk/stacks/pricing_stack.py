@@ -43,6 +43,26 @@ class RetailDynamicPricingStack(cdk.Stack):
         # Hosting: CloudFront + Amplify for Dashboard and Storefront
         self.hosting = HostingConstruct(self, "Hosting")
 
+        # Update Cognito callback URLs with the actual CloudFront domain
+        # (fixes redirect_mismatch on fresh deployments)
+        dashboard_url = cdk.Fn.sub(
+            "https://${Domain}/callback",
+            {"Domain": self.hosting.dashboard_distribution.distribution_domain_name},
+        )
+        dashboard_logout = cdk.Fn.sub(
+            "https://${Domain}",
+            {"Domain": self.hosting.dashboard_distribution.distribution_domain_name},
+        )
+        cfn_client = self.cognito.user_pool_client.node.default_child
+        cfn_client.add_property_override(
+            "CallbackURLs",
+            ["https://localhost:5173/callback", "http://localhost:5173/callback", dashboard_url],
+        )
+        cfn_client.add_property_override(
+            "LogoutURLs",
+            ["https://localhost:5173", "http://localhost:5173", dashboard_logout],
+        )
+
         # API Gateway Lambda handlers
         self.api_handlers = ApiHandlersConstruct(
             self,
