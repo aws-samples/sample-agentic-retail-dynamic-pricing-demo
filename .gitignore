@@ -53,3 +53,7 @@ Thumbs.db
 
 # Security scan exports (not for public repo)
 ProbeScanExport-*.csv
+
+# Internal security review documents (not for public repo)
+docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.md
+docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.xlsx
