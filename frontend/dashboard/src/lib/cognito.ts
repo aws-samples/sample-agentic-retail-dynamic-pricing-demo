@@ -10,12 +10,13 @@ const LOGOUT_REDIRECT_URI = window.location.origin;
 
 /**
  * Build the Cognito Hosted UI login URL.
- * Uses the implicit grant flow (response_type=token) for SPA.
+ * Uses authorization code flow (response_type=code) — the secure flow for SPAs.
+ * Implicit grant is disabled on the server side for security.
  */
 export function buildLoginUrl(): string {
   const params = new URLSearchParams({
     client_id: COGNITO_CLIENT_ID,
-    response_type: 'token',
+    response_type: 'code',
     scope: 'openid email profile',
     redirect_uri: REDIRECT_URI,
   });
@@ -35,29 +36,69 @@ export function buildLogoutUrl(): string {
 }
 
 /**
- * Parse the access token from the URL hash fragment after Cognito redirect.
- * The hash contains: #access_token=...&id_token=...&token_type=Bearer&expires_in=3600
- * Returns the id_token (JWT) if present, otherwise null.
+ * Exchange the authorization code for tokens via the Cognito token endpoint.
+ * This is the secure way to obtain tokens — codes are single-use and short-lived.
  */
-export function handleAuthCallback(): string | null {
-  const hash = window.location.hash.substring(1);
-  if (!hash) {
+export async function exchangeCodeForToken(code: string): Promise<string | null> {
+  const tokenEndpoint = `https://${COGNITO_DOMAIN}/oauth2/token`;
+
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: COGNITO_CLIENT_ID,
+    code,
+    redirect_uri: REDIRECT_URI,
+  });
+
+  try {
+    const response = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      console.error('Token exchange failed:', response.status, await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const idToken = data.id_token;
+
+    if (idToken) {
+      setToken(idToken);
+      return idToken;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Token exchange error:', error);
     return null;
   }
+}
 
-  const params = new URLSearchParams(hash);
-  const idToken = params.get('id_token');
+/**
+ * Handle the OAuth callback — parse the authorization code from query params.
+ * Legacy support: also checks hash fragment for backward compatibility.
+ */
+export async function handleAuthCallback(): Promise<string | null> {
+  // Authorization code flow: code comes as a query parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
 
-  if (idToken) {
-    setToken(idToken);
-    return idToken;
+  if (code) {
+    return await exchangeCodeForToken(code);
   }
 
-  // Fallback to access_token if id_token is not present
-  const accessToken = params.get('access_token');
-  if (accessToken) {
-    setToken(accessToken);
-    return accessToken;
+  // Fallback: check hash fragment (legacy implicit flow — should not happen
+  // with current CDK config, but handles edge cases during migration)
+  const hash = window.location.hash.substring(1);
+  if (hash) {
+    const hashParams = new URLSearchParams(hash);
+    const idToken = hashParams.get('id_token') || hashParams.get('access_token');
+    if (idToken) {
+      setToken(idToken);
+      return idToken;
+    }
   }
 
   return null;

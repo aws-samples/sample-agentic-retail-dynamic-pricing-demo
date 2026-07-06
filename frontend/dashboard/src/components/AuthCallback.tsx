@@ -4,28 +4,31 @@ import { handleAuthCallback } from '../lib/cognito';
 
 /**
  * AuthCallback handles the OAuth redirect from Cognito Hosted UI.
- * It parses the token from the URL hash, stores it, and redirects to the dashboard.
- * If token parsing fails, it redirects to login with an error message.
+ * It extracts the authorization code from URL query params, exchanges it
+ * for tokens via the Cognito token endpoint, and redirects to the dashboard.
  */
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = handleAuthCallback();
+    const processCallback = async () => {
+      const token = await handleAuthCallback();
 
-    if (token) {
-      // Clear the hash from the URL for security
-      window.history.replaceState(null, '', window.location.pathname);
-      navigate('/', { replace: true });
-    } else {
-      setError('Authentication failed. No valid token received.');
-      // Redirect to login after a brief delay so the user sees the error
-      const timeout = setTimeout(() => {
-        navigate('/login?error=auth_failed', { replace: true });
-      }, 2000);
-      return () => clearTimeout(timeout);
-    }
+      if (token) {
+        // Clear query params and hash from URL for security
+        window.history.replaceState(null, '', window.location.pathname);
+        navigate('/', { replace: true });
+      } else {
+        setError('Authentication failed. Could not exchange code for token.');
+        const timeout = setTimeout(() => {
+          navigate('/login?error=auth_failed', { replace: true });
+        }, 2000);
+        return () => clearTimeout(timeout);
+      }
+    };
+
+    processCallback();
   }, [navigate]);
 
   if (error) {
