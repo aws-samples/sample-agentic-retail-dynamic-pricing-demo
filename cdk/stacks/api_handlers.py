@@ -52,12 +52,6 @@ class ApiHandlersConstruct(Construct):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # Security: CORS origin for Lambda responses (matches API Gateway preflight config)
-        self._allowed_origin = cdk.Fn.sub(
-            "https://${Domain}",
-            {"Domain": hosting.dashboard_distribution.distribution_domain_name},
-        )
-
         # --- REST API ---
         # Security: Restrict CORS to known CloudFront origins + localhost dev
         allowed_origins = [
@@ -487,10 +481,7 @@ class ApiHandlersConstruct(Construct):
             code=lambda_.Code.from_asset(str(API_HANDLERS_DIR)),
             memory_size=256,
             timeout=cdk.Duration.seconds(timeout_seconds),
-            environment={
-                "ALLOWED_ORIGIN": self._allowed_origin,
-                **(environment or {}),
-            },
+            environment=environment or {},
         )
 
         # Tag the function for identification
