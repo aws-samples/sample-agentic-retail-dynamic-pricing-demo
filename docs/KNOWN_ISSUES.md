@@ -266,3 +266,76 @@ for the ESSENTIALS pricing tier configured: Threat Protection"
 **Prevention:** Before enabling Cognito Advanced Security features, verify the User Pool pricing tier supports it. For production workloads where compromised credential detection is critical, upgrade to the Plus tier via the AWS Console before deploying with `AdvancedSecurityMode.ENFORCED`.
 
 ---
+
+---
+
+## Deployment Issues Encountered (July 2026 Redeploy)
+
+### Issue: Cognito Requires Email as Username
+
+**Symptom:** `InvalidParameterException: Username should be an email` when creating Cognito users with plain usernames like `admin1`.
+
+**Root Cause:** The Retail project's Cognito User Pool is configured with `username_attributes: [email]`, requiring email format for usernames.
+
+**Fix:** Use email-format usernames:
+```bash
+aws cognito-idp admin-create-user --user-pool-id <POOL_ID> \
+  --username "admin@demo.example" --temporary-password 'TempPassword1!' \
+  --message-action SUPPRESS
+```
+
+---
+
+### Issue: Cognito Password Policy Stricter Than Expected
+
+**Symptom:** `InvalidPasswordException: Password did not conform with password policy: Password not long enough` when using `TempPass1!`.
+
+**Root Cause:** The CDK-configured password policy requires a minimum of 12 characters.
+
+**Fix:** Use a longer temporary password (12+ chars):
+```bash
+--temporary-password 'TempPassword1!'   # 14 chars - works
+--password 'DemoTest123!'               # permanent password
+```
+
+---
+
+### Issue: Cognito Group Names Don't Match Documentation
+
+**Symptom:** `ResourceNotFoundException: Group not found` when trying to add user to `ProductManagers`.
+
+**Root Cause:** The CDK creates groups named `PricingAnalysts` and `Operations`, not `ProductManagers`.
+
+**Fix:** Check actual group names before assigning:
+```bash
+aws cognito-idp list-groups --user-pool-id <POOL_ID> --query "Groups[].GroupName"
+# Returns: PricingAnalysts, Operations
+```
+
+---
+
+### Issue: CDK `destroy` Exits with Code 1 Even on Success
+
+**Symptom:** `npx cdk destroy --all --force` returns exit code 1, but stacks are actually deleted.
+
+**Root Cause:** CDK CLI process terminates before CloudFormation confirms deletion. The actual deletion continues in the background.
+
+**Fix:** After CDK destroy exits, verify with:
+```bash
+aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
+  --query "StackSummaries[?contains(StackName, 'Retail')].StackName"
+```
+If empty, deletion succeeded.
+
+---
+
+### Issue: S3 Buckets Must Be Emptied Before Stack Deletion
+
+**Symptom:** Stack deletion fails or hangs with S3 bucket resources in `DELETE_FAILED` state.
+
+**Root Cause:** CloudFormation cannot delete non-empty S3 buckets even with `RemovalPolicy.DESTROY`.
+
+**Fix:** Empty buckets before running `cdk destroy`:
+```bash
+aws s3 rm s3://<bucket-name>/ --recursive
+```
