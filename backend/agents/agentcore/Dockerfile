@@ -22,7 +22,8 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
 
 # Copy and install Python dependencies
 COPY backend/agents/agentcore/requirements.txt /app/requirements.txt
@@ -44,4 +45,12 @@ ENV AGENT_ENTRYPOINT=${AGENT_ENTRYPOINT}
 
 EXPOSE 8080
 
-CMD opentelemetry-instrument python -m uvicorn backend.agents.agentcore.${AGENT_ENTRYPOINT}:app --host 0.0.0.0 --port 8080
+# Security: Run as non-root user
+RUN adduser --disabled-password --gecos "" agent && \
+    chown -R agent:agent /app
+USER agent
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
+CMD ["sh", "-c", "opentelemetry-instrument python -m uvicorn backend.agents.agentcore.${AGENT_ENTRYPOINT}:app --host 0.0.0.0 --port 8080"]

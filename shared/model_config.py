@@ -21,7 +21,7 @@ _DEFAULT_SPECIALIST_MODEL = "us.anthropic.claude-sonnet-4-6"
 def _load_config() -> dict:
     """Load model configuration from JSON file."""
     try:
-        with open(_CONFIG_PATH, "r") as f:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}

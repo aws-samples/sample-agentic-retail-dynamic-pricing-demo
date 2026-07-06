@@ -37,7 +37,7 @@ def get_stack_outputs(region: str) -> dict[str, str]:
     """
     # Try cdk-outputs.json first (faster, no API call)
     if CDK_OUTPUTS_FILE.exists():
-        with open(CDK_OUTPUTS_FILE) as f:
+        with open(CDK_OUTPUTS_FILE, encoding="utf-8") as f:
             data = json.load(f)
         stack_outputs = data.get("RetailDynamicPricing", {})
         if stack_outputs:
