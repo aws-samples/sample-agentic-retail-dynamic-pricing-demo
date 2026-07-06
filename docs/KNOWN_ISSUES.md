@@ -339,3 +339,25 @@ If empty, deletion succeeded.
 ```bash
 aws s3 rm s3://<bucket-name>/ --recursive
 ```
+
+---
+
+### Issue: Cognito Redirect Mismatch After Fresh Deploy
+
+**Symptom:** Clicking "Login" on the dashboard shows `error=redirect_mismatch&client_id=...` in the browser.
+
+**Root Cause:** The Cognito User Pool Client's callback URLs only include `localhost:5173` (for local dev). The CloudFront distribution domain is not added as a callback URL during CDK deploy.
+
+**Fix:** Add the CloudFront domain to the Cognito app client's callback URLs:
+```bash
+aws cognito-idp update-user-pool-client \
+  --user-pool-id <POOL_ID> --client-id <CLIENT_ID> \
+  --callback-urls "http://localhost:5173/callback" "https://localhost:5173/callback" "https://<CLOUDFRONT_DOMAIN>/callback" \
+  --logout-urls "http://localhost:5173" "https://localhost:5173" "https://<CLOUDFRONT_DOMAIN>" \
+  --supported-identity-providers COGNITO \
+  --allowed-o-auth-flows code \
+  --allowed-o-auth-scopes openid email profile \
+  --allowed-o-auth-flows-user-pool-client
+```
+
+**Prevention:** The CDK stack should derive callback URLs from the CloudFront distribution domain. This requires the Cognito client to depend on the CloudFront distribution resource. Update `cdk/stacks/auth.py` to include the CloudFront URL in callback_urls.
