@@ -57,3 +57,6 @@ ProbeScanExport-*.csv
 # Internal security review documents (not for public repo)
 docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.md
 docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.xlsx
+node_modules/
+package.json
+package-lock.json
