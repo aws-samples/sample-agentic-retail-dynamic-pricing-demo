@@ -1,4 +1,4 @@
-# CCOE Dynamic Pricing Solution for Retail Transformation — Demo Script (5 minutes)
+# CCOE Dynamic Pricing Solution for Retail Transformation — Demo Script (7-8 minutes)
 
 ## Overview
 
@@ -172,11 +172,59 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 - **Approval Distribution donut** — shows the balance between auto-approved and human-approved
 - **Risk Classification donut** — shows the system generates safe recommendations
-- **Revenue by Category bar** — shows financial impact across product lines
+- **Revenue by Category** — expandable tree showing revenue by category, click to drill into subcategories (e.g., Electronics → Audio, Wearables, Tablets)
+
+**Action:** Click the **Performance by Category** expandable tree rows.
+
+> "This drills down three levels: Category → Subcategory → Individual Product. Each row shows projected revenue, average margin, number of price changes, and average price change percentage. Click Electronics to expand into Audio, Wearables, Tablets — then click Audio to see individual products like ProSound Earbuds."
 
 ---
 
-### Part 8: Revert Capability (15 seconds)
+### Part 8: Predictions & What-If Analysis (30 seconds)
+
+**Action:** Click the **Predictions** tab.
+
+**What to say:**
+
+> "The Price Prediction Simulator lets you explore pricing scenarios interactively without running a full agent pipeline."
+
+**Action:** Select a category (e.g., Electronics), select a scenario preset (e.g., "Competitor Price War"), click "Run Simulation".
+
+> "This shows how the AI scores four market factors — Competitive Pressure, Demand Signal, Margin Constraint, and Market Intelligence — each with transparent sub-component scoring. Click any factor to expand and see the exact data sources and formulas."
+
+**Action:** Scroll down to the **What-If Analysis** section. Select "Electronics" category, then adjust the "Competitor Price Change" slider to -15%.
+
+> "The What-If Analysis lets you adjust market conditions and see real-time price impact on every product in the category. The 'Price Change' column shows the percentage shift from current catalog price given those conditions. In production, these shifts would trigger an automated re-evaluation."
+
+---
+
+### Part 9: Operations View — TCO & Scheduling (30 seconds)
+
+**Action:** Log in as the Operations user (or switch if already logged in). Click the **Ops** tab, then select the **TCO** sub-tab.
+
+**What to say:**
+
+> "The Operations view shows real AWS cost data. Per-cycle breakdown shows each component: orchestrator reasoning, intelligence agents, strategy synthesis, guardrail evaluation, agent compute, and API infrastructure — totaling about $0.25 per complete pricing cycle."
+
+**Action:** Point out the **Scaling Projections** table.
+
+> "The scaling projections show how costs scale linearly with volume. These are based on the observed $0.247/cycle cost extrapolated to pilot, production, and enterprise volumes. The note explains the methodology and assumptions clearly."
+
+**Action:** Click the **Architecture** sub-tab briefly, then click the **Metrics** sub-tab.
+
+> "Live CloudWatch metrics for the deployed infrastructure — Lambda invocations, DynamoDB capacity, API Gateway requests."
+
+**Action:** Navigate to the **Scheduling** tab (main navigation).
+
+> "The Intelligent Pricing Scheduler configures autonomous pricing operations. Schedule Configuration shows three tiers — Daily Price Review runs every weekday morning, Category Optimization rotates through categories weekly, and Strategic Review runs monthly for executive reporting."
+
+**Point out:** Each schedule has a description explaining what it does, when it runs, and what analysis it performs.
+
+> "Below, Event-Driven Triggers arm the system to respond to market conditions automatically — competitor price drops, inventory thresholds, demand spikes. And the Execution Rules panel shows risk-based routing: LOW risk auto-approves, MEDIUM gets a 4-hour approval window, HIGH escalates to the Pricing Manager."
+
+---
+
+### Part 10: Revert Capability (15 seconds)
 
 **What to say:**
 
