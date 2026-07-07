@@ -26,7 +26,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 |-----------|---------|---------|
 | REST API | Amazon API Gateway | Request routing, Cognito authorization, CORS |
 | API Handlers | AWS Lambda (Python 3.12) | Thin wrappers: validate → persist → invoke AgentCore |
-| State Store | Amazon DynamoDB (4 tables) | Products, PricingCycles, PricingScenarios, Approvals |
+| State Store | Amazon DynamoDB (5 tables) | Products, PricingCycles, PricingScenarios, Approvals, AuditTrail |
 
 ### 3. AgentCore Layer
 | Component | Service | Purpose |
@@ -35,7 +35,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | Agent Gateway | Amazon Bedrock AgentCore Gateway | MCP protocol endpoint for 4 data server targets |
 | Agent Memory | Amazon Bedrock AgentCore Memory | Persistent state across pricing cycles |
 | Guardrails | Amazon Bedrock Guardrails | Policy enforcement (4 denied topics + PII) |
-| Foundation Models | Amazon Bedrock (Claude Opus 4, Sonnet 4) | LLM reasoning for pricing analysis |
+| Foundation Models | Amazon Bedrock (Claude Opus 4.7, Sonnet 4.6) | LLM reasoning for pricing analysis |
 | Container Registry | Amazon ECR (6 repositories) | Docker images for agent runtimes |
 
 ### 4. Data Layer (MCP Servers)
@@ -55,7 +55,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 ```
                     ┌─────────────────────┐
                     │  Orchestrator Agent  │
-                    │   (Claude Opus 4)    │
+                    │  (Claude Opus 4.7)   │
                     └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
@@ -63,20 +63,20 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
     ┌─────────▼──────┐ ┌──────▼───────┐ ┌──────▼──────────┐
     │  Competitive   │ │   Demand     │ │    Market       │
     │  Intelligence  │ │  Forecasting │ │  Intelligence   │
-    │ (Sonnet 4)     │ │ (Sonnet 4)   │ │ (Sonnet 4)     │
+    │ (Sonnet 4.6)   │ │ (Sonnet 4.6) │ │ (Sonnet 4.6)   │
     └────────────────┘ └──────────────┘ └─────────────────┘
               │                │                │
               └────────────────┼────────────────┘
                                │
                     ┌──────────▼──────────┐
                     │ Strategy Synthesis  │
-                    │   (Sonnet 4)        │
+                    │  (Sonnet 4.6)       │
                     └──────────┬──────────┘
                                │
                     ┌──────────▼──────────┐
                     │   Implementation    │
                     │    Monitoring       │
-                    │   (Sonnet 4)        │
+                    │  (Sonnet 4.6)       │
                     └─────────────────────┘
 ```
 
@@ -84,12 +84,12 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 
 | Agent | Model | Role | MCP Tools |
 |-------|-------|------|-----------|
-| Orchestrator | Claude Opus 4 | Coordinates pipeline, parallel dispatch, result aggregation | — |
-| Competitive Intelligence | Claude Sonnet 4 | Competitor price monitoring, market positioning analysis | Competitor API |
-| Demand Forecasting | Claude Sonnet 4 | Price elasticity, demand curves, seasonal patterns | ERP/POS |
-| Market Intelligence | Claude Sonnet 4 | Market trends, consumer sentiment, cross-product opportunities | Market Signals |
-| Strategy Synthesis | Claude Sonnet 4 | Combines intelligence → generates ranked scenarios | Cost & Finance |
-| Implementation Monitoring | Claude Sonnet 4 | Executes price changes, monitors actual vs projected | ERP/POS |
+| Orchestrator | Claude Opus 4.7 | Coordinates pipeline, parallel dispatch, result aggregation | — |
+| Competitive Intelligence | Claude Sonnet 4.6 | Competitor price monitoring, market positioning analysis | Competitor API |
+| Demand Forecasting | Claude Sonnet 4.6 | Price elasticity, demand curves, seasonal patterns | ERP/POS |
+| Market Intelligence | Claude Sonnet 4.6 | Market trends, consumer sentiment, cross-product opportunities | Market Signals |
+| Strategy Synthesis | Claude Opus 4.7 | Combines intelligence, generates ranked scenarios | Cost & Finance |
+| Implementation Monitoring | Claude Sonnet 4.6 | Executes price changes, monitors actual vs projected | ERP/POS |
 
 ---
 
@@ -130,6 +130,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | PricingCycles | cycleId | status | Cycle lifecycle, agent statuses |
 | PricingScenarios | cycleId | scenarioId | Generated scenarios with approval status |
 | Approvals | scenarioId | timestamp | Approval audit records |
+| AuditTrail | scenarioId | timestamp#ruleId | Guardrail evaluation records (append-only, IAM-enforced immutability) |
 
 ---
 
@@ -193,4 +194,4 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 - **Per cycle:** ~$0.25
 - **Monthly (demo):** ~$30
 - **Monthly (enterprise, 50K cycles):** ~$13,000
-- See `docs/TCO_ESTIMATE.md` for full breakdown
+- See the **TCO** tab in the Operations dashboard for live cost breakdown and scaling projections

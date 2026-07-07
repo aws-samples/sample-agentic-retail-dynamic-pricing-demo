@@ -86,23 +86,41 @@ python3 scripts/setup_memory.py --region us-east-1
 python3 scripts/seed_products.py
 ```
 
-### 7. Create Cognito Demo User
+### 7. Create Cognito Demo Users
 
 ```bash
+# Create demo user (PricingAnalysts group)
 aws cognito-idp admin-create-user \
   --user-pool-id <USER_POOL_ID> \
   --username demo@example.com \
   --temporary-password TempPass123! \
+  --user-attributes Name=email,Value=demo@example.com Name=email_verified,Value=true \
   --message-action SUPPRESS \
   --region us-east-1
 
-aws cognito-idp admin-set-user-password \
+aws cognito-idp admin-add-user-to-group \
   --user-pool-id <USER_POOL_ID> \
   --username demo@example.com \
-  --password DemoPass2024! \
-  --permanent \
+  --group-name PricingAnalysts \
+  --region us-east-1
+
+# Create ops user (Operations group)
+aws cognito-idp admin-create-user \
+  --user-pool-id <USER_POOL_ID> \
+  --username ops@example.com \
+  --temporary-password TempPass123! \
+  --user-attributes Name=email,Value=ops@example.com Name=email_verified,Value=true \
+  --message-action SUPPRESS \
+  --region us-east-1
+
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id <USER_POOL_ID> \
+  --username ops@example.com \
+  --group-name Operations \
   --region us-east-1
 ```
+
+Note: MFA (TOTP) is REQUIRED. On first login, each user will be prompted to set a new password and configure their authenticator app.
 
 ### 8. Build and Deploy Frontends
 
@@ -146,7 +164,14 @@ aws cognito-idp update-user-pool-client \
 
 - **Dashboard:** `https://<DASHBOARD_CLOUDFRONT_DOMAIN>`
 - **Storefront:** `https://<STOREFRONT_CLOUDFRONT_DOMAIN>`
-- **Login:** `demo@example.com` / `DemoPass2024!`
+- **Login:** `demo@example.com` / `TempPass123!` (first login will prompt for password change + MFA setup)
+
+On first login:
+1. Enter the temporary password
+2. Set a new permanent password (12+ chars, uppercase, lowercase, digit, symbol)
+3. Scan the QR code with an authenticator app (Google Authenticator, Authy, 1Password)
+4. Enter the 6-digit TOTP code to complete setup
+5. Subsequent logins require password + TOTP code
 
 ---
 
