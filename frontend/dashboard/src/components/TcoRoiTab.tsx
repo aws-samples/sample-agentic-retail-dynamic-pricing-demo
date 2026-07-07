@@ -38,15 +38,10 @@ export default function TcoRoiTab() {
   const monthlyFixedCost = 17.50; // Average of $10-25 range
   const totalEstimatedCost = totalModelCost + monthlyFixedCost;
 
-  // ROI calculation
-  const totalProjectedRevenue = cycles.flatMap(c => c.scenarios ?? [])
-    .filter(s => s.approvalStatus === 'APPROVED')
-    .reduce((sum, s) => sum + (s.projectedRevenue ?? 0), 0);
-
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">TCO & ROI Estimates</h2>
+        <h2 className="text-lg font-semibold text-gray-900">TCO Estimates</h2>
         <p className="text-xs text-gray-500 mt-1">
           Cost estimates based on actual usage. Model costs are the dominant driver (~80%).
           Infrastructure is serverless pay-per-use.
@@ -122,7 +117,16 @@ export default function TcoRoiTab() {
 
       {/* Scaling Projections */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Scaling Projections</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">Scaling Projections</h3>
+        <p className="text-[10px] text-gray-500 mb-3">
+          Estimates based on linear extrapolation of the per-cycle cost ($0.247) observed in this deployment.
+          Model cost scales linearly with cycle count. Infrastructure cost (Lambda, DynamoDB, API Gateway)
+          scales sub-linearly due to serverless pay-per-use pricing with no idle cost. Cycle volume
+          assumptions: Demo ~50/month (internal testing), Pilot ~500/month (single category, weekly repricing),
+          Production ~5,000/month (full catalog, daily repricing), Enterprise ~50,000/month (multi-region, hourly).
+          These are illustrative projections, not guarantees. Actual costs depend on model selection,
+          prompt complexity, scenario count per cycle, and data volume.
+        </p>
         <div className="overflow-hidden border border-gray-200 rounded-lg">
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
@@ -173,46 +177,6 @@ export default function TcoRoiTab() {
         </div>
       </div>
 
-      {/* ROI Analysis */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">ROI Analysis</h3>
-        <p className="text-xs text-gray-600 mb-4">
-          Based on AWS Guidance Paper: agentic pricing delivers 5-15% revenue increase.
-        </p>
-        <div className="overflow-hidden border border-gray-200 rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200 text-xs">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Retailer Revenue</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase">5% Lift</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase">Solution Cost/Year</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase">ROI</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              <tr>
-                <td className="px-3 py-2 text-gray-900 font-medium">$10M</td>
-                <td className="px-3 py-2 text-right text-green-700 font-medium">$500K</td>
-                <td className="px-3 py-2 text-right">$1,800</td>
-                <td className="px-3 py-2 text-right text-green-700 font-bold">278x</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2 text-gray-900 font-medium">$100M</td>
-                <td className="px-3 py-2 text-right text-green-700 font-medium">$5M</td>
-                <td className="px-3 py-2 text-right">$16,200</td>
-                <td className="px-3 py-2 text-right text-green-700 font-bold">309x</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2 text-gray-900 font-medium">$1B</td>
-                <td className="px-3 py-2 text-right text-green-700 font-medium">$50M</td>
-                <td className="px-3 py-2 text-right">$156,000</td>
-                <td className="px-3 py-2 text-right text-green-700 font-bold">321x</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* Live Usage Metrics */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
         <h3 className="text-sm font-semibold text-gray-900 mb-1">Live Usage (This Deployment)</h3>
@@ -226,8 +190,8 @@ export default function TcoRoiTab() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
           <UsageMetric label="Est. Bedrock Tokens" value={`~${(totalCycles * 15).toLocaleString()}K`} />
           <UsageMetric label="Est. Model Spend" value={`$${totalModelCost.toFixed(2)}`} />
-          <UsageMetric label="Projected Revenue" value={`$${(totalProjectedRevenue / 1000).toFixed(1)}K`} />
-          <UsageMetric label="Cost per $1 Revenue" value={totalProjectedRevenue > 0 ? `$${(totalEstimatedCost / (totalProjectedRevenue / 1000)).toFixed(4)}` : '—'} />
+          <UsageMetric label="Avg Cost/Cycle" value={totalCycles > 0 ? `$${(totalEstimatedCost / totalCycles).toFixed(3)}` : '---'} />
+          <UsageMetric label="Cost/Scenario" value={totalScenarios > 0 ? `$${(totalEstimatedCost / totalScenarios).toFixed(4)}` : '---'} />
         </div>
       </div>
 
