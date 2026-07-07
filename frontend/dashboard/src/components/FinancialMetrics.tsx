@@ -161,11 +161,27 @@ export default function FinancialMetrics() {
 
 function _computeRevenueByCategory(cycles: CycleData[]) {
   const categoryRevenue: Record<string, number> = {};
+  const subcategoryRevenue: Record<string, number> = {};
   const categoryColors: Record<string, string> = {
     'Electronics': '#3b82f6',
     'Grocery': '#10b981',
     'Home & Garden': '#8b5cf6',
     'Individual Products': '#f59e0b',
+  };
+  const subcategoryColors: Record<string, string> = {
+    'Audio': '#60a5fa',
+    'Wearables': '#93c5fd',
+    'Tablets': '#bfdbfe',
+    'Accessories': '#dbeafe',
+    'Dairy': '#34d399',
+    'Beverages': '#6ee7b7',
+    'Bakery': '#a7f3d0',
+    'Lighting': '#a78bfa',
+    'Appliances': '#c4b5fd',
+    'Smart Home': '#ddd6fe',
+    'Tools': '#ede9fe',
+    'Garden': '#f5f3ff',
+    'Bedding': '#e9d5ff',
   };
 
   for (const cycle of cycles) {
@@ -179,16 +195,77 @@ function _computeRevenueByCategory(cycles: CycleData[]) {
     const approved = (cycle.scenarios ?? []).filter(s => s.approvalStatus === 'APPROVED');
     const revenue = approved.reduce((sum, s) => sum + (s.projectedRevenue ?? 0), 0);
     categoryRevenue[category] = (categoryRevenue[category] ?? 0) + revenue;
+
+    // Distribute to subcategories using priceChanges product IDs
+    for (const scenario of approved) {
+      const changes = scenario.priceChanges ?? [];
+      const numProducts = changes.length || 1;
+      const revenuePerProduct = (scenario.projectedRevenue ?? 0) / numProducts;
+      for (const change of changes) {
+        const pid = change.productId;
+        if (!pid) continue;
+        const subCat = _getSubCategory(pid);
+        if (subCat) {
+          const key = `${category} > ${subCat}`;
+          subcategoryRevenue[key] = (subcategoryRevenue[key] ?? 0) + revenuePerProduct;
+        }
+      }
+    }
   }
 
-  return Object.entries(categoryRevenue)
+  // Combine: show categories first, then subcategories indented
+  const bars: { label: string; value: number; color: string }[] = [];
+
+  const sortedCategories = Object.entries(categoryRevenue)
     .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([label, value]) => ({
-      label,
+    .sort((a, b) => b[1] - a[1]);
+
+  for (const [category, value] of sortedCategories) {
+    bars.push({
+      label: category,
       value,
-      color: categoryColors[label] ?? '#6b7280',
-    }));
+      color: categoryColors[category] ?? '#6b7280',
+    });
+    // Add subcategories under this category
+    const subEntries = Object.entries(subcategoryRevenue)
+      .filter(([key]) => key.startsWith(`${category} > `))
+      .sort((a, b) => b[1] - a[1]);
+    for (const [subKey, subValue] of subEntries) {
+      const subName = subKey.split(' > ')[1];
+      bars.push({
+        label: `  ${subName}`,
+        value: subValue,
+        color: subcategoryColors[subName] ?? '#9ca3af',
+      });
+    }
+  }
+
+  return bars;
+}
+
+function _getSubCategory(productId: string): string | null {
+  const directory: Record<string, string> = {
+    'prod-elec-001': 'Audio',
+    'prod-elec-002': 'Audio',
+    'prod-elec-003': 'Wearables',
+    'prod-elec-004': 'Tablets',
+    'prod-elec-005': 'Audio',
+    'prod-elec-006': 'Accessories',
+    'prod-groc-001': 'Dairy',
+    'prod-groc-002': 'Beverages',
+    'prod-groc-003': 'Bakery',
+    'prod-groc-004': 'Dairy',
+    'prod-groc-005': 'Dairy',
+    'prod-groc-006': 'Beverages',
+    'prod-home-001': 'Lighting',
+    'prod-home-002': 'Appliances',
+    'prod-home-003': 'Appliances',
+    'prod-home-004': 'Smart Home',
+    'prod-home-005': 'Tools',
+    'prod-home-006': 'Garden',
+    'prod-home-007': 'Bedding',
+  };
+  return directory[productId] ?? null;
 }
 
 function MetricCard({ label, value, subtext, trend }: {

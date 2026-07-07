@@ -95,12 +95,15 @@ export function parsePricingGroup(pricingGroup: string): {
 
 /**
  * Aggregates metrics from approved scenarios within a cycle.
+ * When distributeByProduct is true, also returns per-product breakdowns.
  */
 function aggregateApprovedScenarios(scenarios: ScenarioData[]): {
   revenue: number;
   margins: number[];
   priceChangesCount: number;
   changePercents: number[];
+  /** Per-product breakdown from priceChanges (productId -> metrics) */
+  productBreakdown: Map<string, { revenue: number; margins: number[]; priceChangesCount: number; changePercents: number[] }>;
 } {
   const approved = scenarios.filter((s) => s.approvalStatus === 'APPROVED');
 
@@ -110,7 +113,27 @@ function aggregateApprovedScenarios(scenarios: ScenarioData[]): {
   const priceChangesCount = allChanges.length;
   const changePercents = allChanges.map((c) => c.changePercent ?? 0);
 
-  return { revenue, margins, priceChangesCount, changePercents };
+  // Build per-product breakdown from priceChanges
+  const productBreakdown = new Map<string, { revenue: number; margins: number[]; priceChangesCount: number; changePercents: number[] }>();
+  for (const scenario of approved) {
+    const changes = scenario.priceChanges ?? [];
+    const numProducts = changes.length || 1;
+    const revenuePerProduct = (scenario.projectedRevenue ?? 0) / numProducts;
+    for (const change of changes) {
+      const pid = change.productId;
+      if (!pid) continue;
+      if (!productBreakdown.has(pid)) {
+        productBreakdown.set(pid, { revenue: 0, margins: [], priceChangesCount: 0, changePercents: [] });
+      }
+      const entry = productBreakdown.get(pid)!;
+      entry.revenue += revenuePerProduct;
+      entry.margins.push(scenario.projectedMargin ?? 0);
+      entry.priceChangesCount += 1;
+      entry.changePercents.push(change.changePercent ?? 0);
+    }
+  }
+
+  return { revenue, margins, priceChangesCount, changePercents, productBreakdown };
 }
 
 /**
@@ -157,11 +180,47 @@ export function buildTreeFromCycles(cycles: CycleData[]): TreeNode[] {
     const categoryEntry = categoryMap.get(parsed.category)!;
 
     if (parsed.level === 'category') {
-      // Direct category-level cycle
-      categoryEntry.directRevenue += metrics.revenue;
-      categoryEntry.directMargins.push(...metrics.margins);
-      categoryEntry.directPriceChangesCount += metrics.priceChangesCount;
-      categoryEntry.directChangePercents.push(...metrics.changePercents);
+      // Category-level cycle: distribute priceChanges to subcategory/product nodes
+      // using PRODUCT_DIRECTORY lookup for each productId
+      if (metrics.productBreakdown.size > 0) {
+        for (const [productId, productMetrics] of metrics.productBreakdown) {
+          const productInfo = PRODUCT_DIRECTORY[productId];
+          const subName = productInfo?.subCategory ?? 'Other';
+
+          if (!categoryEntry.subcategories.has(subName)) {
+            categoryEntry.subcategories.set(subName, {
+              products: new Map(),
+              revenue: 0,
+              margins: [],
+              priceChangesCount: 0,
+              changePercents: [],
+            });
+          }
+          const subEntry = categoryEntry.subcategories.get(subName)!;
+
+          // Add to subcategory totals
+          subEntry.revenue += productMetrics.revenue;
+          subEntry.margins.push(...productMetrics.margins);
+          subEntry.priceChangesCount += productMetrics.priceChangesCount;
+          subEntry.changePercents.push(...productMetrics.changePercents);
+
+          // Add product node
+          if (!subEntry.products.has(productId)) {
+            subEntry.products.set(productId, { revenue: 0, margins: [], priceChangesCount: 0, changePercents: [] });
+          }
+          const prodEntry = subEntry.products.get(productId)!;
+          prodEntry.revenue += productMetrics.revenue;
+          prodEntry.margins.push(...productMetrics.margins);
+          prodEntry.priceChangesCount += productMetrics.priceChangesCount;
+          prodEntry.changePercents.push(...productMetrics.changePercents);
+        }
+      } else {
+        // No priceChanges detail - fall back to direct aggregation
+        categoryEntry.directRevenue += metrics.revenue;
+        categoryEntry.directMargins.push(...metrics.margins);
+        categoryEntry.directPriceChangesCount += metrics.priceChangesCount;
+        categoryEntry.directChangePercents.push(...metrics.changePercents);
+      }
     } else if (parsed.level === 'subcategory') {
       const subName = parsed.subcategory!;
       if (!categoryEntry.subcategories.has(subName)) {
@@ -206,6 +265,28 @@ export function buildTreeFromCycles(cycles: CycleData[]): TreeNode[] {
 
     // Add subcategory children
     for (const [subName, subEntry] of categoryEntry.subcategories) {
+      // Build product children for this subcategory
+      const productChildren: TreeNode[] = [];
+      for (const [productId, prodMetrics] of subEntry.products) {
+        const productInfo = PRODUCT_DIRECTORY[productId];
+        productChildren.push({
+          id: `${categoryName}-${subName}-${productId}`,
+          name: productInfo?.name ?? productId,
+          level: 'product',
+          revenue: prodMetrics.revenue,
+          avgMargin: prodMetrics.margins.length > 0
+            ? prodMetrics.margins.reduce((a, b) => a + b, 0) / prodMetrics.margins.length
+            : 0,
+          priceChangesCount: prodMetrics.priceChangesCount,
+          avgChangePercent: prodMetrics.changePercents.length > 0
+            ? prodMetrics.changePercents.reduce((a, b) => a + b, 0) / prodMetrics.changePercents.length
+            : 0,
+          children: [],
+        });
+      }
+      // Sort products alphabetically
+      productChildren.sort((a, b) => a.name.localeCompare(b.name));
+
       children.push({
         id: `${categoryName}-${subName}`,
         name: subName,
@@ -218,7 +299,7 @@ export function buildTreeFromCycles(cycles: CycleData[]): TreeNode[] {
         avgChangePercent: subEntry.changePercents.length > 0
           ? subEntry.changePercents.reduce((a, b) => a + b, 0) / subEntry.changePercents.length
           : 0,
-        children: [],
+        children: productChildren,
       });
     }
 
