@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
-import { DonutChart, HorizontalBarChart } from './Charts';
+import { DonutChart } from './Charts';
 
 interface CycleData {
   cycleId: string;
@@ -148,10 +148,7 @@ export default function FinancialMetrics() {
             { label: 'HIGH', value: allScenarios.filter(s => s.riskLevel === 'HIGH').length, color: '#ef4444' },
           ]}
         />
-        <HorizontalBarChart
-          title="Revenue by Category"
-          bars={_computeRevenueByCategory(cycles)}
-        />
+        <RevenueByCategoryTree cycles={cycles} />
       </div>
 
       {/* Scatter Plot - removed per user request */}
@@ -266,6 +263,87 @@ function _getSubCategory(productId: string): string | null {
     'prod-home-007': 'Bedding',
   };
   return directory[productId] ?? null;
+}
+
+function RevenueByCategoryTree({ cycles }: { cycles: CycleData[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const tree = _computeRevenueByCategory(cycles);
+
+  interface RevenueNode { label: string; value: number; color: string; children: RevenueNode[] }
+  const categoryNodes: RevenueNode[] = [];
+  let currentCategory: RevenueNode | null = null;
+
+  for (const bar of tree) {
+    if (!bar.label.startsWith('  ')) {
+      currentCategory = { label: bar.label, value: bar.value, color: bar.color, children: [] };
+      categoryNodes.push(currentCategory);
+    } else if (currentCategory) {
+      currentCategory.children.push({ label: bar.label.trim(), value: bar.value, color: bar.color, children: [] });
+    }
+  }
+
+  const toggle = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const formatValue = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}K` : `$${v.toFixed(0)}`;
+  const maxValue = Math.max(...categoryNodes.map(n => n.value), 1);
+
+  if (categoryNodes.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">Revenue by Category</h3>
+        <p className="text-xs text-gray-500">No revenue data yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-gray-900 mb-3">Revenue by Category</h3>
+      <div className="space-y-1">
+        {categoryNodes.map((cat) => (
+          <div key={cat.label}>
+            <button
+              onClick={() => cat.children.length > 0 && toggle(cat.label)}
+              className="w-full flex items-center gap-2 py-1.5 px-1 rounded hover:bg-gray-50 transition-colors"
+            >
+              {cat.children.length > 0 ? (
+                <svg className={`w-3 h-3 text-gray-400 transition-transform ${expanded.has(cat.label) ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                </svg>
+              ) : <span className="w-3" />}
+              <span className="text-xs font-semibold text-gray-900 flex-shrink-0">{cat.label}</span>
+              <div className="flex-1 mx-2 h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${(cat.value / maxValue) * 100}%`, backgroundColor: cat.color }} />
+              </div>
+              <span className="text-xs font-medium text-gray-700 flex-shrink-0">{formatValue(cat.value)}</span>
+            </button>
+            {expanded.has(cat.label) && cat.children.length > 0 && (
+              <div className="ml-5 space-y-0.5 pb-1">
+                {cat.children.map((sub) => (
+                  <div key={sub.label} className="flex items-center gap-2 py-1 px-1">
+                    <span className="w-3" />
+                    <span className="text-xs text-gray-600 flex-shrink-0">{sub.label}</span>
+                    <div className="flex-1 mx-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(sub.value / cat.value) * 100}%`, backgroundColor: sub.color }} />
+                    </div>
+                    <span className="text-xs text-gray-500 flex-shrink-0">{formatValue(sub.value)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function MetricCard({ label, value, subtext, trend }: {
