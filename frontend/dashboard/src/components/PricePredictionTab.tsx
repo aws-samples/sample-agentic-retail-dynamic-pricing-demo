@@ -570,7 +570,7 @@ function WhatIfAnalysis() {
                   <th className="px-3 py-2 text-left font-medium text-gray-500">Subcategory</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-500">Current Price</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-500">Adjusted Price</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">Impact</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500">Price Change</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
