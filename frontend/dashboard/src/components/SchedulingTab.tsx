@@ -5,6 +5,7 @@ interface Schedule {
   frequency: string;
   time: string;
   enabled: boolean;
+  description: string;
 }
 
 interface Trigger {
@@ -65,9 +66,9 @@ function StatusBadge({ active, activeLabel, inactiveLabel }: { active: boolean; 
 
 export default function SchedulingTab() {
   const [schedules, setSchedules] = useState<Schedule[]>([
-    { name: 'Daily Price Review', frequency: 'Weekdays Only', time: '06:00', enabled: true },
-    { name: 'Category Optimization', frequency: 'Weekly', time: '04:00', enabled: true },
-    { name: 'Strategic Review', frequency: 'Monthly', time: '08:00', enabled: false },
+    { name: 'Daily Price Review', frequency: 'Weekdays Only', time: '06:00', enabled: true, description: 'Runs a full pricing cycle across all active product categories every weekday morning before market open. Analyzes overnight competitor changes and demand signals to recommend pre-market adjustments.' },
+    { name: 'Category Optimization', frequency: 'Weekly', time: '04:00', enabled: true, description: 'Deep optimization pass on each category in rotation (Electronics Monday, Grocery Wednesday, Home & Garden Friday). Uses extended analysis windows for seasonal trend detection and margin recalibration.' },
+    { name: 'Strategic Review', frequency: 'Monthly', time: '08:00', enabled: false, description: 'Comprehensive portfolio-level pricing strategy review. Evaluates 90-day performance trends, recalibrates risk thresholds, and generates executive summary with recommendations for the pricing committee.' },
   ]);
 
   const [triggers, setTriggers] = useState<Trigger[]>([
@@ -202,6 +203,7 @@ export default function SchedulingTab() {
 
                 <StatusBadge active={schedule.enabled} activeLabel="Active" inactiveLabel="Paused" />
               </div>
+              <p className="mt-2 text-xs text-gray-500 pl-14">{schedule.description}</p>
             </div>
           ))}
         </div>
