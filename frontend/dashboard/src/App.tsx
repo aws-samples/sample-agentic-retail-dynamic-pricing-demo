@@ -12,13 +12,14 @@ import TreeTable from './components/TreeTable';
 import StrategyComparison from './components/StrategyComparison';
 import OpsTab from './components/OpsTab';
 import PricePredictionTab from './components/PricePredictionTab';
+import ProductCatalogTab from './components/ProductCatalogTab';
 import SchedulingTab from './components/SchedulingTab';
 import api from './lib/api';
 import { login, logout } from './lib/cognito';
 import { isOperationsUser, getUserEmail, getPrimaryRole } from './lib/roles';
 
 function DashboardHome() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'predictions' | 'scheduling' | 'ops'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'simulations' | 'analytics' | 'audit' | 'predictions' | 'catalog' | 'scheduling' | 'ops'>('overview');
   const opsUser = isOperationsUser();
   const userEmail = getUserEmail();
   const role = getPrimaryRole();
@@ -28,6 +29,7 @@ function DashboardHome() {
     { id: 'predictions' as const, label: 'Price Predictions', icon: '🔮', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'simulations' as const, label: 'Simulations', icon: '🧪', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'analytics' as const, label: 'Analytics', icon: '📊', roles: ['PricingAnalysts', 'Operations'] },
+    { id: 'catalog' as const, label: 'Product Catalog', icon: '📦', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'audit' as const, label: 'Audit Trail', icon: '📋', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'scheduling' as const, label: 'Scheduling', icon: '⏰', roles: ['PricingAnalysts', 'Operations'] },
     { id: 'ops' as const, label: 'Operations', icon: '⚙️', roles: ['Operations'] },
@@ -83,6 +85,7 @@ function DashboardHome() {
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'simulations' && <SimulationsTab />}
         {activeTab === 'analytics' && <AnalyticsTab />}
+ {activeTab === 'catalog' && <ProductCatalogTab />}
         {activeTab === 'audit' && <AuditTrail />}
         {activeTab === 'predictions' && <PricePredictionTab />}
         {activeTab === 'scheduling' && <SchedulingTab />}

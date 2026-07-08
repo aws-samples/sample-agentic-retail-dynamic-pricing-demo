@@ -1,4 +1,4 @@
-# CCOE Dynamic Pricing Solution for Retail Transformation — Demo Script (7-8 minutes)
+# CCOE Dynamic Pricing Solution for Retail Transformation — Demo Script (8-9 minutes)
 
 ## Overview
 
@@ -180,7 +180,29 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ---
 
-### Part 8: Predictions & What-If Analysis (30 seconds)
+
+### Part 8: Product Catalog & Unit Economics (30 seconds)
+
+**Action:** Click the **Product Catalog** tab.
+
+**What to say:**
+
+> "Before running a pricing cycle, let me show you the data the AI works with. This is the full product catalog with unit economics -- cost structure, margins, inventory levels, and pricing boundaries."
+
+**Point out:**
+
+- **KPI cards** -- total products, average gross margin, low-stock items, total inventory value
+- **Table columns** -- price, unit cost, margin %, MAP floor, inventory units, days of supply, stock health
+
+**Action:** Click on a product row (e.g., FitTrack Pro Smartwatch) to expand it.
+
+> "Each product expands to show three panels: cost breakdown (materials, labor, overhead, shipping), inventory distribution across warehouses and stores, and pricing boundaries showing the guardrail floors."
+
+> "Notice products with LOW stock health. When we run a pricing cycle, the AI uses this signal to recommend a price increase for constrained inventory and markdown recommendations for excess stock."
+
+---
+
+### Part 9: Predictions & What-If Analysis (30 seconds)
 
 **Action:** Click the **Predictions** tab.
 
@@ -198,7 +220,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ---
 
-### Part 9: Operations View — TCO & Scheduling (30 seconds)
+### Part 10: Operations View — TCO & Scheduling (30 seconds)
 
 **Action:** Log in as the Operations user (or switch if already logged in). Click the **Ops** tab, then select the **TCO** sub-tab.
 
@@ -224,7 +246,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ---
 
-### Part 10: Revert Capability (15 seconds)
+### Part 11: Revert Capability (15 seconds)
 
 **What to say:**
 
