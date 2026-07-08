@@ -6,6 +6,8 @@ interface ProductData {
   basePrice: number;
   category: string;
   subcategory: string;
+  costFloor: number;
+  mapPrice: number | null;
 }
 
 interface ScenarioPreset {
@@ -41,48 +43,48 @@ interface Factor {
 const categoryData: Record<string, Record<string, ProductData[]>> = {
   Electronics: {
     Audio: [
-      { id: "earbuds", name: "ProSound Wireless Earbuds", basePrice: 79.99, category: "Electronics", subcategory: "Audio" },
-      { id: "speaker", name: "SoundWave Bluetooth Speaker", basePrice: 49.99, category: "Electronics", subcategory: "Audio" },
-      { id: "headphones", name: "StudioMax Over-Ear Headphones", basePrice: 149.99, category: "Electronics", subcategory: "Audio" },
+      { id: "earbuds", name: "ProSound Wireless Earbuds", basePrice: 79.99, category: "Electronics", subcategory: "Audio", costFloor: 48.00, mapPrice: 69.99 },
+      { id: "speaker", name: "SoundWave Bluetooth Speaker", basePrice: 49.99, category: "Electronics", subcategory: "Audio", costFloor: 30.00, mapPrice: 44.99 },
+      { id: "headphones", name: "StudioMax Over-Ear Headphones", basePrice: 149.99, category: "Electronics", subcategory: "Audio", costFloor: 90.00, mapPrice: 129.99 },
     ],
     Wearables: [
-      { id: "smartwatch", name: "FitTrack Pro Smartwatch", basePrice: 199.99, category: "Electronics", subcategory: "Wearables" },
+      { id: "smartwatch", name: "FitTrack Pro Smartwatch", basePrice: 199.99, category: "Electronics", subcategory: "Wearables", costFloor: 120.00, mapPrice: 179.99 },
     ],
     Tablets: [
-      { id: "tablet", name: "TabletX 10-inch Display", basePrice: 249.99, category: "Electronics", subcategory: "Tablets" },
+      { id: "tablet", name: "TabletX 10-inch Display", basePrice: 249.99, category: "Electronics", subcategory: "Tablets", costFloor: 155.00, mapPrice: 229.99 },
     ],
     Accessories: [
-      { id: "powerbank", name: "QuickCharge USB-C Power Bank", basePrice: 39.99, category: "Electronics", subcategory: "Accessories" },
+      { id: "powerbank", name: "QuickCharge USB-C Power Bank", basePrice: 39.99, category: "Electronics", subcategory: "Accessories", costFloor: 24.00, mapPrice: null },
     ],
   },
   Grocery: {
     Dairy: [
-      { id: "milk", name: "Farm Fresh Whole Milk", basePrice: 4.49, category: "Grocery", subcategory: "Dairy" },
-      { id: "eggs", name: "Free Range Large Eggs", basePrice: 5.29, category: "Grocery", subcategory: "Dairy" },
+      { id: "milk", name: "Farm Fresh Whole Milk", basePrice: 4.49, category: "Grocery", subcategory: "Dairy", costFloor: 2.80, mapPrice: null },
+      { id: "eggs", name: "Free Range Large Eggs", basePrice: 5.29, category: "Grocery", subcategory: "Dairy", costFloor: 3.90, mapPrice: null },
     ],
     Beverages: [
-      { id: "coffee", name: "Mountain Roast Premium Coffee", basePrice: 12.99, category: "Grocery", subcategory: "Beverages" },
-      { id: "tea", name: "Organic Green Tea", basePrice: 7.99, category: "Grocery", subcategory: "Beverages" },
+      { id: "coffee", name: "Mountain Roast Premium Coffee", basePrice: 12.99, category: "Grocery", subcategory: "Beverages", costFloor: 7.80, mapPrice: null },
+      { id: "tea", name: "Organic Green Tea", basePrice: 7.99, category: "Grocery", subcategory: "Beverages", costFloor: 4.50, mapPrice: null },
     ],
     Bakery: [
-      { id: "bread", name: "Artisan Sourdough Bread Loaf", basePrice: 5.99, category: "Grocery", subcategory: "Bakery" },
+      { id: "bread", name: "Artisan Sourdough Bread Loaf", basePrice: 5.99, category: "Grocery", subcategory: "Bakery", costFloor: 3.20, mapPrice: null },
     ],
   },
   "Home & Garden": {
     Lighting: [
-      { id: "lamp", name: "LumiGlow Smart LED Floor Lamp", basePrice: 89.99, category: "Home & Garden", subcategory: "Lighting" },
+      { id: "lamp", name: "LumiGlow Smart LED Floor Lamp", basePrice: 89.99, category: "Home & Garden", subcategory: "Lighting", costFloor: 35.00, mapPrice: null },
     ],
     Cleaning: [
-      { id: "vacuum", name: "CleanForce Cordless Stick Vacuum", basePrice: 299.99, category: "Home & Garden", subcategory: "Cleaning" },
+      { id: "vacuum", name: "CleanForce Cordless Stick Vacuum", basePrice: 299.99, category: "Home & Garden", subcategory: "Cleaning", costFloor: 145.00, mapPrice: 269.99 },
     ],
     "Climate Control": [
-      { id: "thermostat", name: "EcoTemp Smart Thermostat", basePrice: 129.99, category: "Home & Garden", subcategory: "Climate Control" },
+      { id: "thermostat", name: "EcoTemp Smart Thermostat", basePrice: 129.99, category: "Home & Garden", subcategory: "Climate Control", costFloor: 65.00, mapPrice: null },
     ],
     Tools: [
-      { id: "drill", name: "PowerDrill 20V Cordless Drill Kit", basePrice: 119.99, category: "Home & Garden", subcategory: "Tools" },
+      { id: "drill", name: "PowerDrill 20V Cordless Drill Kit", basePrice: 119.99, category: "Home & Garden", subcategory: "Tools", costFloor: 55.00, mapPrice: null },
     ],
     Garden: [
-      { id: "sprinkler", name: "GardenPro Automatic Sprinkler Timer", basePrice: 59.99, category: "Home & Garden", subcategory: "Garden" },
+      { id: "sprinkler", name: "GardenPro Automatic Sprinkler Timer", basePrice: 59.99, category: "Home & Garden", subcategory: "Garden", costFloor: 28.00, mapPrice: null },
     ],
   },
 };
@@ -681,9 +683,11 @@ function PricePredictionTab() {
 
   const currentFactors = selectedScenario ? buildFactors(selectedScenario) : [];
   const weightedScore = currentFactors.reduce((sum, f) => sum + f.score * (f.weight / 100), 0);
-  const recommendedPrice = selectedProduct && selectedScenario
+  const rawRecommendedPrice = selectedProduct && selectedScenario
     ? +(selectedProduct.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2)
     : 0;
+ const singleFloor = selectedProduct ? Math.max(selectedProduct.costFloor, selectedProduct.mapPrice ?? 0) : 0;
+ const recommendedPrice = rawRecommendedPrice < singleFloor && singleFloor > 0 ? singleFloor : rawRecommendedPrice;
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -880,14 +884,14 @@ function PricePredictionTab() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {simulationProducts.map((prod) => {
-                        const recPrice = +(prod.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2);
+                        const rawPrice = +(prod.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2); const floor = Math.max(prod.costFloor, prod.mapPrice ?? 0); const recPrice = rawPrice < floor ? +floor.toFixed(2) : rawPrice; const guardrailApplied = rawPrice < floor;
                         const pctChange = ((recPrice - prod.basePrice) / prod.basePrice * 100).toFixed(1);
                         return (
                           <tr key={prod.id} className="hover:bg-gray-50">
                             <td className="px-3 py-2 text-gray-900 font-medium">{prod.name}</td>
                             <td className="px-3 py-2 text-gray-500">{prod.subcategory}</td>
                             <td className="px-3 py-2 text-right text-gray-700">${prod.basePrice.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-indigo-700">${recPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-indigo-700">${recPrice.toFixed(2)}{guardrailApplied && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">MAP</span>}</td>
                             <td className={`px-3 py-2 text-right font-medium ${Number(pctChange) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                               {Number(pctChange) > 0 ? '+' : ''}{pctChange}%
                             </td>
