@@ -131,7 +131,7 @@ class ApiHandlersConstruct(Construct):
         )
         dynamodb_tables.pricing_cycles_table.grant_read_write_data(self.pricing_cycles_fn)
         dynamodb_tables.pricing_scenarios_table.grant_read_write_data(self.pricing_cycles_fn)
-        dynamodb_tables.products_table.grant_read_data(self.pricing_cycles_fn)
+        dynamodb_tables.products_table.grant_read_write_data(self.pricing_cycles_fn)
         self.pricing_cycles_fn.add_to_role_policy(agentcore_policy)
         # DynamoDB Scan and BatchWriteItem are not covered by grant_read_write_data
         self.pricing_cycles_fn.add_to_role_policy(
