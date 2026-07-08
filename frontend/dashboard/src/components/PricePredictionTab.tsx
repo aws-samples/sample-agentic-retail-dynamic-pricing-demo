@@ -756,7 +756,7 @@ function PricePredictionTab() {
             >
               <option value="">Select product...</option>
               {products.map((prod) => (
-                <option key={prod.id} value={prod.id}>{prod.name} — ${prod.basePrice.toFixed(2)}</option>
+                <option key={prod.id} value={prod.id}>{prod.name}</option>
               ))}
             </select>
           </div>
