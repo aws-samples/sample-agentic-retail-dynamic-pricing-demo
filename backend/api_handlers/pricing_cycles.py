@@ -1082,6 +1082,11 @@ def _generate_scenarios_from_products(
             if new_price < unit_cost * (1 + min_margin):
                 new_price = round(unit_cost * (1 + min_margin), 2)
 
+            # Enforce MAP (Minimum Advertised Price) floor
+            map_price = product.get("mapPrice")
+            if map_price and float(map_price) > 0 and new_price < float(map_price):
+                new_price = round(float(map_price), 2)
+
             change_percent = round(((new_price - current_price) / current_price) * 100, 2)
 
             price_changes.append({
@@ -1146,7 +1151,7 @@ def _generate_scenarios_from_products(
             "guardrailResults": [
                 {"rule": "Minimum Margin", "passed": True},
                 {"rule": "Maximum Price Change", "passed": True},
-                {"rule": "MAP Price Compliance", "passed": strategy["risk"] != "HIGH"},
+                {"rule": "MAP Price Compliance", "passed": True},
                 {"rule": "Channel Consistency", "passed": True},
                 {"rule": "Bedrock Guardrail Policy", "passed": True},
             ],
