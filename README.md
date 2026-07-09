@@ -5,7 +5,7 @@
 ## What It Does
 
 - **Orchestrates 6 AI agents in parallel** — Competitive Intelligence, Demand Forecasting, and Market Intelligence agents run simultaneously (120s timeout, 2 retries, graceful degradation), feeding into Strategy Synthesis for scenario generation
-- **Generates 50-200 ranked pricing scenarios** per cycle with confidence scores, risk classification (LOW/MEDIUM/HIGH), and projected financial impact
+- **Generates 5 ranked pricing scenarios** per cycle with confidence scores, risk classification (LOW/MEDIUM/HIGH), and projected financial impact
 - **Enforces pricing compliance** via 4 application-layer guardrails (below-cost rejection, MAP enforcement, geographic bias detection, PII protection) plus Amazon Bedrock Guardrails blocking anti-competitive strategies
 - **Routes approvals by risk** — LOW risk auto-approved (Straight-Through Processing), MEDIUM requires human review, HIGH requires 50+ character justification with escalation to Pricing Manager
 - **Enforces separation of duties** — the pricing cycle initiator cannot approve their own scenarios (server-side enforcement)

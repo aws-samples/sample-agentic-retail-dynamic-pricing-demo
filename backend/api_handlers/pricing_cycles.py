@@ -1016,7 +1016,7 @@ def _generate_scenarios_from_products(
         if not ai_text:
             ai_text = json.dumps(ai_response)
 
-    # Generate 3 scenarios with different strategies
+    # Generate 5 scenarios with different strategies
     min_margin = constraints.get("minMargin", 15) / 100 if constraints.get("minMargin") else 0.15
     max_change = constraints.get("maxPriceChange", 10) / 100 if constraints.get("maxPriceChange") else 0.10
 
@@ -1032,10 +1032,22 @@ def _generate_scenarios_from_products(
             "confidence": 72,
         },
         {
+            "name": "Market Share Capture",
+            "bias": scenario_context["aggressive_bias"] * 0.7,
+            "risk": "HIGH",
+            "confidence": 68,
+        },
+        {
             "name": "Balanced Optimization",
             "bias": scenario_context["balanced_bias"],
             "risk": "MEDIUM",
             "confidence": 85,
+        },
+        {
+            "name": "Margin Protection",
+            "bias": scenario_context["conservative_bias"] * 0.5 + 0.3,
+            "risk": "MEDIUM",
+            "confidence": 82,
         },
         {
             "name": "Conservative Protection",
@@ -1387,7 +1399,9 @@ def _seed_demo_data(event: dict[str, Any]) -> dict[str, Any]:
 
         strategies = [
             {"name": "Aggressive Growth", "risk": "HIGH", "conf": _random.randint(65, 78)},
+            {"name": "Market Share Capture", "risk": "HIGH", "conf": _random.randint(60, 72)},
             {"name": "Balanced Optimization", "risk": "MEDIUM", "conf": _random.randint(80, 90)},
+            {"name": "Margin Protection", "risk": "MEDIUM", "conf": _random.randint(78, 88)},
             {"name": "Conservative Protection", "risk": "LOW", "conf": _random.randint(88, 95)},
         ]
 

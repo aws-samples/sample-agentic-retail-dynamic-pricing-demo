@@ -100,7 +100,7 @@ export default function ScenarioList({ cycleId }: ScenarioListProps) {
 
   // Determine which scenarios are in the top 3 (by rank)
   const top3Ranks = new Set(
-    [...scenarios].sort((a, b) => a.rank - b.rank).slice(0, 3).map((s) => s.scenarioId)
+    [...scenarios].sort((a, b) => a.rank - b.rank).slice(0, 5).map((s) => s.scenarioId)
   );
 
   if (loading && scenarios.length === 0) {

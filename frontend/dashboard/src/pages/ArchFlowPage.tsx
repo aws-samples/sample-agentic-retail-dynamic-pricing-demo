@@ -62,7 +62,7 @@ export default function ArchFlowPage() {
                   <span className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">4</span>
                   <div>
                     <p className="font-semibold text-gray-900">Strategy Synthesis</p>
-                    <p className="text-gray-500 mt-0.5">The Strategy Synthesis Agent combines all intelligence into 3 ranked pricing scenarios (Aggressive, Balanced, Conservative), each with projected impact.</p>
+                    <p className="text-gray-500 mt-0.5">The Strategy Synthesis Agent combines all intelligence into 5 ranked pricing scenarios (Aggressive Growth, Market Share Capture, Balanced Optimization, Margin Protection, Conservative Protection), each with projected impact.</p>
                   </div>
                 </li>
                 <li className="flex gap-2">

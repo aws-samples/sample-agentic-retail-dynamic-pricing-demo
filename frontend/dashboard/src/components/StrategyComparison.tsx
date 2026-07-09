@@ -3,7 +3,7 @@ export default function StrategyComparison() {
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
       <h3 className="text-sm font-semibold text-gray-900 mb-3">Strategy Comparison</h3>
       <p className="text-xs text-gray-600 mb-4">
-        Each pricing cycle generates 3 scenarios with different strategies. Here's how they compare:
+        Each pricing cycle generates 5 scenarios with different strategies. Here's how they compare:
       </p>
       <div className="overflow-hidden border border-gray-200 rounded-lg">
         <table className="min-w-full divide-y divide-gray-200 text-xs">
@@ -46,7 +46,7 @@ export default function StrategyComparison() {
         </table>
       </div>
       <p className="text-[10px] text-gray-500 mt-3">
-        The AI generates all 3 strategies for every cycle. The system auto-approves LOW risk scenarios (straight-through processing)
+        The AI generates all 5 strategies for every cycle. The system auto-approves LOW risk scenarios (straight-through processing)
         while routing MEDIUM and HIGH risk to human decision-makers with full context and rationale.
       </p>
     </div>

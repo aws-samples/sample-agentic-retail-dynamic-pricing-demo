@@ -500,7 +500,7 @@ export default function ArchitectureDiagram() {
             4. Synthesize
           </text>
           <text x="535" y="651" fontSize="7" fill="#1E40AF" textAnchor="middle">
-            3 ranked scenarios
+            5 ranked scenarios
           </text>
 
           {/* Arrow 4→5 */}

@@ -69,7 +69,7 @@ export default function OpsTab() {
               </div>
               <div className="border-l-2 border-amber-400 pl-3">
                 <span className="font-semibold text-amber-800">4. Scenario Generation & Compliance</span>
-                <p className="mt-0.5">Strategy Synthesis generates 3 ranked pricing scenarios. Each passes through Bedrock Guardrails (4 policies: anti-predatory, anti-discrimination, MAP compliance, price gouging prevention) before storage in DynamoDB.</p>
+                <p className="mt-0.5">Strategy Synthesis generates 5 ranked pricing scenarios. Each passes through Bedrock Guardrails (4 policies: anti-predatory, anti-discrimination, MAP compliance, price gouging prevention) before storage in DynamoDB.</p>
               </div>
               <div className="border-l-2 border-red-400 pl-3">
                 <span className="font-semibold text-red-800">5. Approval & Implementation</span>
@@ -157,7 +157,7 @@ function MetricsSection() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard label="Total Cycles Run" value={String(business.totalCycles ?? '--')} subtext="Since deployment" />
-        <MetricCard label="Scenarios Generated" value={String(business.scenariosGenerated ?? '--')} subtext="3 per cycle" />
+        <MetricCard label="Scenarios Generated" value={String(business.scenariosGenerated ?? '--')} subtext="5 per cycle" />
         <MetricCard label="Lambda Invocations" value={String(lambda.invocations ?? '--')} subtext="Last 24h" />
         <MetricCard label="Error Rate" value={`${lambda.errorRate ?? 0}%`} subtext="Last 24h" />
       </div>
