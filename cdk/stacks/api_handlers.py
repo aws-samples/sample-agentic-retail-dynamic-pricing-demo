@@ -106,7 +106,8 @@ class ApiHandlersConstruct(Construct):
             ],
             resources=[
                 f"arn:aws:bedrock-agentcore:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:runtime/*",
-                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/*",
+                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/anthropic.*",
+                f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:inference-profile/us.anthropic.*",
             ],
         )
 
