@@ -15,7 +15,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 ### 1. User Layer
 | Component | Service | Purpose |
 |-----------|---------|---------|
-| Dashboard | React/TypeScript + Vite | Pricing management UI with tabs (Overview, Price Predictions, Simulations, Analytics, Audit Trail, Scheduling, Operations) |
+| Dashboard | React/TypeScript + Vite | Pricing management UI with tabs (Overview, Price Predictions, Simulations, Analytics, Product Catalog, Audit Trail, Scheduling, Operations) |
 | Storefront | React/TypeScript + Vite | Consumer-facing product catalog showing live prices |
 | CDN | Amazon CloudFront (2 distributions) | Global content delivery, HTTPS termination |
 | Static Hosting | Amazon S3 (2 buckets) | SPA hosting for Dashboard and Storefront |

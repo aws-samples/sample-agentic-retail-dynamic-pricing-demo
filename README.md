@@ -30,7 +30,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 │  API Layer                                                          │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
 │  │  API Gateway     │  │  Lambda Handlers  │  │  DynamoDB        │  │
-│  │  (REST)          │  │  (Python 3.12)    │  │  (4 tables)      │  │
+│  │  (REST)          │  │  (Python 3.12)    │  │  (5 tables)      │  │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -349,7 +349,8 @@ aws cognito-idp update-user-pool-client \
 5. **Approve/Reject** → HIGH risk requires justification, LOW risk auto-approves
 6. **Check Storefront** → Prices update in real-time after approval
 7. **Price Predictions tab** → Select a product, click Simulate, explore the decision tree with drill-down explainability
-8. **Guardrails Demo** → Scroll to "Guardrails Enforcement" section, click any card to see compliance blocking in action
+8. **Product Catalog tab** → View all products with unit economics (cost, margin, inventory, MAP floors). Click any product to expand cost breakdown and pricing boundaries
+9. **Guardrails Demo** → Scroll to "Guardrails Enforcement" section, click any card to see compliance blocking in action
 
 ### As Operations (`ops@example.com` / `OpsPass2024!`)
 
