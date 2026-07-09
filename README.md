@@ -1,17 +1,19 @@
 # Retail Dynamic Pricing — Agentic AI Solution
 
-An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous workflow that completes in under 2 minutes. Built on **Amazon Bedrock AgentCore** with 6 specialized AI agents that gather market intelligence, analyze demand, and generate optimized pricing recommendations with human-in-the-loop approval.
+> An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous, governed workflow completing in under 2 minutes. Six specialized AI agents on Amazon Bedrock AgentCore gather competitive intelligence, forecast demand, assess market conditions, synthesize optimized pricing strategies, and monitor post-implementation performance — with human-in-the-loop approval for high-risk decisions and fully autonomous execution for low-risk changes.
 
 ## What It Does
 
-- **Orchestrates 6 AI agents** to analyze competitive landscape, forecast demand, assess market conditions, synthesize pricing strategies, and monitor implementation
-- **Generates ranked pricing scenarios** with confidence scores, risk classification, and projected financial impact
-- **Enforces compliance** via Amazon Bedrock Guardrails (blocks predatory pricing, price fixing, discrimination, gouging)
-- **Routes approvals by risk level** — LOW risk auto-approved (Straight-Through Processing), MEDIUM/HIGH routed to humans
-- **Provides full audit trail** for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive)
-- **Price Prediction Simulator** — Interactive decision tree with drill-down explainability showing exactly how each pricing factor contributes to recommendations
-- **Role-based access** — Pricing Analysts see simulations/scenarios/predictions; Operations team sees system health, metrics, architecture, and TCO
-- **One-click deployment** — Automated `deploy.sh` script handles all infrastructure, agents, and frontend deployment
+- **Orchestrates 6 AI agents in parallel** — Competitive Intelligence, Demand Forecasting, and Market Intelligence agents run simultaneously (120s timeout, 2 retries, graceful degradation), feeding into Strategy Synthesis for scenario generation
+- **Generates 50-200 ranked pricing scenarios** per cycle with confidence scores, risk classification (LOW/MEDIUM/HIGH), and projected financial impact
+- **Enforces pricing compliance** via 4 application-layer guardrails (below-cost rejection, MAP enforcement, geographic bias detection, PII protection) plus Amazon Bedrock Guardrails blocking anti-competitive strategies
+- **Routes approvals by risk** — LOW risk auto-approved (Straight-Through Processing), MEDIUM requires human review, HIGH requires 50+ character justification with escalation to Pricing Manager
+- **Enforces separation of duties** — the pricing cycle initiator cannot approve their own scenarios (server-side enforcement)
+- **Monitors post-implementation KPIs** — Implementation Monitoring agent tracks revenue and margin variance against projections with configurable thresholds (10% revenue, 3pp margin)
+- **Provides full audit trail** with immutable records (IAM-enforced) for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive)
+- **Dual frontend** — Authenticated Dashboard (pricing management, simulations, analytics, scheduling) and public Storefront (consumer catalog with live price updates)
+- **Tiered model strategy** — Claude Opus for complex reasoning (orchestrator, synthesis), Claude Sonnet for data analysis (specialists) — optimizing cost without sacrificing quality
+- **One-click deployment** — Automated `deploy.sh` handles CDK infrastructure, agent deployment, MCP server setup, and frontend builds
 
 ---
 
