@@ -473,6 +473,26 @@ This solution is a functional demonstration. Several features illustrate product
 | **Hardcoded Demo Credentials** | `deploy.sh` creates demo users with preset passwords. MFA is still required. | Use SSM Parameter Store or Secrets Manager for initial credentials. Rotate on first use. |
 | **Guardrails Enforcement** | Bedrock Guardrails validate at the model level. Application-layer guardrails use hardcoded pass/fail for demo scenarios. | Call Bedrock Guardrails API at price-modification points (before writing to Products table) for runtime validation. |
 | **Kill Switches** | `SKIP_INPUT_SANITIZATION` and `DISABLE_BEDROCK_GUARDRAILS` env vars allow bypassing controls for local testing. | Remove or protect via AWS Service Control Policies (SCPs) and AWS Config rules. Never deploy to production. |
+| **Pricing Model** | Flat catalog pricing only — one price per product, all customers, all channels. Products with `mapPrice: null` behave as private-label (no MAP floor, cost floor only). | Add `pricingModel` field ("catalog", "private-label", "surge", "tiered") per product. Strategy Synthesis applies model-specific strategies. See "Extensible Pricing Models" below. |
+
+### Extensible Pricing Models
+
+The current demo implements catalog pricing. The architecture supports extension to multiple pricing models by adding a `pricingModel` field to the Products table and routing the Strategy Synthesis agent's behavior based on it:
+
+| Model | How It Works | Strategy Synthesis Behavior |
+|-------|-------------|----------------------------|
+| **Catalog (current)** | One fixed price per SKU. MAP enforced where applicable. | Standard scenario generation with guardrail validation. |
+| **Private-Label** | Retailer is manufacturer. No MAP. Full pricing discretion. | Price relative to category leader (e.g., "25% below branded competitor"). Higher margin targets (45-60%). Can use loss-leader pricing for basket building. Aggressive clearance without MAP constraint. |
+| **Surge/Dynamic** | Real-time price multiplier based on demand intensity. | Replace cycle-based flow with event-driven (EventBridge every 60s). Auto-approve LOW-risk multipliers. Cap at configurable ceiling (e.g., 2.0x). Decay multiplier as demand normalizes. |
+| **Tiered/Volume** | Different prices based on purchase quantity or customer segment. | Generate price tiers (1-9 units, 10-49, 50+) per product. Apply segment-specific elasticity from Demand Forecasting agent. |
+| **Channel-Specific** | Different prices per sales channel (online, in-store, marketplace). | Add `channel` sort key to Products table. Generate per-channel recommendations. Geographic bias guardrail checks cross-channel variance. |
+
+To implement private-label strategies, the Strategy Synthesis prompt would route on `pricingModel`:
+- **Category Leader Undercut** — price at 25-35% below the nearest branded competitor
+- **Margin Target** — work backward from target margin (45%) to set price
+- **Anchor Pricing** — widen or narrow gap to branded alternatives based on category strategy
+- **Promotional Elasticity** — use demand elasticity to find optimal promotional price (no MAP prevents aggressive discounting)
+- **Inventory Clearance** — mark down aggressively for perishables with excess stock (only cost floor applies)
 
 ---
 
