@@ -34,7 +34,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 **What to point out:**
 
-- **Stats cards** — "The system completes in under 2 minutes, generates 3 ranked scenarios per cycle, enforces 4 guardrail policies, and uses 6 AI agents on AgentCore Runtime."
+- **Stats cards** — "The system completes in under 2 minutes, generates 5 ranked scenarios per cycle, enforces 4 guardrail policies, and uses 6 AI agents on AgentCore Runtime."
 - **Architecture panel** — "Built on Amazon Bedrock AgentCore with Strands Agents SDK, using Claude Sonnet 4 for analysis and Claude Opus 4 for complex reasoning."
 - **Data Sources panel** — "Four MCP Servers provide real-time data: Competitor API for price monitoring, ERP/POS for sales history and inventory, Market Signals for trends, and Cost & Finance for margins."
 - **Compliance panel** — "Bedrock Guardrails block anti-competitive strategies. Every decision is fully auditable."
@@ -67,13 +67,15 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 8. **Guardrail Validation** (green) — "Amazon Bedrock Guardrails verify no anti-competitive strategies."
 9. **Implementation** (amber) — "Waiting for human approval — this is the human-in-the-loop step."
 
-> "In under 2 minutes, we have 3 ranked scenarios. Let's look at them."
+> "In under 2 minutes, we have 5 ranked scenarios. Let's look at them."
 
 **Action:** Expand the scenarios table. Point out:
 
-- **Rank 1 (HIGH risk)** — "Aggressive Growth strategy. Higher prices where demand supports it. Requires human justification of 50+ characters."
-- **Rank 2 (MEDIUM risk)** — "Balanced Optimization. Moderate adjustments. Needs human review."
-- **Rank 3 (LOW risk)** — "Conservative Protection. Minimal changes, protects margins. In Straight-Through Processing mode, this would be auto-approved."
+- **Rank 1 (HIGH)** — "Aggressive Growth. Largest price move aligned with your objective. Requires human approval with 50+ character justification."
+- **Rank 2 (HIGH)** — "Market Share Capture. Volume-focused pricing, slightly less aggressive. Also requires justification."
+- **Rank 3 (MEDIUM)** — "Balanced Optimization. Moderate adjustments balancing all factors. Needs human review within 4 hours."
+- **Rank 4 (MEDIUM)** — "Margin Protection. Profit-preserving adjustments. Also needs human review."
+- **Rank 5 (LOW)** — "Conservative Protection. Minimal, safe changes. Auto-approved via Straight-Through Processing."
 
 **Action:** Click "Details" on the Rank 2 scenario. Point out:
 
@@ -259,7 +261,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 | Traditional Process | This Solution |
 |---|---|
 | 6-10 weeks | < 2 minutes |
-| 3-5 scenarios in Excel | 3 AI-generated ranked scenarios |
+| 3-5 scenarios in Excel | 5 AI-generated ranked scenarios |
 | Manual data gathering | 4 MCP Servers (real-time) |
 | Monthly pricing committee | Instant HITL or auto-approval |
 | Manual price upload | Autonomous implementation |

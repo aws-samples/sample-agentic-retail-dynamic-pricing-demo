@@ -106,7 +106,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 2. Async Lambda invokes AgentCore Orchestrator
    → Orchestrator dispatches 3 intelligence agents in parallel
    → Each agent calls MCP Servers via Gateway for data
-   → Results aggregated → Strategy Synthesis generates 3 scenarios
+   → Results aggregated → Strategy Synthesis generates 5 ranked scenarios
    → Bedrock Guardrails validate all recommendations
    → Scenarios written to DynamoDB
    → LOW risk scenarios auto-approved (STP)

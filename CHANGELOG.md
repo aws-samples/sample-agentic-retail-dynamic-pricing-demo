@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 6 AI agents on Amazon Bedrock AgentCore (Orchestrator on Opus 4.7, 5 specialists on Sonnet 4.6)
 - 4 MCP Server Lambdas (Competitor API, ERP/POS, Market Signals, Cost and Finance)
 - Multi-agent orchestration with parallel intelligence gathering, 120s timeout, 2 retries, graceful degradation
-- Strategy Synthesis generating 50-200 ranked pricing scenarios per cycle
+- Strategy Synthesis generating 5 ranked pricing scenarios per cycle (Aggressive Growth, Market Share Capture, Balanced Optimization, Margin Protection, Conservative Protection)
 - Application-layer guardrails: below-cost rejection, MAP compliance, geographic bias detection, PII protection
 - Risk classification (LOW/MEDIUM/HIGH) with status labels (Recommended/Review Required/Human Exception Handling)
 - Approval workflow with separation of duties (initiator cannot approve)

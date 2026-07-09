@@ -5,7 +5,7 @@
 ## What It Does
 
 - **Orchestrates 6 AI agents in parallel** — Competitive Intelligence, Demand Forecasting, and Market Intelligence agents run simultaneously (120s timeout, 2 retries, graceful degradation), feeding into Strategy Synthesis for scenario generation
-- **Generates 5 ranked pricing scenarios** per cycle with confidence scores, risk classification (LOW/MEDIUM/HIGH), and projected financial impact
+- **Generates 5 ranked pricing scenarios** per cycle — the selected objective sets the price direction (increase/decrease), and each strategy (Aggressive Growth, Market Share Capture, Balanced Optimization, Margin Protection, Conservative Protection) applies a different level of aggressiveness with corresponding risk classification and confidence scores
 - **Enforces pricing compliance** via 4 application-layer guardrails (below-cost rejection, MAP enforcement, geographic bias detection, PII protection) plus Amazon Bedrock Guardrails blocking anti-competitive strategies
 - **Routes approvals by risk** — LOW risk auto-approved (Straight-Through Processing), MEDIUM requires human review, HIGH requires 50+ character justification with escalation to Pricing Manager
 - **Enforces separation of duties** — the pricing cycle initiator cannot approve their own scenarios (server-side enforcement)
@@ -347,7 +347,7 @@ aws cognito-idp update-user-pool-client \
 1. **Open Dashboard** → Log in with Cognito credentials
 2. **Simulations tab** → Select a scenario preset (e.g., "Competitor Price War")
 3. **Watch the pipeline** → 6 agents execute in under 2 minutes
-4. **Review scenarios** → 3 ranked recommendations with risk levels
+4. **Review scenarios** → 5 ranked recommendations with strategy names and risk levels
 5. **Approve/Reject** → HIGH risk requires justification, LOW risk auto-approves
 6. **Check Storefront** → Prices update in real-time after approval
 7. **Price Predictions tab** → Select a product, click Simulate, explore the decision tree with drill-down explainability
