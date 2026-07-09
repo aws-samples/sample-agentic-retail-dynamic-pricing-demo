@@ -13,6 +13,7 @@
 - **Provides full audit trail** with immutable records (IAM-enforced) for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive)
 - **Dual frontend** — Authenticated Dashboard (pricing management, simulations, analytics, scheduling) and public Storefront (consumer catalog with live price updates)
 - **Tiered model strategy** — Claude Opus for complex reasoning (orchestrator, synthesis), Claude Sonnet for data analysis (specialists) — optimizing cost without sacrificing quality
+- **Price Prediction Simulator** — Interactive what-if analysis with transparent factor scoring (Competitive Pressure, Demand Signal, Margin Constraint, Market Intelligence), adjustable market condition sliders, and live price impact calculations from current catalog prices
 - **One-click deployment** — Automated `deploy.sh` handles CDK infrastructure, agent deployment, MCP server setup, and frontend builds
 
 ---
