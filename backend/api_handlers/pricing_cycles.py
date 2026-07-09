@@ -1149,6 +1149,7 @@ def _generate_scenarios_from_products(
             "cycleId": cycle_id,
             "scenarioId": scenario_id,
             "rank": rank,
+            "strategyName": strategy["name"],
             "confidenceScore": strategy["confidence"],
             "statusLabel": status_label,
             "riskLevel": strategy["risk"],

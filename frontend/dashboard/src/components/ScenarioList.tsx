@@ -19,6 +19,7 @@ export interface PricingScenario {
   scenarioId: string;
   cycleId: string;
   rank: number;
+  strategyName?: string;
   confidenceScore: number;
   statusLabel: 'Recommended' | 'Review Required' | 'Human Exception Handling';
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
@@ -151,7 +152,7 @@ export default function ScenarioList({ cycleId }: ScenarioListProps) {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Rank
+                Rank / Strategy
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Confidence
@@ -229,9 +230,12 @@ function ScenarioRow({
             <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
               {scenario.rank}
             </span>
-            {isTop3 && (
-              <span className="text-xs text-blue-600 font-medium">Top 3</span>
-            )}
+            <div>
+              <span className="text-sm font-medium text-gray-900">{scenario.strategyName ?? `Strategy ${scenario.rank}`}</span>
+              {isTop3 && (
+                <span className="ml-2 text-[10px] text-blue-600 font-medium">Top 5</span>
+              )}
+            </div>
           </div>
         </td>
         <td className="px-4 py-3 whitespace-nowrap">
