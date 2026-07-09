@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "../lib/api";
 
 interface ProductData {
   id: string;
@@ -87,6 +88,27 @@ const categoryData: Record<string, Record<string, ProductData[]>> = {
       { id: "sprinkler", name: "GardenPro Automatic Sprinkler Timer", basePrice: 59.99, category: "Home & Garden", subcategory: "Garden", costFloor: 28.00, mapPrice: null },
     ],
   },
+};
+
+
+// Mapping from local product IDs to DynamoDB product IDs for live price lookup
+const PRODUCT_ID_MAP: Record<string, string> = {
+  earbuds: "prod-elec-001",
+  speaker: "prod-elec-002",
+  headphones: "prod-elec-005",
+  smartwatch: "prod-elec-003",
+  tablet: "prod-elec-004",
+  powerbank: "prod-elec-006",
+  milk: "prod-groc-001",
+  eggs: "prod-groc-005",
+  coffee: "prod-groc-002",
+  tea: "prod-groc-006",
+  bread: "prod-groc-003",
+  lamp: "prod-home-001",
+  vacuum: "prod-home-002",
+  thermostat: "prod-home-004",
+  drill: "prod-home-005",
+  sprinkler: "prod-home-006",
 };
 
 const scenarios: ScenarioPreset[] = [
@@ -450,7 +472,7 @@ function WhatIfAnalysis() {
   const [wiCategory, setWiCategory] = useState<string>("");
   const [wiSubcategory, setWiSubcategory] = useState<string>("");
   const [wiProductId, setWiProductId] = useState<string>("");
-  const [adjustments, setAdjustments] = useState({ competitor: 0, demand: 0, cogs: 0, sentiment: 0 });
+  const [adjustments, setAdjustments] = useState({ competitor: 0, demand: 0, cogs: 0, sentiment: 0 }); const [wiLivePrices, setWiLivePrices] = useState<Record<string, number>>({});  useEffect(() => { const fetchPrices = async () => { try { const resp = await api.get("/products"); const pm: Record<string, number> = {}; for (const p of resp.data.products ?? []) { pm[p.productId] = parseFloat(p.currentPrice); } setWiLivePrices(pm); } catch { /* ok */ } }; fetchPrices(); }, []);  const getLivePrice = (prod: ProductData): number => { const dbId = PRODUCT_ID_MAP[prod.id]; if (dbId && wiLivePrices[dbId] && wiLivePrices[dbId] > 0) return wiLivePrices[dbId]; return prod.basePrice; };
 
   const wiCategories = Object.keys(categoryData);
   const wiSubcategories = wiCategory ? Object.keys(categoryData[wiCategory]) : [];
@@ -577,18 +599,18 @@ function WhatIfAnalysis() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {whatIfProducts.map((prod) => {
-                  const adjusted = +(prod.basePrice
+                  const wiLivePrice = getLivePrice(prod); const adjusted = +(wiLivePrice
                     * (1 + adjustments.competitor / 200)
                     * (1 + adjustments.demand / 150)
                     * (1 + adjustments.cogs / 100)
                     * (1 + adjustments.sentiment / 200)
                   ).toFixed(2);
-                  const impact = ((adjusted - prod.basePrice) / prod.basePrice * 100).toFixed(1);
+                  const impact = ((adjusted - wiLivePrice) / wiLivePrice * 100).toFixed(1);
                   return (
                     <tr key={prod.id} className="hover:bg-gray-50">
                       <td className="px-3 py-2 text-gray-900 font-medium">{prod.name}</td>
                       <td className="px-3 py-2 text-gray-500">{prod.subcategory}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">${prod.basePrice.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">${wiLivePrice.toFixed(2)}</td>
                       <td className="px-3 py-2 text-right font-semibold text-amber-700">${adjusted.toFixed(2)}</td>
                       <td className={`px-3 py-2 text-right font-medium ${Number(impact) > 0 ? 'text-emerald-600' : Number(impact) < 0 ? 'text-red-600' : 'text-gray-500'}`}>
                         {Number(impact) > 0 ? '+' : ''}{impact}%
@@ -623,6 +645,30 @@ function PricePredictionTab() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
   const [showResults, setShowResults] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const fetchLivePrices = async () => {
+      try {
+        const resp = await api.get('/products');
+        const priceMap: Record<string, number> = {};
+        for (const p of resp.data.products ?? []) {
+          priceMap[p.productId] = parseFloat(p.currentPrice);
+        }
+        setLivePrices(priceMap);
+      } catch { /* non-critical */ }
+    };
+    fetchLivePrices();
+  }, []);
+
+  // Helper: get live price for a product, falling back to static basePrice
+  const getLivePrice = (prod: ProductData): number => {
+    const dbId = PRODUCT_ID_MAP[prod.id];
+    if (dbId && livePrices[dbId] && livePrices[dbId] > 0) {
+      return livePrices[dbId];
+    }
+    return prod.basePrice;
+  };
 
   const categories = Object.keys(categoryData);
   const subcategories = selectedCategory ? Object.keys(categoryData[selectedCategory]) : [];
@@ -684,7 +730,7 @@ function PricePredictionTab() {
   const currentFactors = selectedScenario ? buildFactors(selectedScenario) : [];
   const weightedScore = currentFactors.reduce((sum, f) => sum + f.score * (f.weight / 100), 0);
   const rawRecommendedPrice = selectedProduct && selectedScenario
-    ? +(selectedProduct.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2)
+    ? +(getLivePrice(selectedProduct) * (1 + selectedScenario.changePct / 100)).toFixed(2)
     : 0;
  const singleFloor = selectedProduct ? Math.max(selectedProduct.costFloor, selectedProduct.mapPrice ?? 0) : 0;
  const recommendedPrice = rawRecommendedPrice < singleFloor && singleFloor > 0 ? singleFloor : rawRecommendedPrice;
@@ -846,7 +892,7 @@ function PricePredictionTab() {
                 <div className="bg-indigo-50 rounded-lg p-4 text-center">
                   <p className="text-xs text-indigo-600 font-medium mb-1">Recommended Price</p>
                   <p className="text-2xl font-bold text-indigo-900">${recommendedPrice.toFixed(2)}</p>
-                  <p className="text-xs text-gray-500 mt-1">from ${selectedProduct.basePrice.toFixed(2)}</p>
+                  <p className="text-xs text-gray-500 mt-1">from ${getLivePrice(selectedProduct).toFixed(2)}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4 text-center">
                   <p className="text-xs text-gray-600 font-medium mb-1">Confidence Score</p>
@@ -884,13 +930,13 @@ function PricePredictionTab() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {simulationProducts.map((prod) => {
-                        const rawPrice = +(prod.basePrice * (1 + selectedScenario.changePct / 100)).toFixed(2); const floor = Math.max(prod.costFloor, prod.mapPrice ?? 0); const recPrice = rawPrice < floor ? +floor.toFixed(2) : rawPrice; const guardrailApplied = rawPrice < floor;
-                        const pctChange = ((recPrice - prod.basePrice) / prod.basePrice * 100).toFixed(1);
+                        const liveP = getLivePrice(prod); const rawPrice = +(liveP * (1 + selectedScenario.changePct / 100)).toFixed(2); const floor = Math.max(prod.costFloor, prod.mapPrice ?? 0); const recPrice = rawPrice < floor ? +floor.toFixed(2) : rawPrice; const guardrailApplied = rawPrice < floor;
+                        const pctChange = ((recPrice - liveP) / liveP * 100).toFixed(1);
                         return (
                           <tr key={prod.id} className="hover:bg-gray-50">
                             <td className="px-3 py-2 text-gray-900 font-medium">{prod.name}</td>
                             <td className="px-3 py-2 text-gray-500">{prod.subcategory}</td>
-                            <td className="px-3 py-2 text-right text-gray-700">${prod.basePrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-gray-700">${liveP.toFixed(2)}</td>
                             <td className="px-3 py-2 text-right font-semibold text-indigo-700">${recPrice.toFixed(2)}{guardrailApplied && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">MAP</span>}</td>
                             <td className={`px-3 py-2 text-right font-medium ${Number(pctChange) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                               {Number(pctChange) > 0 ? '+' : ''}{pctChange}%
