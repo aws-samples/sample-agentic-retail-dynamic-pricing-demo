@@ -1,5 +1,7 @@
 # Retail Dynamic Pricing Transformation - Agentic AI Solution [Demo]
 
+[![Built with Kiro](https://img.shields.io/badge/Built_with-Kiro-6236FF?style=flat&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyQzcuNTggMiA0IDUuNTggNCAxMHY4LjVjMCAuODMuNjcgMS41IDEuNSAxLjVzMS4wOC0uMzkgMS4zNS0uODVjLjI3LS40Ni43Ny0uNjUgMS4xNS0uNjVzLjg4LjE5IDEuMTUuNjVjLjI3LjQ2Ljc3Ljg1IDEuMzUuODVzMS4wOC0uMzkgMS4zNS0uODVjLjI3LS40Ni43Ny0uNjUgMS4xNS0uNjVzLjg4LjE5IDEuMTUuNjVjLjI3LjQ2Ljc3Ljg1IDEuMzUuODVzMS4wOC0uMzkgMS4zNS0uODVjLjI3LS40Ni43Ny0uNjUgMS4xNS0uNjVzLjg4LjE5IDEuMTUuNjVjLjI3LjQ2Ljc3Ljg1IDEuMzUuODVzMS41LS42NyAxLjUtMS41VjEwYzAtNC40Mi0zLjU4LTgtOC04em0tMyA5YTEuNSAxLjUgMCAxMTAtMyAxLjUgMS41IDAgMDEwIDN6bTYgMGExLjUgMS41IDAgMTEwLTMgMS41IDEuNSAwIDAxMCAzeiIvPjwvc3ZnPg==)](https://kiro.dev)
+
 > An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous, governed workflow completing in under 2 minutes. Six specialized AI agents on Amazon Bedrock AgentCore gather competitive intelligence, forecast demand, assess market conditions, synthesize optimized pricing strategies, and monitor post-implementation performance — with human-in-the-loop approval for high-risk decisions and fully autonomous execution for low-risk changes.
 
 ## What It Does
