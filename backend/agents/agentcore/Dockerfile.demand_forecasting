@@ -1,0 +1,23 @@
+# Dockerfile for Demand Forecasting Agent
+# AgentCore Runtime container — linux/arm64, port 8080
+#
+# Build (standalone, without base):
+#   docker build --platform=linux/arm64 \
+#     -f backend/agents/agentcore/Dockerfile.demand_forecasting \
+#     -t demand-forecasting-agent .
+#
+# Build (using base image):
+#   docker build --platform=linux/arm64 \
+#     -f backend/agents/agentcore/Dockerfile.demand_forecasting \
+#     --build-arg BASE_IMAGE=retail-pricing-agent-base \
+#     -t demand-forecasting-agent .
+
+ARG BASE_IMAGE=retail-pricing-agent-base
+
+FROM --platform=linux/arm64 ${BASE_IMAGE}
+
+WORKDIR /app
+
+EXPOSE 8080
+
+CMD ["python", "-m", "uvicorn", "backend.agents.agentcore.demand_forecasting_runtime:app", "--host", "0.0.0.0", "--port", "8080"]

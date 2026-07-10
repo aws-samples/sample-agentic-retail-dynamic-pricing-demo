@@ -1,0 +1,36 @@
+[project]
+name = "retail-dynamic-pricing"
+version = "0.1.0"
+description = "Agentic AI-based dynamic pricing system for retail using AWS CDK and Strands Agents SDK"
+requires-python = ">=3.12"
+dependencies = [
+    "aws-cdk-lib>=2.175.1",
+    "constructs>=10.0.0,<11.0.0",
+    "strands-agents>=0.1.0",
+    "strands-agents-tools>=0.1.0",
+    "bedrock-agentcore>=0.0.3",
+    "pydantic>=2.0.0",
+    "boto3>=1.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "hypothesis>=6.100.0",
+    "pytest-cov>=5.0.0",
+    "moto>=5.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cdk*", "backend*", "shared*"]
