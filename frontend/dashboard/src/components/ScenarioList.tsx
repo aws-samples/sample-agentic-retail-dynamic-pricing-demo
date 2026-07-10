@@ -147,7 +147,7 @@ export default function ScenarioList({ cycleId }: ScenarioListProps) {
       </div>
 
       {/* Scenario Table */}
-      <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
+      <div className="border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

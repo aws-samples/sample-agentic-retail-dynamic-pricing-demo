@@ -760,6 +760,11 @@ function PricePredictionTab() {
         <p className="text-sm text-gray-500 mb-4">
           Select a category, subcategory, or individual product and a scenario to explore how AI pricing recommendations are derived through a multi-factor decision tree.
         </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
+          <p className="text-xs text-amber-800">
+            <span className="font-semibold">Note:</span> This simulator shows the theoretical maximum price impact if the selected scenario fully materializes — think of it as a sensitivity analysis. The actual Pricing Cycle (Simulations tab) generates 5 risk-graded strategies ranging from aggressive to conservative, with only the safest option auto-approved. The simulator answers &quot;what could happen?&quot; while the pricing cycle answers &quot;what should we do?&quot;
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>

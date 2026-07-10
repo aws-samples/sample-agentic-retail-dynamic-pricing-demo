@@ -31,6 +31,39 @@ from backend.agents.agentcore.memory_config import create_session_manager
 
 logger = logging.getLogger(__name__)
 
+# [SECURITY FIX] Inline agent output sanitization for prompt injection defense
+import re as _re
+_INJECTION_PATTERNS = [
+    _re.compile(r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|context)", _re.IGNORECASE),
+    _re.compile(r"you\s+are\s+now\s+(a|an|the)\s+", _re.IGNORECASE),
+    _re.compile(r"<\s*system\s*>|<<\s*SYS\s*>>|\[INST\]", _re.IGNORECASE),
+    _re.compile(r"(forget|disregard|override)\s+(everything|all|your)\s+(above|previous|instructions|rules)", _re.IGNORECASE),
+    _re.compile(r"(DAN|do\s+anything\s+now|jailbreak|bypass\s+(safety|guardrail|filter))", _re.IGNORECASE),
+]
+
+def _sanitize_agent_output(data: dict, agent_name: str) -> dict:
+    """Scan agent output for prompt injection. Returns data if clean, empty dict if detected."""
+    def _scan(value):
+        if isinstance(value, str):
+            for pattern in _INJECTION_PATTERNS:
+                if pattern.search(value):
+                    logger.warning("Prompt injection detected in %s output", agent_name)
+                    return True
+        elif isinstance(value, dict):
+            for v in value.values():
+                if _scan(v):
+                    return True
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                if _scan(item):
+                    return True
+        return False
+    if _scan(data):
+        return {}
+    return data
+
+
+
 app = BedrockAgentCoreApp()
 
 # The orchestrator agent uses Claude Opus for complex reasoning
@@ -292,6 +325,11 @@ def invoke(payload: dict) -> dict:
         competitive_data = _get_agent_data(agent_results, "Competitive Intelligence")
         demand_data = _get_agent_data(agent_results, "Demand Forecasting")
         market_data = _get_agent_data(agent_results, "Market Intelligence")
+
+        # [SECURITY FIX] Sanitize agent outputs before passing to synthesis
+        competitive_data = _sanitize_agent_output(competitive_data, "Competitive Intelligence")
+        demand_data = _sanitize_agent_output(demand_data, "Demand Forecasting")
+        market_data = _sanitize_agent_output(market_data, "Market Intelligence")
 
         synthesis_prompt = json.dumps({
             "competitive_intelligence": competitive_data,

@@ -215,6 +215,12 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
             "error": "action must be 'APPROVED' or 'REJECTED'",
         })
 
+    # [SECURITY FIX] Require non-empty cycleId to prevent governance bypass
+    if not cycle_id:
+        return _response(400, {
+            "error": "cycleId is required for approval validation",
+        })
+
     # [C1 FIX] Initialize DynamoDB resource BEFORE any table access
     dynamodb = _get_dynamodb_resource()
 
@@ -328,6 +334,23 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
         "Wrote approval record for scenario %s: %s", scenario_id, action
     )
 
+    # [SECURITY FIX] Write to AuditTrail table for immutable compliance record
+    try:
+        audit_table = dynamodb.Table(os.environ.get("AUDIT_TRAIL_TABLE", "AuditTrail"))
+        audit_entry = {
+            "scenarioId": scenario_id,
+            "timestamp#ruleId": f"{now}#approval-{action.lower()}",
+            "action": action,
+            "actorId": actor_id,
+            "cycleId": cycle_id,
+            "riskLevel": risk_level,
+            "comment": comment[:200] if comment else "",
+            "eventType": "APPROVAL_DECISION",
+        }
+        audit_table.put_item(Item=audit_entry)
+    except Exception as audit_err:
+        logger.warning("Failed to write audit trail: %s", audit_err)
+
     # Step 2: Update scenario approvalStatus in PricingScenarios table
     scenarios_table = dynamodb.Table(PRICING_SCENARIOS_TABLE)
 
@@ -417,8 +440,18 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
         _update_implementation_agent_status(cycle_id, {"status": "REJECTED"})
 
     # If revertPrices flag is set, roll back product prices to previousPrice
+    # [SECURITY FIX] Only Operations group can revert prices
     revert_prices = body.get("revertPrices", False)
     if revert_prices and cycle_id:
+        revert_groups = claims.get("cognito:groups", "")
+        if "Operations" not in revert_groups:
+            return _response(403, {
+                "error": "Forbidden: only Operations group can revert prices",
+            })
+        if stored_scenario and stored_scenario.get("approvalStatus") != "APPROVED":
+            return _response(400, {
+                "error": "Cannot revert prices for a scenario that was not previously approved",
+            })
         _revert_product_prices(dynamodb, cycle_id, scenario_id)
 
     # Build response

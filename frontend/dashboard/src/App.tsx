@@ -139,21 +139,25 @@ function OverviewTab() {
         >
           + New Pricing Request
         </Link>
-        <button
-          onClick={handleReset}
-          disabled={resetting}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-        >
-          {resetting ? 'Resetting...' : resetDone ? '✓ Reset Complete' : '↺ Reset Demo'}
-        </button>
-        <button
-          onClick={handleSeed}
-          disabled={seeding}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-        >
-          {seeding ? 'Seeding...' : seedDone ? '✓ Seeded' : '📊 Seed Historical Data'}
-        </button>
-        <p className="text-sm text-gray-500">Reset clears all data • Seed adds 5 sample pricing cycles</p>
+        {isOperationsUser() && (
+          <>
+            <button
+              onClick={handleReset}
+              disabled={resetting}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              {resetting ? 'Resetting...' : resetDone ? '✓ Reset Complete' : '↺ Reset Demo'}
+            </button>
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              {seeding ? 'Seeding...' : seedDone ? '✓ Seeded' : '📊 Seed Historical Data'}
+            </button>
+            <p className="text-sm text-gray-500">Reset clears all data • Seed adds 5 sample pricing cycles</p>
+          </>
+        )}
       </div>
 
       {/* Strategy Comparison — Ops users only */}
@@ -170,7 +174,7 @@ function SimulationsTab() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Demo Simulations</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Run pre-configured scenarios to see how the AI pricing system responds to different market conditions.
+          Run pre-configured scenarios to see how the AI pricing system responds to different market conditions. The system generates 5 risk-graded strategies per cycle — the most conservative is auto-approved via Straight-Through Processing (STP), while aggressive options require human review.
           Select a product group for each scenario before running.
         </p>
       </div>

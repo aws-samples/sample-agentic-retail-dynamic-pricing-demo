@@ -278,6 +278,24 @@ def _invoke_orchestrator(
         return {"raw_output": response_body.decode("utf-8", errors="replace")}
 
 
+
+
+def _get_user_groups(event: dict) -> str:
+    """Extract cognito:groups from the Cognito authorizer claims."""
+    request_context = event.get("requestContext", {})
+    authorizer = request_context.get("authorizer", {})
+    claims = authorizer.get("claims", {})
+    return claims.get("cognito:groups", "")
+
+
+def _require_operations_group(event: dict) -> dict | None:
+    """Return 403 response if user is not in Operations group. Returns None if authorized."""
+    groups = _get_user_groups(event)
+    if "Operations" not in groups:
+        return _response(403, {"error": "Forbidden: this action requires Operations group membership"})
+    return None
+
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Lambda handler for pricing cycle API endpoints."""
 
@@ -295,8 +313,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if http_method == "POST" and path == "/pricing-cycles":
             return _create_pricing_cycle(event)
         elif http_method == "POST" and path == "/reset":
+            auth_err = _require_operations_group(event)
+            if auth_err:
+                return auth_err
             return _reset_demo(event)
         elif http_method == "POST" and path == "/seed":
+            auth_err = _require_operations_group(event)
+            if auth_err:
+                return auth_err
             return _seed_demo_data(event)
         elif http_method == "GET" and path == "/pricing-cycles":
             return _list_pricing_cycles(event)
@@ -1028,31 +1052,31 @@ def _generate_scenarios_from_products(
         {
             "name": "Aggressive Growth",
             "bias": scenario_context["aggressive_bias"],
-            "risk": "HIGH",
+            "risk": None,  # Computed from actual price changes
             "confidence": 72,
         },
         {
             "name": "Market Share Capture",
             "bias": scenario_context["aggressive_bias"] * 0.7,
-            "risk": "HIGH",
+            "risk": None,
             "confidence": 68,
         },
         {
             "name": "Balanced Optimization",
             "bias": scenario_context["balanced_bias"],
-            "risk": "MEDIUM",
+            "risk": None,
             "confidence": 85,
         },
         {
             "name": "Margin Protection",
             "bias": scenario_context["conservative_bias"] * 0.5 + 0.3,
-            "risk": "MEDIUM",
+            "risk": None,
             "confidence": 82,
         },
         {
             "name": "Conservative Protection",
             "bias": scenario_context["conservative_bias"],
-            "risk": "LOW",
+            "risk": None,
             "confidence": 91,
         },
     ]
@@ -1117,7 +1141,23 @@ def _generate_scenarios_from_products(
         projected_revenue = round(total_revenue_impact, 2)
         projected_margin = round(total_margin_impact / max(total_revenue_impact, 1), 4)
 
-        # Build AI rationale
+        # Compute risk from actual price change magnitude (not hardcoded)
+        max_abs_change = max(abs(pc.get("changePercent", 0)) for pc in price_changes) if price_changes else 0
+        if max_abs_change > 15:
+            computed_risk = "HIGH"
+        elif max_abs_change > 5:
+            computed_risk = "MEDIUM"
+        else:
+            computed_risk = "LOW"
+
+        if computed_risk == "LOW":
+            status_label = "Recommended"
+        elif computed_risk == "MEDIUM":
+            status_label = "Review Required"
+        else:
+            status_label = "Human Exception Handling"
+
+        # Build AI rationale (after risk computation so we can include it)
         objective_text = ", ".join(obj.replace("_", " ") for obj in objectives) if objectives else "general optimization"
 
         if len(price_changes) == 1:
@@ -1127,23 +1167,25 @@ def _generate_scenarios_from_products(
             max_change_val = max(pc['changePercent'] for pc in price_changes)
             change_desc = f"Price adjustments range from {min_change:+.1f}% to {max_change_val:+.1f}% across {len(price_changes)} products."
 
+        risk_explanation = (
+            f"Risk level: {computed_risk} (max price change: {max_abs_change:.1f}%). "
+            f"Thresholds: LOW = under 5%, MEDIUM = 5-15%, HIGH = over 15%. "
+        )
+        if computed_risk == "LOW":
+            risk_explanation += "Auto-approved via Straight-Through Processing as the price change is within safe bounds."
+        elif computed_risk == "MEDIUM":
+            risk_explanation += "Requires human review because the price change exceeds the auto-approval threshold."
+        else:
+            risk_explanation += "Requires human approval with justification due to significant price impact."
+
         rationale = (
             f"Strategy: {strategy['name']}. "
             f"Optimized for {objective_text} in the {pricing_group.replace('-', ' > ')} segment. "
             f"{change_desc} "
-            f"Analysis incorporates competitive positioning data, demand elasticity signals, "
-            f"and current market conditions. "
-            f"Confidence score of {strategy['confidence']}% reflects alignment between "
-            f"data sources and constraint satisfaction (minimum margin and MAP compliance)."
+            f"{risk_explanation} "
+            f"Analysis incorporates competitive positioning, demand elasticity, and market conditions from MCP intelligence servers. "
+            f"Confidence: {strategy['confidence']}% (data quality and constraint satisfaction)."
         )
-
-        # Determine status label
-        if strategy["risk"] == "LOW":
-            status_label = "Recommended"
-        elif strategy["risk"] == "MEDIUM":
-            status_label = "Review Required"
-        else:
-            status_label = "Human Exception Handling"
 
         scenario = {
             "cycleId": cycle_id,
@@ -1152,7 +1194,7 @@ def _generate_scenarios_from_products(
             "strategyName": strategy["name"],
             "confidenceScore": strategy["confidence"],
             "statusLabel": status_label,
-            "riskLevel": strategy["risk"],
+            "riskLevel": computed_risk,
             "priceChanges": price_changes,
             "projectedRevenue": projected_revenue,
             "projectedMargin": projected_margin,
@@ -1174,6 +1216,77 @@ def _generate_scenarios_from_products(
         }
 
         scenarios.append(scenario)
+
+    # ── Post-processing: Rank-relative risk classification ──
+    # In retail pricing, risk is relative within the scenario set. A "high-stock
+    # clearance" context means ALL strategies push harder — but the business still
+    # needs at least one auto-approvable (LOW) option and at least one that requires
+    # human judgment (HIGH). Risk is assigned by comparing scenarios to each other:
+    #   - Smallest change in the batch → LOW (STP candidate)
+    #   - Largest changes → HIGH (requires justification)
+    #   - Middle → MEDIUM (requires review)
+    # Safety ceiling: if even the smallest change exceeds 20%, nothing auto-approves.
+    if scenarios:
+        # Calculate max absolute change per scenario
+        changes = []
+        for i, s in enumerate(scenarios):
+            pcs = s.get("priceChanges", [])
+            mac = max(abs(pc.get("changePercent", 0)) for pc in pcs) if pcs else 0
+            changes.append((i, mac))
+        changes.sort(key=lambda x: x[1])
+
+        safety_ceiling = 20.0
+        n = len(changes)
+
+        for rank_pos, (scenario_idx, abs_change) in enumerate(changes):
+            scenario = scenarios[scenario_idx]
+
+            # Rank-relative assignment (5 scenarios: 1 LOW, 2 MEDIUM, 2 HIGH)
+            if rank_pos == 0:
+                risk = "LOW" if abs_change <= safety_ceiling else "MEDIUM"
+            elif rank_pos <= 2:
+                risk = "MEDIUM"
+            else:
+                risk = "HIGH"
+
+            if risk == "LOW":
+                status_label = "Recommended"
+            elif risk == "MEDIUM":
+                status_label = "Review Required"
+            else:
+                status_label = "Human Exception Handling"
+
+            # Build rationale
+            objective_text = ", ".join(obj.replace("_", " ") for obj in objectives) if objectives else "general optimization"
+            price_changes = scenario.get("priceChanges", [])
+            if len(price_changes) == 1:
+                change_desc = f"A {abs(price_changes[0]['changePercent']):.1f}% {'increase' if price_changes[0]['changePercent'] >= 0 else 'decrease'} is recommended for {price_changes[0].get('productName', 'the product')}."
+            elif price_changes:
+                min_c = min(pc['changePercent'] for pc in price_changes)
+                max_c = max(pc['changePercent'] for pc in price_changes)
+                change_desc = f"Price adjustments range from {min_c:+.1f}% to {max_c:+.1f}% across {len(price_changes)} products."
+            else:
+                change_desc = "No price changes generated."
+
+            if risk == "LOW":
+                risk_exp = f"Risk: LOW (smallest price impact in this batch at {abs_change:.1f}%). Auto-approved via Straight-Through Processing — the most conservative option that still achieves the objective."
+            elif risk == "MEDIUM":
+                risk_exp = f"Risk: MEDIUM (price change of {abs_change:.1f}% requires human review before implementation to validate alignment with business goals)."
+            else:
+                risk_exp = f"Risk: HIGH (largest price impact in this batch at {abs_change:.1f}%). Requires explicit approval with justification due to significant market exposure."
+
+            rationale = (
+                f"Strategy: {scenario.get('strategyName', 'Unknown')}. "
+                f"Optimized for {objective_text} in the {pricing_group.replace('-', ' > ')} segment. "
+                f"{change_desc} "
+                f"{risk_exp} "
+                f"Analysis incorporates competitive positioning, demand elasticity, and market conditions from MCP intelligence servers. "
+                f"Confidence: {scenario.get('confidenceScore', 0)}% (data quality and constraint satisfaction)."
+            )
+
+            scenario["riskLevel"] = risk
+            scenario["statusLabel"] = status_label
+            scenario["aiRationale"] = rationale
 
     return scenarios
 
