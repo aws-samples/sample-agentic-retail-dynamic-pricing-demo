@@ -1,4 +1,4 @@
-# Retail Dynamic Pricing — Agentic AI Solution
+# Retail Dynamic Pricing Transformation - Agentic AI Solution [Demo]
 
 > An agentic AI system that transforms retail pricing from a manual 6-10 week process into an autonomous, governed workflow completing in under 2 minutes. Six specialized AI agents on Amazon Bedrock AgentCore gather competitive intelligence, forecast demand, assess market conditions, synthesize optimized pricing strategies, and monitor post-implementation performance — with human-in-the-loop approval for high-risk decisions and fully autonomous execution for low-risk changes.
 
