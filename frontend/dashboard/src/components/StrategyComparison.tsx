@@ -41,50 +41,77 @@ export default function StrategyComparison() {
               <tr>
                 <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Rank</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Strategy</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Risk</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Magnitude</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Approval Path</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Approach</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               <tr>
                 <td className="px-3 py-2 font-bold text-gray-900">1</td>
                 <td className="px-3 py-2 font-medium text-gray-900">Aggressive Growth</td>
-                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">HIGH</span></td>
-                <td className="px-3 py-2 text-gray-700">Largest price move (15-20%)</td>
-                <td className="px-3 py-2 text-gray-600">Human + 50-char justification</td>
+                <td className="px-3 py-2 text-gray-700">Largest price move in the direction of the objective</td>
               </tr>
               <tr>
                 <td className="px-3 py-2 font-bold text-gray-900">2</td>
                 <td className="px-3 py-2 font-medium text-gray-900">Market Share Capture</td>
-                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">HIGH</span></td>
-                <td className="px-3 py-2 text-gray-700">Large move, volume-focused (10-15%)</td>
-                <td className="px-3 py-2 text-gray-600">Human + 50-char justification</td>
+                <td className="px-3 py-2 text-gray-700">Large move, volume-focused</td>
               </tr>
               <tr>
                 <td className="px-3 py-2 font-bold text-gray-900">3</td>
                 <td className="px-3 py-2 font-medium text-gray-900">Balanced Optimization</td>
-                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">MEDIUM</span></td>
-                <td className="px-3 py-2 text-gray-700">Moderate adjustment (5-10%)</td>
-                <td className="px-3 py-2 text-gray-600">Human review within 4h</td>
+                <td className="px-3 py-2 text-gray-700">Moderate adjustment balancing all factors</td>
               </tr>
               <tr>
                 <td className="px-3 py-2 font-bold text-gray-900">4</td>
                 <td className="px-3 py-2 font-medium text-gray-900">Margin Protection</td>
-                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">MEDIUM</span></td>
-                <td className="px-3 py-2 text-gray-700">Moderate, profit-preserving (5-8%)</td>
-                <td className="px-3 py-2 text-gray-600">Human review within 4h</td>
+                <td className="px-3 py-2 text-gray-700">Moderate, profit-preserving adjustment</td>
               </tr>
-              <tr className="bg-green-50/50">
+              <tr>
                 <td className="px-3 py-2 font-bold text-gray-900">5</td>
                 <td className="px-3 py-2 font-medium text-gray-900">Conservative Protection</td>
-                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">LOW</span></td>
-                <td className="px-3 py-2 text-gray-700">Minimal, safe move (1-3%)</td>
-                <td className="px-3 py-2 text-green-700 font-medium">Auto-approved (STP)</td>
+                <td className="px-3 py-2 text-gray-700">Minimal move that still achieves the objective</td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Risk Classification */}
+      <div>
+        <h4 className="text-xs font-semibold text-gray-700 mb-2">Step 3: Risk Assigned by Relative Price Impact</h4>
+        <p className="text-[10px] text-gray-600 mb-2">
+          Risk is not fixed per strategy name. It is computed by comparing the actual price change magnitude across all 5 scenarios in the batch:
+        </p>
+        <div className="overflow-hidden border border-gray-200 rounded-lg">
+          <table className="min-w-full divide-y divide-gray-200 text-xs">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Risk</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Assignment Rule</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase">Approval Path</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              <tr className="bg-green-50/50">
+                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">LOW</span></td>
+                <td className="px-3 py-2 text-gray-700">Scenario with the smallest price change in the batch (unless it exceeds 20%)</td>
+                <td className="px-3 py-2 text-green-700 font-medium">Auto-approved (STP)</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">MEDIUM</span></td>
+                <td className="px-3 py-2 text-gray-700">Middle-range scenarios (moderate price impact relative to the batch)</td>
+                <td className="px-3 py-2 text-gray-600">Human review</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">HIGH</span></td>
+                <td className="px-3 py-2 text-gray-700">Scenarios with the largest price changes in the batch</td>
+                <td className="px-3 py-2 text-gray-600">Human + 50-char justification</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[10px] text-gray-500 mt-2">
+          This means the same strategy (e.g., Conservative Protection) might be LOW risk in one context and MEDIUM in another — depending on how much price movement the objectives and constraints produce. The system always ensures at least one STP-eligible option exists per cycle.
+        </p>
       </div>
 
       {/* Key Insight */}
