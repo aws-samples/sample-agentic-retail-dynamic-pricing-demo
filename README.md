@@ -480,6 +480,7 @@ This solution is a functional demonstration. Several features illustrate product
 | **Guardrails Enforcement** | Bedrock Guardrails validate at the model level. Application-layer guardrails use hardcoded pass/fail for demo scenarios. | Call Bedrock Guardrails API at price-modification points (before writing to Products table) for runtime validation. |
 | **Kill Switches** | `SKIP_INPUT_SANITIZATION` and `DISABLE_BEDROCK_GUARDRAILS` env vars allow bypassing controls for local testing. | Remove or protect via AWS Service Control Policies (SCPs) and AWS Config rules. Never deploy to production. |
 | **Pricing Model** | Flat catalog pricing only — one price per product, all customers, all channels. Products with `mapPrice: null` behave as private-label (no MAP floor, cost floor only). | Add `pricingModel` field ("catalog", "private-label", "surge", "tiered") per product. Strategy Synthesis applies model-specific strategies. See "Extensible Pricing Models" below. |
+| **Architecture Pattern** | Synchronous Lambda → AgentCore invocation (optimized for real-time demo UX). | Migrate to EventBridge + Step Functions for async fan-out, independent agent scaling, automatic retries with DLQ, native event audit trail, and elimination of API Gateway timeout constraints. |
 
 ### Extensible Pricing Models
 
