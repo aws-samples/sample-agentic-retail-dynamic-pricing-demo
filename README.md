@@ -412,11 +412,7 @@ PYTHONPATH=. python -m backend.agents.testing_harness
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full architecture, data flow, agent design |
 | [docs/QUICK_START.md](docs/QUICK_START.md) | Setup and deployment instructions |
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 5-minute demo walkthrough |
-| [docs/GUIDANCE_ALIGNMENT.md](docs/GUIDANCE_ALIGNMENT.md) | Mapping to AWS Guidance Paper |
-| [docs/TCO_ESTIMATE.md](docs/TCO_ESTIMATE.md) | Total Cost of Ownership analysis |
 | [docs/agent_testing_guide.md](docs/agent_testing_guide.md) | Agent testing procedures |
-| [docs/SYSTEM_DEEP_DIVE.md](docs/SYSTEM_DEEP_DIVE.md) | Full system analysis, demo walkthroughs, Well-Architected alignment |
-| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Industry terms, abbreviations, and definitions |
 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Deployment issues and resolutions |
 
 ---
@@ -426,8 +422,6 @@ PYTHONPATH=. python -m backend.agents.testing_harness
 - **Per pricing cycle:** ~$0.25 (dominated by Bedrock model invocations)
 - **Monthly at demo scale (~50 cycles):** ~$30
 - **Infrastructure (serverless):** ~$10-25/month fixed
-
-See [docs/TCO_ESTIMATE.md](docs/TCO_ESTIMATE.md) for full breakdown and scaling projections.
 
 ---
 
