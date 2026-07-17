@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# CDK
+cdk.out/
+cdk-outputs.json
+model-config.json
+.cdk.staging/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Node (frontends)
+node_modules/
+frontend/dashboard/dist/
+frontend/storefront/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+scripts/agent_arns.env
+backend/agents/agentcore/agent_config.json
+
+# Kiro (internal development tooling)
+.kiro/
+
+# OS
+.DS_Store
+Thumbs.db
+
+
+# Security scan exports (not for public repo)
+ProbeScanExport-*.csv
+
+# Internal security review documents (not for public repo)
+docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.md
+docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.xlsx
+node_modules/
+package.json
+package-lock.json
+
+# Internal comparison and security clearance reports (not for public repos)
+docs/GUIDANCE_PAPER_COMPARISON.docx
+docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.md
+docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.xlsx
