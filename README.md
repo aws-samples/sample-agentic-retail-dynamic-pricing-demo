@@ -476,6 +476,17 @@ This solution is a functional demonstration. Several features illustrate product
 | **Pricing Model** | Flat catalog pricing only — one price per product, all customers, all channels. Products with `mapPrice: null` behave as private-label (no MAP floor, cost floor only). | Add `pricingModel` field ("catalog", "private-label", "surge", "tiered") per product. Strategy Synthesis applies model-specific strategies. See "Extensible Pricing Models" below. |
 | **Architecture Pattern** | Synchronous Lambda → AgentCore invocation (optimized for real-time demo UX). | Migrate to EventBridge + Step Functions for async fan-out, independent agent scaling, automatic retries with DLQ, native event audit trail, and elimination of API Gateway timeout constraints. |
 
+### Production Evolution Path
+
+This demo proves the agentic orchestration pattern works. Production deployments would layer in ML models, learning loops, and memory systems:
+
+| Capability | Demo Approach | Production Extension |
+|-----------|---------------|----------------------|
+| **ML-Powered Forecasting (SageMaker)** | LLM reasons over simulated MCP data to infer demand and elasticity. | Deploy SageMaker endpoints for price elasticity models (trained on transaction history), DeepAR demand forecasting, and competitive response prediction. Intelligence agents call ML endpoints instead of simulated data. |
+| **Self-Healing & Continuous Learning** | Each pricing cycle is independent. Bad prices require manual revert. | Track post-implementation performance (revenue, margin, units) over 24-72h. Auto-rollback if actuals deviate >X% from predictions. Trigger SageMaker Pipeline retraining when model accuracy drifts. A/B test price points across segments. |
+| **Semantic Memory** | AgentCore Memory stores short-term session state only. | Vector-index historical cycle outcomes (product, strategy, market conditions → result). Strategy Synthesis retrieves "what worked before in similar conditions" via similarity search before generating new scenarios. |
+| **Episodic Memory** | No cross-session continuity. | Store complete decision episodes (trigger → data inputs → reasoning chain → decision → 30-day outcome). Enables decision replay for audit, pattern learning across seasons, and explainability for regulatory review. |
+
 ### Extensible Pricing Models
 
 The current demo implements catalog pricing. The architecture supports extension to multiple pricing models by adding a `pricingModel` field to the Products table and routing the Strategy Synthesis agent's behavior based on it:

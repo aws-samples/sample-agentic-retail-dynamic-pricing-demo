@@ -195,3 +195,20 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 - **Monthly (demo):** ~$30
 - **Monthly (enterprise, 50K cycles):** ~$13,000
 - See the **TCO** tab in the Operations dashboard for live cost breakdown and scaling projections
+
+
+---
+
+## Production Extensions
+
+The current architecture is designed for extensibility. Key integration points for production:
+
+| Extension | Integration Point | AWS Services |
+|-----------|-------------------|--------------|
+| ML demand models | Replace MCP Server simulated data with SageMaker endpoint responses | SageMaker (DeepAR, Autopilot), S3 (training data) |
+| Autonomous scheduling | EventBridge Scheduler triggers pricing cycles on cron/rate | EventBridge Scheduler, Step Functions |
+| Cross-cycle learning | AgentCore Memory persists strategy outcomes across cycles | AgentCore Memory (already provisioned), OpenSearch (vector index) |
+| Real-time competitive monitoring | Stream competitor price changes via EventBridge Pipes | EventBridge Pipes, Kinesis Data Streams, Lambda |
+| Post-implementation feedback | CloudWatch custom metrics trigger rollback workflows | CloudWatch Alarms, Step Functions, SNS |
+
+The MCP Server interface (`backend/mcp_servers/`) is the primary integration boundary — each server can be independently replaced with real data source connectors without modifying agent logic.
