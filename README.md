@@ -440,6 +440,8 @@ aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-e
 
 ## Security
 
+> **Disclaimer:** This is sample code, for non-production usage. You should work with your security and legal teams to meet your organizational security, regulatory and compliance requirements before deployment.
+
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
 A comprehensive STRIDE threat model has been completed for this solution. See [`docs/.threatmodel/`](docs/.threatmodel/) for the full analysis (Threat Composer JSON + Markdown report).
