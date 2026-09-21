@@ -44,10 +44,10 @@
 │  AgentCore Layer                                                    │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────┐  │
 │  │Orchestrator│ │Competitive │ │  Demand    │ │    Market      │  │
-│  │(Opus 4)    │ │Intel (S4)  │ │Forecast(S4)│ │  Intel (S4)    │  │
+│  │(Opus tier) │ │Intel (S)   │ │Forecast(S) │ │  Intel (S)     │  │
 │  └────────────┘ └────────────┘ └────────────┘ └────────────────┘  │
 │  ┌────────────────────┐ ┌────────────────────────────────────────┐ │
-│  │Strategy Synth (S4) │ │ Implementation Monitoring (S4)         │ │
+│  │Strategy Synth (S)  │ │ Implementation Monitoring (S)          │ │
 │  └────────────────────┘ └────────────────────────────────────────┘ │
 │  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
 │  │ Bedrock Guardrails│  │AgentCore Mem │  │ AgentCore Gateway    │ │
@@ -72,7 +72,7 @@
 | Data Store | DynamoDB (on-demand) | Serverless, pay-per-request |
 | Auth | Amazon Cognito | Managed auth, JWT, API Gateway integration |
 | IaC | AWS CDK (Python) | Reproducible, automatic rollback |
-| Models | Claude Opus 4 / Sonnet 4 | Best reasoning + cost-effective analysis |
+| Models | Claude Opus (orchestration/synthesis) + Sonnet (specialists) | Best reasoning + cost-effective analysis; exact model chosen at deploy via `select_model.py` |
 
 ---
 
@@ -182,7 +182,7 @@ Options:
 
 > **Note:** `cdk-nag` (the CDK security linter the app runs) is a Python dependency installed automatically via `requirements.txt` — no manual install step is needed.
 - **AWS Account** with access to:
-  - Amazon Bedrock (Claude Sonnet 4, Claude Opus 4)
+  - Amazon Bedrock (a Claude Opus model and a Claude Sonnet model; `select_model.py` lists what your account can access and lets you choose)
   - Amazon Bedrock AgentCore (Runtime, Gateway, Memory)
 
 ---

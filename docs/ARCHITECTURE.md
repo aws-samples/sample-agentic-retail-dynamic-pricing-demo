@@ -35,7 +35,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | Agent Gateway | Amazon Bedrock AgentCore Gateway | MCP protocol endpoint for 4 data server targets |
 | Agent Memory | Amazon Bedrock AgentCore Memory | Persistent state across pricing cycles |
 | Guardrails | Amazon Bedrock Guardrails | Policy enforcement (4 denied topics + PII) |
-| Foundation Models | Amazon Bedrock (Claude Opus 4.7, Sonnet 4.6) | LLM reasoning for pricing analysis |
+| Foundation Models | Amazon Bedrock — Claude Opus tier (orchestrator, strategy synthesis) + Claude Sonnet tier (specialists); exact model selected at deploy via `select_model.py` | LLM reasoning for pricing analysis |
 | Container Registry | Amazon ECR (6 repositories) | Docker images for agent runtimes |
 
 ### 4. Data Layer (MCP Servers)
@@ -55,7 +55,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 ```
                     ┌─────────────────────┐
                     │  Orchestrator Agent  │
-                    │  (Claude Opus 4.7)   │
+                    │    (Opus tier)       │
                     └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
@@ -63,20 +63,20 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
     ┌─────────▼──────┐ ┌──────▼───────┐ ┌──────▼──────────┐
     │  Competitive   │ │   Demand     │ │    Market       │
     │  Intelligence  │ │  Forecasting │ │  Intelligence   │
-    │ (Sonnet 4.6)   │ │ (Sonnet 4.6) │ │ (Sonnet 4.6)   │
+    │ (Sonnet tier)  │ │(Sonnet tier) │ │ (Sonnet tier)  │
     └────────────────┘ └──────────────┘ └─────────────────┘
               │                │                │
               └────────────────┼────────────────┘
                                │
                     ┌──────────▼──────────┐
                     │ Strategy Synthesis  │
-                    │  (Sonnet 4.6)       │
+                    │   (Sonnet tier)     │
                     └──────────┬──────────┘
                                │
                     ┌──────────▼──────────┐
                     │   Implementation    │
                     │    Monitoring       │
-                    │  (Sonnet 4.6)       │
+                    │   (Sonnet tier)     │
                     └─────────────────────┘
 ```
 
@@ -84,12 +84,14 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 
 | Agent | Model | Role | MCP Tools |
 |-------|-------|------|-----------|
-| Orchestrator | Claude Opus 4.7 | Coordinates pipeline, parallel dispatch, result aggregation | — |
-| Competitive Intelligence | Claude Sonnet 4.6 | Competitor price monitoring, market positioning analysis | Competitor API |
-| Demand Forecasting | Claude Sonnet 4.6 | Price elasticity, demand curves, seasonal patterns | ERP/POS |
-| Market Intelligence | Claude Sonnet 4.6 | Market trends, consumer sentiment, cross-product opportunities | Market Signals |
-| Strategy Synthesis | Claude Opus 4.7 | Combines intelligence, generates ranked scenarios | Cost & Finance |
-| Implementation Monitoring | Claude Sonnet 4.6 | Executes price changes, monitors actual vs projected | ERP/POS |
+| Orchestrator | Opus tier (`ORCHESTRATOR_MODEL`) | Coordinates pipeline, parallel dispatch, result aggregation | — |
+| Competitive Intelligence | Sonnet tier (`SPECIALIST_MODEL`) | Competitor price monitoring, market positioning analysis | Competitor API |
+| Demand Forecasting | Sonnet tier (`SPECIALIST_MODEL`) | Price elasticity, demand curves, seasonal patterns | ERP/POS |
+| Market Intelligence | Sonnet tier (`SPECIALIST_MODEL`) | Market trends, consumer sentiment, cross-product opportunities | Market Signals |
+| Strategy Synthesis | Sonnet tier (`SPECIALIST_MODEL`) | Combines intelligence, generates ranked scenarios | Cost & Finance |
+| Implementation Monitoring | Sonnet tier (`SPECIALIST_MODEL`) | Executes price changes, monitors actual vs projected | ERP/POS |
+
+> Model IDs are not hardcoded: agents read `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL` from `shared/model_config.py`, which resolves from `model-config.json` (written by `scripts/select_model.py`) or the `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` environment variables. Both tiers default to the model selected at deploy time.
 
 ---
 
