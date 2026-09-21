@@ -434,14 +434,44 @@ PYTHONPATH=. python -m backend.agents.testing_harness
 
 ## Teardown
 
-```bash
-# Destroy CDK stacks
-npx cdk destroy --all
+### One-command teardown (recommended)
 
-# Delete AgentCore resources
-python scripts/deploy_agentcore.py --delete --region us-east-1
-aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-east-1
+```bash
+./teardown.sh --region us-east-1
 ```
+
+`teardown.sh` removes everything `deploy.sh` created, in the correct dependency
+order: empties the frontend S3 buckets (including object versions), runs
+`cdk destroy --all`, deletes the AgentCore gateway targets → gateway → agent
+runtimes → memory, then the ECR repositories and the IAM role. Resources are
+discovered dynamically by name, and every step is safe to re-run. It prompts for
+confirmation; pass `--yes` to skip the prompt.
+
+### Manual teardown (fallback)
+
+```bash
+# 1. Empty the frontend S3 buckets first (CloudFormation cannot delete non-empty buckets)
+for b in $(aws s3api list-buckets --query "Buckets[?starts_with(Name,'retaildynamicpricing-')].Name" --output text); do
+  aws s3 rm "s3://$b" --recursive
+done
+
+# 2. Destroy the CDK stack
+npx cdk destroy --all --app ".venv/bin/python3 cdk/app.py"
+
+# 3. Delete AgentCore resources (gateway targets -> gateway -> runtimes -> memory).
+#    Discover IDs with: aws bedrock-agentcore-control list-gateways / list-agent-runtimes / list-memories
+#    then delete-gateway-target, delete-gateway, delete-agent-runtime, delete-memory.
+
+# 4. Delete ECR repositories and the IAM role
+for r in $(aws ecr describe-repositories --query "repositories[?starts_with(repositoryName,'retail-pricing/')].repositoryName" --output text); do
+  aws ecr delete-repository --repository-name "$r" --force
+done
+aws iam delete-role-policy --role-name RetailPricingAgentCoreRole --policy-name RetailPricingAgentCorePolicy
+aws iam delete-role --role-name RetailPricingAgentCoreRole
+```
+
+> **Note:** this demo does not create its own Bedrock guardrail resource, so there
+> is no guardrail to delete during teardown.
 
 ---
 
