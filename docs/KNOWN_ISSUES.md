@@ -95,25 +95,21 @@ python3 scripts/setup_gateway.py --region us-east-1
 
 ---
 
-## 4. Gateway target synchronization fails with list length constraint
+## 4. Gateway target synchronization reports "not supported for synchronization" for Lambda targets
 
 **Symptom:**
 ```
-ValidationException: 1 validation error detected: Value '[...]' at 'targetIdList'
-failed to satisfy constraint: Member must have length less than or equal to 1
+Target type LAMBDA is not supported for synchronization
 ```
+(when `scripts/setup_gateway.py` attempts to synchronize the MCP Server gateway targets)
 
-**Root Cause:** `scripts/setup_gateway.py` passes all 4 target IDs to `SynchronizeGatewayTargets` in one call, but the API only accepts 1 target per synchronization request.
+**Root Cause:** Lambda-type gateway targets do **not** support synchronization at all. Synchronization is a tool-discovery mechanism for target types (such as OpenAPI/Smithy endpoints) whose tools are discovered dynamically. Lambda targets instead supply their tools via the inline `toolSchema` provided at registration time, so there is no discovery step to run — and no sync is needed for them. (The earlier belief that this was a `targetIdList` "length must be <= 1" limit was incorrect.)
 
-**Impact:** Low — targets are still registered and functional. Agents can invoke MCP servers. The sync step just triggers tool discovery which happens automatically on first use.
+**Impact:** None — targets are registered and fully functional. Agents can invoke the MCP Server Lambdas; the tools are already known from the registration `toolSchema`.
 
-**Fix:** Non-blocking. If needed, sync targets individually:
+**Fix:** No action needed. `scripts/setup_gateway.py` now synchronizes targets one at a time and treats the "Target type LAMBDA is not supported for synchronization" response as **expected**, logging it and continuing rather than failing.
 
-```bash
-# Targets are already registered and usable without explicit sync
-```
-
-**Prevention:** The script should loop over targets and sync one at a time.
+**Prevention:** Do not attempt to synchronize Lambda gateway targets. Rely on the inline `toolSchema` at registration to supply tools for Lambda targets.
 
 ---
 
@@ -263,7 +259,13 @@ for the ESSENTIALS pricing tier configured: Threat Protection"
 
 **Fix:** Removed `advanced_security_mode=cognito.AdvancedSecurityMode.ENFORCED` from the CDK Cognito construct. MFA (TOTP) remains enabled as it works on all tiers and provides the primary defense against credential stuffing.
 
-**Prevention:** Before enabling Cognito Advanced Security features, verify the User Pool pricing tier supports it. For production workloads where compromised credential detection is critical, upgrade to the Plus tier via the AWS Console before deploying with `AdvancedSecurityMode.ENFORCED`.
+Because the User Pool intentionally stays on the ESSENTIALS tier, the corresponding cdk-nag findings are suppressed in `cdk/app.py` as the same accepted limitation:
+- **`AwsSolutions-COG3`** — Advanced Security Mode (Threat Protection) not ENFORCED.
+- **`AwsSolutions-COG8`** — Cognito not on the Plus pricing tier.
+
+Both suppressions document that MFA (TOTP) is the compensating control, and that Threat Protection requires the Plus tier which this demo does not use.
+
+**Prevention:** Before enabling Cognito Advanced Security features, verify the User Pool pricing tier supports it. For production workloads where compromised credential detection is critical, upgrade to the Plus tier via the AWS Console before deploying with `AdvancedSecurityMode.ENFORCED` (and remove the COG3/COG8 suppressions).
 
 ---
 
@@ -361,3 +363,90 @@ aws cognito-idp update-user-pool-client \
 ```
 
 **Prevention:** The CDK stack should derive callback URLs from the CloudFront distribution domain. This requires the Cognito client to depend on the CloudFront distribution resource. Update `cdk/stacks/auth.py` to include the CloudFront URL in callback_urls.
+
+---
+
+## Validation Deploy Fixes
+
+The following issues were found and fixed during a clean end-to-end validation deploy. Each is resolved in the current codebase; entries are kept for future reference.
+
+### Issue: `cdk deploy` fails with "No module named 'cdk_nag'"
+
+**Symptom:** `npx cdk deploy` (or `cdk synth`) aborts immediately with `ModuleNotFoundError: No module named 'cdk_nag'`.
+
+**Root Cause:** `cdk/app.py` applies `cdk-nag` AwsSolutionsChecks, but `cdk-nag` was missing from `pyproject.toml`, so it was never installed into the venv.
+
+**Fix:** Added `cdk-nag` to the project dependencies in `pyproject.toml`. It now installs automatically as part of `pip install -r requirements.txt`.
+
+**Prevention:** Keep every module imported by the CDK app declared as a project dependency. A synth in CI catches missing CDK dependencies before deploy.
+
+---
+
+### Issue: `cdk-nag` 3.x breaks with an ImportError on `NagSuppressions`
+
+**Symptom:** With an unpinned `cdk-nag`, installing a 3.x release causes an `ImportError` for `NagSuppressions` when `cdk/app.py` is loaded.
+
+**Root Cause:** `cdk-nag` 3.x removed `NagSuppressions` from the top-level module API, so the existing import in `cdk/app.py` no longer resolves.
+
+**Fix:** Pinned the dependency to `cdk-nag>=2.35.0,<3.0.0` in `pyproject.toml` so the 2.x top-level API (including `NagSuppressions`) is used.
+
+**Prevention:** Pin CDK ecosystem libraries to a compatible major version and bump deliberately after verifying API compatibility.
+
+---
+
+### Issue: AgentCore gateway target registration fails while the gateway is still creating
+
+**Symptom:**
+```
+gateway is in CREATING status
+```
+when `scripts/setup_gateway.py` tries to register the MCP Server targets right after creating the gateway.
+
+**Root Cause:** Target registration was attempted before the newly-created AgentCore gateway had finished provisioning and reached a READY state.
+
+**Fix:** `scripts/setup_gateway.py` now waits for the gateway to reach READY before registering targets, and registers/synchronizes targets one at a time. (See issue #4 — the "Target type LAMBDA is not supported for synchronization" message during this step is expected and non-fatal.)
+
+**Prevention:** Always poll for a resource's READY/ACTIVE state before performing dependent operations against it.
+
+---
+
+### Issue: Storefront `npm install` fails with ERESOLVE dependency conflict
+
+**Symptom:** `npm install` in `frontend/storefront` fails with an `ERESOLVE` peer-dependency error; the storefront could not be built.
+
+**Root Cause:** The storefront pinned `vite@8` together with `@vitejs/plugin-react@4.7.0`, which is incompatible with Vite 8. The dashboard was on Vite 5, so the two frontends were also inconsistent with each other.
+
+**Fix:** Aligned both frontends (`frontend/dashboard` and `frontend/storefront`) on the same validated versions: `vite` 8.3.0, `@vitejs/plugin-react` 5.2.0, and `react-router-dom` 7.18.4. Both frontends now build cleanly and `npm audit` reports 0 vulnerabilities on each.
+
+**Prevention:** Keep shared frontend tooling versions aligned across both apps and verify `npm install`/`npm run build` plus `npm audit` on a clean checkout.
+
+---
+
+### Issue: Python dependency versions not reproducible across deploys
+
+**Symptom:** Deploys resolved different transitive dependency versions on different machines, making builds hard to reproduce.
+
+**Root Cause:** Dependencies were installed via `pip install -e .` alone, without a pinned, validated dependency set.
+
+**Fix:** The root `requirements.txt` is now the pinned/validated dependency set. `deploy.sh` installs it explicitly (`pip install -r requirements.txt`, then `pip install -e . --no-deps`), and `pip-audit` runs against `requirements.txt`.
+
+**Prevention:** Install from the pinned `requirements.txt` and treat it as the source of truth for dependency versions; regenerate and re-validate it when dependencies change.
+
+---
+
+### Issue: Model selection did not reach the deployed agents
+
+**Symptom:** Running `scripts/select_model.py` (or choosing a model during deploy) appeared to have no effect — the deployed agents kept using their original model IDs.
+
+**Root Cause:** The AgentCore runtime containers hardcoded their model IDs (e.g. `us.anthropic.claude-opus-4-7` / `claude-sonnet-4-6`) instead of reading the selected configuration, so `select_model.py` was effectively a no-op for the deployed agents.
+
+**Fix:** The runtime containers now read the shared model configuration (`shared.model_config` → `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) instead of hardcoding model IDs, and `scripts/select_model.py` writes both `modelId` and `specialistModelId` to `model-config.json`. The selected model now genuinely drives all agents; both tiers default to the selected model unless `SPECIALIST_MODEL_ID` overrides the specialist tier.
+
+**Prevention:** Keep configurable values in one shared config source that both scripts and runtime read from — never duplicate them as hardcoded constants in the runtime.
+
+---
+### Issue: `cdk destroy` fails to delete the access-logs S3 bucket ("bucket not empty")
+**Symptom:** During teardown, `cdk destroy` fails with `DELETE_FAILED` on the hosting access-logs S3 bucket: "The bucket you tried to delete is not empty", even though the buckets were emptied moments earlier.
+**Root Cause:** The access-logs bucket continuously receives CloudFront and S3 server access logs from the dashboard/storefront buckets. New log objects land in it between the time it is emptied and the time CloudFormation tries to delete it, so it is non-empty again at deletion.
+**Fix:** `teardown.sh` re-empties all `retaildynamicpricing-*` buckets immediately before each `cdk destroy` attempt and retries the destroy up to 3 times. Running teardown again also clears it, since by the retry the log-producing distributions are already being removed.
+**Prevention:** When deleting buckets that receive access logs, empty them as late as possible (right before delete) and retry; do not rely on a single up-front empty.

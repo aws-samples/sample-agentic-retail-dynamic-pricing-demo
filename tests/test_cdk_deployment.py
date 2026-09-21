@@ -7,7 +7,7 @@ expected resources provisioned correctly, including:
 - API Gateway with CORS configured
 - Lambda functions with Python 3.12 runtime
 - CloudFront distributions
-- Amplify apps
+- S3 hosting buckets (no Amplify apps)
 - DeletionPolicy/UpdateReplacePolicy for rollback safety
 
 Validates: Requirements 11.1, 11.8
@@ -107,26 +107,20 @@ class TestAllExpectedResourcesPresent:
         template = _get_template()
         template.resource_count_is("AWS::CloudFront::Distribution", 2)
 
-    def test_amplify_apps(self):
-        """There should be exactly 2 Amplify apps (Dashboard + Storefront)."""
-        template = _get_template()
-        template.resource_count_is("AWS::Amplify::App", 2)
+    def test_no_amplify_apps(self):
+        """Frontends are hosted on S3 + CloudFront only; no Amplify apps.
 
-    def test_amplify_dashboard_app(self):
-        """Dashboard Amplify app should be configured correctly."""
+        The Amplify apps were removed (they were never connected to a source
+        repo and served nothing). This guards against reintroducing them.
+        """
         template = _get_template()
-        template.has_resource_properties(
-            "AWS::Amplify::App",
-            {"Name": "retail-pricing-dashboard"},
-        )
+        template.resource_count_is("AWS::Amplify::App", 0)
+        template.resource_count_is("AWS::Amplify::Branch", 0)
 
-    def test_amplify_storefront_app(self):
-        """Storefront Amplify app should be configured correctly."""
+    def test_frontend_hosting_buckets(self):
+        """Dashboard + Storefront + access-logs S3 buckets host the frontends."""
         template = _get_template()
-        template.has_resource_properties(
-            "AWS::Amplify::App",
-            {"Name": "retail-pricing-storefront"},
-        )
+        template.resource_count_is("AWS::S3::Bucket", 3)
 
 
 # =============================================================================

@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- AWS Account with Bedrock model access (Claude Sonnet 4, Claude Opus 4)
+- AWS Account with Bedrock model access (a Claude Opus model + a Claude Sonnet model; `select_model.py` shows what you can access and lets you choose)
 - AWS CLI configured with credentials
 - Node.js 20+ and Python 3.12+
 - Docker (for AgentCore agent deployment)
@@ -19,7 +19,10 @@ git clone <repository-url>
 cd "Retail Dynamic Pricing"
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+
+# Install the pinned/validated dependency set (includes cdk-nag), then the project
+pip install -r requirements.txt
+pip install -e . --no-deps
 ```
 
 ### 2. Deploy Infrastructure (CDK)
@@ -210,7 +213,7 @@ See [docs/KNOWN_ISSUES.md](KNOWN_ISSUES.md) for detailed deployment issues and r
 |-------|----------|
 | CDK can't find aws_cdk module | Ensure venv is active; use `--app ".venv/bin/python3 cdk/app.py"` if path has spaces |
 | ECR permission error on agent deploy | Fixed in `create_agentcore_role.py` — uses `retail-pricing/*` resource path |
-| Gateway target registration fails | Wait 30s after gateway creation, then re-run `setup_gateway.py` |
+| Gateway target registration fails ("gateway is in CREATING status") | `setup_gateway.py` now waits for the gateway to reach READY before registering targets — just re-run it. "Target type LAMBDA is not supported for synchronization" is expected and non-fatal (Lambda targets get their tools from the inline toolSchema at registration). |
 | CORS error on /billing or /reset | Route must exist in API Gateway CDK — verify with `npx cdk deploy` |
 | Login redirect_mismatch | Update callback URLs (Step 9) with actual CloudFront domain |
 | Pricing cycle AccessDenied | Lambda needs DynamoDB Scan/BatchWriteItem + AgentCore InvokeAgentRuntime |

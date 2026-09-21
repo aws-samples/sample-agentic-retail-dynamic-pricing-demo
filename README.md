@@ -44,10 +44,10 @@
 │  AgentCore Layer                                                    │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────┐  │
 │  │Orchestrator│ │Competitive │ │  Demand    │ │    Market      │  │
-│  │(Opus 4)    │ │Intel (S4)  │ │Forecast(S4)│ │  Intel (S4)    │  │
+│  │(Opus tier) │ │Intel (S)   │ │Forecast(S) │ │  Intel (S)     │  │
 │  └────────────┘ └────────────┘ └────────────┘ └────────────────┘  │
 │  ┌────────────────────┐ ┌────────────────────────────────────────┐ │
-│  │Strategy Synth (S4) │ │ Implementation Monitoring (S4)         │ │
+│  │Strategy Synth (S)  │ │ Implementation Monitoring (S)          │ │
 │  └────────────────────┘ └────────────────────────────────────────┘ │
 │  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
 │  │ Bedrock Guardrails│  │AgentCore Mem │  │ AgentCore Gateway    │ │
@@ -72,7 +72,7 @@
 | Data Store | DynamoDB (on-demand) | Serverless, pay-per-request |
 | Auth | Amazon Cognito | Managed auth, JWT, API Gateway integration |
 | IaC | AWS CDK (Python) | Reproducible, automatic rollback |
-| Models | Claude Opus 4 / Sonnet 4 | Best reasoning + cost-effective analysis |
+| Models | Claude Opus (orchestration/synthesis) + Sonnet (specialists) | Best reasoning + cost-effective analysis; exact model chosen at deploy via `select_model.py` |
 
 ---
 
@@ -143,7 +143,7 @@ The AI models used by the pricing agents are configurable. The system scans your
 
 ### During Initial Deployment
 
-Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see a table of available models with status indicators and choose one interactively. The selected model ID is written to `model-config.json` and used by all agents.
+Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see a table of available models with status indicators and choose one interactively. The selected model ID is written to `model-config.json` (as both `modelId` and `specialistModelId`) and is used by all agents — the AgentCore runtime containers read the shared model configuration (`ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) at startup rather than hardcoding model IDs. Both tiers default to the selected model unless the `SPECIALIST_MODEL_ID` environment variable overrides the specialist tier.
 
 ### Switching Models After Deployment
 
@@ -179,8 +179,10 @@ Options:
 - **Docker** (for building AgentCore agent containers)
 - **AWS CDK CLI** (`npm install -g aws-cdk`)
 - **AWS CLI** configured with credentials
+
+> **Note:** `cdk-nag` (the CDK security linter the app runs) is a Python dependency installed automatically via `requirements.txt` — no manual install step is needed.
 - **AWS Account** with access to:
-  - Amazon Bedrock (Claude Sonnet 4, Claude Opus 4)
+  - Amazon Bedrock (a Claude Opus model and a Claude Sonnet model; `select_model.py` lists what your account can access and lets you choose)
   - Amazon Bedrock AgentCore (Runtime, Gateway, Memory)
 
 ---
@@ -221,8 +223,13 @@ cd "Retail Dynamic Pricing"
 # Python environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+
+# Install the pinned/validated dependency set, then the project itself
+pip install -r requirements.txt
+pip install -e . --no-deps
 ```
+
+> The pinned `requirements.txt` is the validated dependency set (it includes `cdk-nag`, which the CDK app requires). Installing it before `pip install -e . --no-deps` keeps the resolved versions reproducible.
 
 ### 2. Deploy Infrastructure (CDK)
 
@@ -427,14 +434,44 @@ PYTHONPATH=. python -m backend.agents.testing_harness
 
 ## Teardown
 
-```bash
-# Destroy CDK stacks
-npx cdk destroy --all
+### One-command teardown (recommended)
 
-# Delete AgentCore resources
-python scripts/deploy_agentcore.py --delete --region us-east-1
-aws bedrock delete-guardrail --guardrail-identifier <GUARDRAIL_ID> --region us-east-1
+```bash
+./teardown.sh --region us-east-1
 ```
+
+`teardown.sh` removes everything `deploy.sh` created, in the correct dependency
+order: empties the frontend S3 buckets (including object versions), runs
+`cdk destroy --all`, deletes the AgentCore gateway targets → gateway → agent
+runtimes → memory, then the ECR repositories and the IAM role. Resources are
+discovered dynamically by name, and every step is safe to re-run. It prompts for
+confirmation; pass `--yes` to skip the prompt.
+
+### Manual teardown (fallback)
+
+```bash
+# 1. Empty the frontend S3 buckets first (CloudFormation cannot delete non-empty buckets)
+for b in $(aws s3api list-buckets --query "Buckets[?starts_with(Name,'retaildynamicpricing-')].Name" --output text); do
+  aws s3 rm "s3://$b" --recursive
+done
+
+# 2. Destroy the CDK stack
+npx cdk destroy --all --app ".venv/bin/python3 cdk/app.py"
+
+# 3. Delete AgentCore resources (gateway targets -> gateway -> runtimes -> memory).
+#    Discover IDs with: aws bedrock-agentcore-control list-gateways / list-agent-runtimes / list-memories
+#    then delete-gateway-target, delete-gateway, delete-agent-runtime, delete-memory.
+
+# 4. Delete ECR repositories and the IAM role
+for r in $(aws ecr describe-repositories --query "repositories[?starts_with(repositoryName,'retail-pricing/')].repositoryName" --output text); do
+  aws ecr delete-repository --repository-name "$r" --force
+done
+aws iam delete-role-policy --role-name RetailPricingAgentCoreRole --policy-name RetailPricingAgentCorePolicy
+aws iam delete-role --role-name RetailPricingAgentCoreRole
+```
+
+> **Note:** this demo does not create its own Bedrock guardrail resource, so there
+> is no guardrail to delete during teardown.
 
 ---
 

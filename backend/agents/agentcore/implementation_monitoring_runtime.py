@@ -21,6 +21,7 @@ import logging
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 from backend.agents.agentcore.memory_config import create_session_manager
+from shared.model_config import SPECIALIST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ def invoke(payload: dict) -> dict:
 
         guardrail_kwargs = get_guardrail_config()
         agent = Agent(
-            model="us.anthropic.claude-sonnet-4-6",
+            model=SPECIALIST_MODEL,
             system_prompt=IMPLEMENTATION_MONITORING_SYSTEM_PROMPT,
             tools=[
                 execute_price_update,

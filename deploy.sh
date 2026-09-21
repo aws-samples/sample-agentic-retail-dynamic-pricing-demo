@@ -4,6 +4,9 @@
 # =============================================================================
 # This script automates the full deployment of the Retail Dynamic Pricing
 # solution. It handles all 10 steps from the README deployment guide.
+# It installs the pinned/validated dependency set (requirements.txt, then
+# `pip install -e . --no-deps`), builds the frontends for S3 + CloudFront
+# hosting, and runs verify_deployment.py as a gate before declaring success.
 #
 # Prerequisites:
 #   - AWS CLI configured with appropriate credentials
@@ -11,6 +14,7 @@
 #   - Node.js 20+
 #   - Docker running (for AgentCore agent containers)
 #   - AWS CDK CLI (npm install -g aws-cdk)
+#     (cdk-nag is a Python dependency installed via requirements.txt)
 #
 # Usage:
 #   chmod +x deploy.sh
@@ -117,13 +121,19 @@ else
     print_success "Virtual environment already exists"
 fi
 source .venv/bin/activate
-.venv/bin/pip install -e . --quiet
-print_success "Dependencies installed"
+# Install the PINNED, validated dependency set first for reproducible builds,
+# then install the local package itself (-e .). Installing requirements.txt
+# first means every deploy uses the exact versions we validated end-to-end,
+# rather than whatever pip resolves from the looser pyproject.toml ranges.
+.venv/bin/pip install -r requirements.txt --quiet
+.venv/bin/pip install -e . --no-deps --quiet
+print_success "Dependencies installed (pinned from requirements.txt)"
 
 # Step 1.5: Security — Dependency vulnerability scan
 print_step "1.5" "Scanning dependencies for known vulnerabilities"
 .venv/bin/pip install pip-audit --quiet
-if .venv/bin/pip-audit --strict --progress-spinner off 2>&1 | tail -5; then
+# Audit the pinned requirements set (the versions actually deployed).
+if .venv/bin/pip-audit -r requirements.txt --strict --progress-spinner off 2>&1 | tail -5; then
     print_success "No known vulnerabilities found in dependencies"
 else
     echo ""
@@ -175,13 +185,21 @@ export MARKET_SIGNALS_LAMBDA_ARN=$(aws lambda get-function --function-name rdp-m
 export COST_FINANCE_LAMBDA_ARN=$(aws lambda get-function --function-name rdp-mcp-cost-finance --query "Configuration.FunctionArn" --output text --region $REGION 2>/dev/null || echo "")
 
 if [ -n "$COMPETITOR_API_LAMBDA_ARN" ]; then
-    python3 scripts/setup_gateway.py --region $REGION || print_warning "Gateway setup had issues (non-critical, resources may already exist)"
+    # setup_gateway.py is idempotent (reuses an existing gateway/targets) and
+    # exits 0 on success. A non-zero exit is a real failure, so let it stop the
+    # deploy (set -e) rather than masking it — a silent gateway failure leaves
+    # the agents with no MCP tools.
+    python3 scripts/setup_gateway.py --region $REGION
     print_success "Gateway targets registered"
 else
-    print_warning "MCP Server Lambdas not found — skipping gateway setup"
+    echo "ERROR: MCP Server Lambdas (rdp-mcp-*) not found. CDK deploy (Step 2)"
+    echo "       must complete before gateway setup. Aborting."
+    exit 1
 fi
 
-python3 scripts/setup_memory.py --region $REGION || print_warning "Memory setup had issues (non-critical, may already exist)"
+# setup_memory.py is idempotent and exits 0 on success; a non-zero exit is a
+# real failure and should stop the deploy.
+python3 scripts/setup_memory.py --region $REGION
 print_success "AgentCore Memory provisioned"
 
 # Step 6: Seed Data
@@ -337,6 +355,24 @@ if [ -n "$USER_POOL_ID" ] && [ -n "$CLIENT_ID" ] && [ -n "$DASHBOARD_CF" ]; then
     print_success "Callback URLs configured for $DASHBOARD_CF"
 else
     print_warning "Could not auto-configure callbacks — do manually (see README Step 9)"
+fi
+
+# Step 9.5: Verify the deployment is actually healthy before declaring success.
+# This turns "the script finished" into "the deployment works" — a full deploy
+# must pass verification, otherwise we exit non-zero so the failure is visible.
+if [ "$SKIP_AGENTS" = false ] && [ "$SKIP_FRONTEND" = false ]; then
+    print_step "9.5" "Verifying deployment"
+    if python3 scripts/verify_deployment.py --region $REGION; then
+        print_success "Deployment verification passed"
+    else
+        echo ""
+        echo "ERROR: Deployment verification FAILED. The stack deployed but one or"
+        echo "       more health checks did not pass. Review the output above before"
+        echo "       using the demo. See docs/KNOWN_ISSUES.md for common causes."
+        exit 1
+    fi
+else
+    print_warning "Skipping deployment verification (partial deploy: --skip-agents/--skip-frontend)"
 fi
 
 # Step 10: Summary

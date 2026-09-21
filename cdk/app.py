@@ -136,6 +136,13 @@ NagSuppressions.add_stack_suppressions(stack, [
         "reason": "The /products and /products/{id} endpoints are intentionally unauthenticated — "
                   "they serve the public consumer storefront catalog. Documented as business requirement.",
     },
+    {
+        "id": "AwsSolutions-COG8",
+        "reason": "Cognito Plus tier (advanced security / threat protection) is not enabled — this demo "
+                  "uses the Essentials tier. MFA is REQUIRED (TOTP) for all users, which provides the "
+                  "primary defense against credential stuffing on all tiers. Documented as an accepted "
+                  "demo limitation in docs/KNOWN_ISSUES.md; production should upgrade to the Plus tier.",
+    },
 ])
 
 app.synth()

@@ -30,9 +30,10 @@ def get_guardrail_config() -> dict:
 
     Usage with Strands Agent:
         from backend.agents.agentcore.guardrail_config import get_guardrail_config
+        from shared.model_config import SPECIALIST_MODEL
 
         agent = Agent(
-            model="us.anthropic.claude-sonnet-4-6",
+            model=SPECIALIST_MODEL,
             system_prompt=SYSTEM_PROMPT,
             tools=tools,
             **get_guardrail_config(),

@@ -9,9 +9,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Bumped dashboard dev dependencies to patched versions to clear vulnerability alerts: `browserslist` 4.28.8, `nanoid` 3.3.18, `postcss-selector-parser` 6.1.4 (non-breaking `npm audit fix`)
 - Bumped storefront dev dependencies to patched versions: `browserslist` 4.28.8, `nanoid` 3.3.18 (targeted update; storefront builds clean with zero audit findings)
+- Aligned both frontends on the same validated tooling: `vite` 8.3.0, `@vitejs/plugin-react` 5.2.0, `react-router-dom` 7.18.4 (dashboard was on Vite 5); `npm audit` now reports 0 vulnerabilities on both
+- Frontend hosting is S3 + CloudFront only — removed the unused AWS Amplify apps from the hosting stack; stack outputs now expose only `DashboardCloudFrontUrl` / `StorefrontCloudFrontUrl` (the `DashboardAmplifyAppId` / `StorefrontAmplifyAppId` outputs are gone)
+- Model selection now drives all agents: the AgentCore runtime containers read the shared model config (`ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) instead of hardcoding model IDs, and `scripts/select_model.py` writes both `modelId` and `specialistModelId` to `model-config.json`
+- `deploy.sh` now installs the pinned/validated root `requirements.txt` (`pip install -r requirements.txt`, then `pip install -e . --no-deps`) and runs `pip-audit` against `requirements.txt` for reproducible dependency resolution
+- `deploy.sh` now fails loudly on real gateway/memory errors (removed the non-critical warning swallow) and runs `verify_deployment.py` as a gate (Step 9.5) before declaring success
+
+### Fixed
+- Added `cdk-nag` to `pyproject.toml` (pinned `cdk-nag>=2.35.0,<3.0.0`) — it was missing, so `cdk deploy` failed with `ModuleNotFoundError: No module named 'cdk_nag'`; the `<3.0.0` pin avoids the 3.x removal of `NagSuppressions` from the top-level API
+- `scripts/setup_gateway.py` now waits for the AgentCore gateway to reach READY before registering targets (previously failed with "gateway is in CREATING status") and synchronizes targets one at a time, treating "Target type LAMBDA is not supported for synchronization" as expected (Lambda targets get their tools from the inline `toolSchema` at registration)
+- Resolved the storefront `npm install` ERESOLVE conflict (`vite@8` was incompatible with `@vitejs/plugin-react@4.7.0`) via the frontend dependency alignment above
+- Corrected the Bedrock IAM resource ARNs in `create_agentcore_role.py` — replaced a malformed ARN with proper foundation-model and inference-profile ARNs
 
 ### Security
 - Added non-production sample-code disclaimer to the README Security section
+- Suppress `AwsSolutions-COG8` alongside the existing `AwsSolutions-COG3` as the same accepted Cognito Essentials-tier limitation (Threat Protection / Plus tier not used; MFA-TOTP is the compensating control)
 
 ## [1.0.0] - 2026-07-07
 

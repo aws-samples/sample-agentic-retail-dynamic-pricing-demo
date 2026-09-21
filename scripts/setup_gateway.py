@@ -19,8 +19,49 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 
 import boto3
+
+# Gateway readiness polling configuration
+_GATEWAY_READY_STATES = {"READY", "ACTIVE", "AVAILABLE"}
+_GATEWAY_FAILED_STATES = {"FAILED", "CREATE_FAILED", "DELETE_FAILED"}
+_GATEWAY_WAIT_TIMEOUT_SECONDS = 180
+_GATEWAY_WAIT_INTERVAL_SECONDS = 5
+
+
+def _get_gateway_status(client, gateway_id: str) -> str:
+    """Return the current status of a gateway, or '' if not resolvable."""
+    try:
+        response = client.get_gateway(gatewayIdentifier=gateway_id)
+    except Exception:
+        return ""
+    return response.get("status", "")
+
+
+def _wait_for_gateway_ready(client, gateway_id: str) -> None:
+    """Block until the gateway leaves CREATING and is ready for target registration.
+
+    AgentCore rejects CreateGatewayTarget while the gateway is still in CREATING
+    status, so we must poll until it reaches a ready state before registering
+    targets. Raises RuntimeError on failure or timeout.
+    """
+    deadline = time.monotonic() + _GATEWAY_WAIT_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        status = _get_gateway_status(client, gateway_id)
+        if status in _GATEWAY_READY_STATES:
+            print(f"  Gateway is {status} — ready for target registration")
+            return
+        if status in _GATEWAY_FAILED_STATES:
+            raise RuntimeError(
+                f"Gateway {gateway_id} entered failed state: {status}"
+            )
+        print(f"  Gateway status: {status or 'UNKNOWN'}, waiting...")
+        time.sleep(_GATEWAY_WAIT_INTERVAL_SECONDS)
+    raise RuntimeError(
+        f"Timed out after {_GATEWAY_WAIT_TIMEOUT_SECONDS}s waiting for gateway "
+        f"{gateway_id} to become ready (last status polled)."
+    )
 
 
 def setup_gateway(region: str = "us-east-1") -> str:
@@ -70,6 +111,10 @@ def setup_gateway(region: str = "us-east-1") -> str:
         print(f"  Created gateway: {gateway_id}")
 
     print(f"  Gateway ID: {gateway_id}")
+
+    # A freshly created gateway starts in CREATING status. AgentCore rejects
+    # CreateGatewayTarget until the gateway is ready, so wait before registering.
+    _wait_for_gateway_ready(client, gateway_id)
 
     # Define MCP Server Lambda targets with their tool schemas
     mcp_targets = [
@@ -162,12 +207,40 @@ def setup_gateway(region: str = "us-east-1") -> str:
             else:
                 raise
 
-    # Synchronize to discover tools from all targets
-    print("\nSynchronizing gateway targets (discovering tools)...")
-    client.synchronize_gateway_targets(
-        gatewayIdentifier=gateway_id,
-        targetIdList=target_ids,
-    )
+    # Tool discovery for the MCP targets.
+    #
+    # Lambda-backed gateway targets do NOT support explicit synchronization —
+    # AgentCore returns "Target type LAMBDA is not supported for synchronization".
+    # For Lambda targets the tool schema is supplied inline at registration time
+    # (see toolSchema.inlinePayload above), so no sync/discovery step is needed;
+    # tools are available as soon as the target is registered.
+    #
+    # We still attempt a per-target sync (one ID per call — the API rejects
+    # batches) to support any non-Lambda target types added in the future, and
+    # treat the "not supported" response as expected for Lambda targets.
+    print("\nFinalizing gateway targets...")
+    synced = 0
+    for target_id in target_ids:
+        try:
+            client.synchronize_gateway_targets(
+                gatewayIdentifier=gateway_id,
+                targetIdList=[target_id],
+            )
+            synced += 1
+            print(f"  Synchronized target: {target_id}")
+        except ClientError as e:
+            msg = str(e)
+            if "not supported for synchronization" in msg:
+                # Expected for Lambda targets — tools come from the inline schema.
+                print(f"  Target {target_id}: inline tool schema (no sync needed)")
+            else:
+                print(
+                    f"  Warning: could not synchronize target {target_id}: {e}. "
+                    "Tools will still be discovered on first use.",
+                    file=sys.stderr,
+                )
+    if synced:
+        print(f"  Synchronized {synced}/{len(target_ids)} targets")
 
     print(f"\nGateway setup complete!")
     print(f"  Gateway ID: {gateway_id}")
