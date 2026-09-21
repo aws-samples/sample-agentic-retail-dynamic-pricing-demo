@@ -443,3 +443,10 @@ when `scripts/setup_gateway.py` tries to register the MCP Server targets right a
 **Fix:** The runtime containers now read the shared model configuration (`shared.model_config` → `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) instead of hardcoding model IDs, and `scripts/select_model.py` writes both `modelId` and `specialistModelId` to `model-config.json`. The selected model now genuinely drives all agents; both tiers default to the selected model unless `SPECIALIST_MODEL_ID` overrides the specialist tier.
 
 **Prevention:** Keep configurable values in one shared config source that both scripts and runtime read from — never duplicate them as hardcoded constants in the runtime.
+
+---
+### Issue: `cdk destroy` fails to delete the access-logs S3 bucket ("bucket not empty")
+**Symptom:** During teardown, `cdk destroy` fails with `DELETE_FAILED` on the hosting access-logs S3 bucket: "The bucket you tried to delete is not empty", even though the buckets were emptied moments earlier.
+**Root Cause:** The access-logs bucket continuously receives CloudFront and S3 server access logs from the dashboard/storefront buckets. New log objects land in it between the time it is emptied and the time CloudFormation tries to delete it, so it is non-empty again at deletion.
+**Fix:** `teardown.sh` re-empties all `retaildynamicpricing-*` buckets immediately before each `cdk destroy` attempt and retries the destroy up to 3 times. Running teardown again also clears it, since by the retry the log-producing distributions are already being removed.
+**Prevention:** When deleting buckets that receive access logs, empty them as late as possible (right before delete) and retry; do not rely on a single up-front empty.

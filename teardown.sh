@@ -40,6 +40,29 @@ print_step() { echo ""; echo "==================================================
 print_success() { echo "  ✓ $1"; }
 print_info() { echo "  • $1"; }
 
+# Empty every retaildynamicpricing-* bucket (current objects + versions +
+# delete-markers). Called before the stack delete and again on each destroy
+# retry, because the access-logs bucket keeps receiving CloudFront/S3 access
+# logs and can refill between "empty" and "delete".
+empty_rdp_buckets() {
+    local buckets b
+    buckets=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'retaildynamicpricing-')].Name" --output text 2>/dev/null)
+    for b in $buckets; do
+        aws s3 rm "s3://$b" --recursive --only-show-errors 2>/dev/null || true
+        local versions markers
+        versions=$(aws s3api list-object-versions --bucket "$b" \
+            --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)
+        if [ -n "$versions" ] && [ "$versions" != '{"Objects": null}' ]; then
+            aws s3api delete-objects --bucket "$b" --delete "$versions" >/dev/null 2>&1 || true
+        fi
+        markers=$(aws s3api list-object-versions --bucket "$b" \
+            --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)
+        if [ -n "$markers" ] && [ "$markers" != '{"Objects": null}' ]; then
+            aws s3api delete-objects --bucket "$b" --delete "$markers" >/dev/null 2>&1 || true
+        fi
+    done
+}
+
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
 if [ -z "$ACCOUNT_ID" ]; then
     echo "ERROR: AWS credentials not configured. Run 'aws configure' or 'aws sso login'."
@@ -71,24 +94,8 @@ fi
 
 # --- Step 1: Empty the frontend S3 buckets (current objects + versions) ---
 print_step "Step 1: Emptying frontend S3 buckets"
-BUCKETS=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'retaildynamicpricing-')].Name" --output text 2>/dev/null)
-if [ -n "$BUCKETS" ]; then
-    for b in $BUCKETS; do
-        print_info "Emptying s3://$b"
-        # Delete current objects.
-        aws s3 rm "s3://$b" --recursive --only-show-errors 2>/dev/null || true
-        # Delete all object versions and delete-markers (versioned buckets).
-        VERSIONS=$(aws s3api list-object-versions --bucket "$b" \
-            --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)
-        if [ -n "$VERSIONS" ] && [ "$VERSIONS" != '{"Objects": null}' ]; then
-            aws s3api delete-objects --bucket "$b" --delete "$VERSIONS" >/dev/null 2>&1 || true
-        fi
-        MARKERS=$(aws s3api list-object-versions --bucket "$b" \
-            --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)
-        if [ -n "$MARKERS" ] && [ "$MARKERS" != '{"Objects": null}' ]; then
-            aws s3api delete-objects --bucket "$b" --delete "$MARKERS" >/dev/null 2>&1 || true
-        fi
-    done
+if [ -n "$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'retaildynamicpricing-')].Name" --output text 2>/dev/null)" ]; then
+    empty_rdp_buckets
     print_success "S3 buckets emptied"
 else
     print_info "No retaildynamicpricing-* buckets found (already gone)"
@@ -97,8 +104,28 @@ fi
 # --- Step 2: Destroy the CloudFormation stack via CDK ---
 print_step "Step 2: Destroying CDK stack (RetailDynamicPricing)"
 if aws cloudformation describe-stacks --stack-name RetailDynamicPricing --region "$REGION" >/dev/null 2>&1; then
-    npx cdk destroy --all --force --app ".venv/bin/python3 cdk/app.py" || \
-        print_info "cdk destroy returned non-zero (CLI may exit before CFN confirms) — verifying below"
+    # The access-logs bucket keeps receiving CloudFront/S3 access logs, so it can
+    # refill between emptying and deletion and fail the stack delete. Re-empty
+    # the buckets before each attempt and retry a few times.
+    DESTROYED=false
+    for attempt in 1 2 3; do
+        print_info "cdk destroy attempt $attempt of 3"
+        empty_rdp_buckets
+        if npx cdk destroy --all --force --app ".venv/bin/python3 cdk/app.py"; then
+            DESTROYED=true
+            break
+        fi
+        print_info "Destroy attempt $attempt failed (likely S3 access-logs race); retrying after re-emptying..."
+        sleep 5
+    done
+    if [ "$DESTROYED" != true ]; then
+        echo ""
+        echo "ERROR: cdk destroy did not complete after 3 attempts. The stack may be"
+        echo "       in DELETE_FAILED. Check the CloudFormation console for the resource"
+        echo "       that failed to delete (commonly a non-empty S3 bucket)."
+        exit 1
+    fi
+    print_success "CDK stack destroyed"
 else
     print_info "Stack RetailDynamicPricing not found (already gone)"
 fi
