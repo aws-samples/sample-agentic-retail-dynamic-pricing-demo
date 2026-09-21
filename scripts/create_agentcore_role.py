@@ -53,8 +53,12 @@ def get_inline_policy(account_id: str, region: str) -> dict:
                     "bedrock:InvokeModelWithResponseStream",
                 ],
                 "Resource": [
-                    f"arn:aws:bedrock:{region}::foundation-model/*",
-                    f"arn:aws:bedrock:us::{region}:foundation-model/*",
+                    # Foundation models in all regions (cross-region inference
+                    # profiles route to the underlying model in several regions).
+                    "arn:aws:bedrock:*::foundation-model/*",
+                    # Cross-region inference profiles (the us.anthropic.* IDs the
+                    # agents actually invoke) live in the caller's account.
+                    f"arn:aws:bedrock:{region}:{account_id}:inference-profile/us.anthropic.*",
                 ],
             },
             {

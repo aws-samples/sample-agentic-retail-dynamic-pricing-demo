@@ -1,19 +1,22 @@
-"""CDK construct for CloudFront and Amplify hosting of frontend applications."""
+"""CDK construct for S3 + CloudFront hosting of frontend applications.
+
+Both frontends (Dashboard and Storefront) are static Vite/React builds served
+from private S3 buckets behind CloudFront distributions (origin access identity).
+The build artifacts are uploaded to the buckets by deploy.sh (`aws s3 sync`).
+"""
 
 from constructs import Construct
 import aws_cdk as cdk
-import aws_cdk.aws_amplify as amplify
 import aws_cdk.aws_cloudfront as cloudfront
 import aws_cdk.aws_cloudfront_origins as origins
 import aws_cdk.aws_s3 as s3
-import aws_cdk.aws_iam as iam
 
 
 class HostingConstruct(Construct):
     """Hosting infrastructure for Dashboard and Storefront frontend apps.
 
-    Creates AWS Amplify Hosting for both frontend applications with
-    CloudFront distributions for CDN delivery.
+    Serves both frontend applications from S3 buckets behind CloudFront
+    distributions (CDN delivery over HTTPS, origin locked down via OAI).
 
     - Dashboard: React/TS app authenticated via Cognito
     - Storefront: React/TS public app (no auth)
@@ -21,88 +24,6 @@ class HostingConstruct(Construct):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-
-        # --- IAM Role for Amplify ---
-        amplify_role = iam.Role(
-            self,
-            "AmplifyServiceRole",
-            assumed_by=iam.ServicePrincipal("amplify.amazonaws.com"),
-            description="Service role for Amplify hosting of frontend apps",
-        )
-
-        # --- Dashboard Amplify App ---
-        self.dashboard_app = amplify.CfnApp(
-            self,
-            "DashboardApp",
-            name="retail-pricing-dashboard",
-            iam_service_role=amplify_role.role_arn,
-            platform="WEB",
-            custom_rules=[
-                amplify.CfnApp.CustomRuleProperty(
-                    source="</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>",
-                    target="/index.html",
-                    status="200",
-                ),
-            ],
-            environment_variables=[
-                amplify.CfnApp.EnvironmentVariableProperty(
-                    name="AMPLIFY_MONOREPO_APP_ROOT",
-                    value="frontend/dashboard",
-                ),
-                amplify.CfnApp.EnvironmentVariableProperty(
-                    name="_LIVE_UPDATES",
-                    value='[{"pkg":"node","type":"nvm","version":"20"}]',
-                ),
-            ],
-            build_spec=self._get_build_spec(),
-        )
-
-        # Dashboard main branch
-        self.dashboard_branch = amplify.CfnBranch(
-            self,
-            "DashboardMainBranch",
-            app_id=self.dashboard_app.attr_app_id,
-            branch_name="main",
-            stage="PRODUCTION",
-            enable_auto_build=True,
-        )
-
-        # --- Storefront Amplify App ---
-        self.storefront_app = amplify.CfnApp(
-            self,
-            "StorefrontApp",
-            name="retail-pricing-storefront",
-            iam_service_role=amplify_role.role_arn,
-            platform="WEB",
-            custom_rules=[
-                amplify.CfnApp.CustomRuleProperty(
-                    source="</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>",
-                    target="/index.html",
-                    status="200",
-                ),
-            ],
-            environment_variables=[
-                amplify.CfnApp.EnvironmentVariableProperty(
-                    name="AMPLIFY_MONOREPO_APP_ROOT",
-                    value="frontend/storefront",
-                ),
-                amplify.CfnApp.EnvironmentVariableProperty(
-                    name="_LIVE_UPDATES",
-                    value='[{"pkg":"node","type":"nvm","version":"20"}]',
-                ),
-            ],
-            build_spec=self._get_build_spec(),
-        )
-
-        # Storefront main branch
-        self.storefront_branch = amplify.CfnBranch(
-            self,
-            "StorefrontMainBranch",
-            app_id=self.storefront_app.attr_app_id,
-            branch_name="main",
-            stage="PRODUCTION",
-            enable_auto_build=True,
-        )
 
         # --- Access Logging Bucket ---
         self.access_logs_bucket = s3.Bucket(
@@ -280,26 +201,12 @@ class HostingConstruct(Construct):
         # --- Stack Outputs ---
         cdk.CfnOutput(
             self,
-            "DashboardAmplifyAppId",
-            value=self.dashboard_app.attr_app_id,
-            description="Amplify App ID for Dashboard",
-        )
-
-        cdk.CfnOutput(
-            self,
             "DashboardCloudFrontUrl",
             value=cdk.Fn.sub(
                 "https://${Domain}",
                 {"Domain": self.dashboard_distribution.distribution_domain_name},
             ),
             description="Dashboard CloudFront distribution URL",
-        )
-
-        cdk.CfnOutput(
-            self,
-            "StorefrontAmplifyAppId",
-            value=self.storefront_app.attr_app_id,
-            description="Amplify App ID for Storefront",
         )
 
         cdk.CfnOutput(
@@ -311,24 +218,3 @@ class HostingConstruct(Construct):
             ),
             description="Storefront CloudFront distribution URL",
         )
-
-    @staticmethod
-    def _get_build_spec() -> str:
-        """Return the Amplify build spec for a Vite React/TypeScript app."""
-        return """version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - npm ci
-    build:
-      commands:
-        - npm run build
-  artifacts:
-    baseDirectory: dist
-    files:
-      - '**/*'
-  cache:
-    paths:
-      - node_modules/**/*
-"""

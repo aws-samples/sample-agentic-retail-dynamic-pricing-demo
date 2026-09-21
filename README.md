@@ -143,7 +143,7 @@ The AI models used by the pricing agents are configurable. The system scans your
 
 ### During Initial Deployment
 
-Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see a table of available models with status indicators and choose one interactively. The selected model ID is written to `model-config.json` and used by all agents.
+Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see a table of available models with status indicators and choose one interactively. The selected model ID is written to `model-config.json` (as both `modelId` and `specialistModelId`) and is used by all agents — the AgentCore runtime containers read the shared model configuration (`ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) at startup rather than hardcoding model IDs. Both tiers default to the selected model unless the `SPECIALIST_MODEL_ID` environment variable overrides the specialist tier.
 
 ### Switching Models After Deployment
 
@@ -179,6 +179,8 @@ Options:
 - **Docker** (for building AgentCore agent containers)
 - **AWS CDK CLI** (`npm install -g aws-cdk`)
 - **AWS CLI** configured with credentials
+
+> **Note:** `cdk-nag` (the CDK security linter the app runs) is a Python dependency installed automatically via `requirements.txt` — no manual install step is needed.
 - **AWS Account** with access to:
   - Amazon Bedrock (Claude Sonnet 4, Claude Opus 4)
   - Amazon Bedrock AgentCore (Runtime, Gateway, Memory)
@@ -221,8 +223,13 @@ cd "Retail Dynamic Pricing"
 # Python environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+
+# Install the pinned/validated dependency set, then the project itself
+pip install -r requirements.txt
+pip install -e . --no-deps
 ```
+
+> The pinned `requirements.txt` is the validated dependency set (it includes `cdk-nag`, which the CDK app requires). Installing it before `pip install -e . --no-deps` keeps the resolved versions reproducible.
 
 ### 2. Deploy Infrastructure (CDK)
 

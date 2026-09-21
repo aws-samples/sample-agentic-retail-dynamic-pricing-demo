@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Model Selection Script for Claims Processing Demo.
+Model Selection Script for Retail Dynamic Pricing Demo.
 
 Queries Amazon Bedrock for available Claude models, checks access,
 and lets the user select which model to use for deployment.
@@ -292,8 +292,14 @@ def main():
         selected_model.get("modelName", ""), selected_model_id
     )
 
+    # Write both tiers. The selected model is used for the orchestrator
+    # (modelId) and, by default, for the specialist agents (specialistModelId)
+    # so a single selection consistently drives every agent. Set
+    # SPECIALIST_MODEL_ID in the environment to override the specialist tier
+    # independently (see shared/model_config.py).
     config = {
         "modelId": cross_region_model_id,
+        "specialistModelId": cross_region_model_id,
         "modelName": selected_name,
     }
 

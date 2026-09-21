@@ -17,8 +17,8 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 |-----------|---------|---------|
 | Dashboard | React/TypeScript + Vite | Pricing management UI with tabs (Overview, Price Predictions, Simulations, Analytics, Product Catalog, Audit Trail, Scheduling, Operations) |
 | Storefront | React/TypeScript + Vite | Consumer-facing product catalog showing live prices |
-| CDN | Amazon CloudFront (2 distributions) | Global content delivery, HTTPS termination |
-| Static Hosting | Amazon S3 (2 buckets) | SPA hosting for Dashboard and Storefront |
+| CDN | Amazon CloudFront (2 distributions) | Global content delivery, HTTPS termination; fronts the S3 origins via Origin Access Identity (OAI) |
+| Static Hosting | Amazon S3 (2 buckets) | SPA hosting for Dashboard and Storefront — each frontend is built with Vite and the static `dist/` output is uploaded via `aws s3 sync`; buckets are private and served only through CloudFront + OAI |
 | Authentication | Amazon Cognito | User pool with hosted UI, JWT token validation |
 
 ### 2. API Layer
@@ -168,7 +168,8 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 - Each agent is independently deployable and scalable
 
 ### CI/CD Ready
-- All infrastructure in CDK (reproducible)
+- All infrastructure in CDK (reproducible), linted at synth time with `cdk-nag` AwsSolutionsChecks
+- Python dependencies pinned in `requirements.txt` (the validated set `deploy.sh` installs) and scanned with `pip-audit`
 - Agent code in `backend/agents/agentcore/`
 - Frontend builds are standard Vite → S3 sync → CloudFront invalidation
 

@@ -16,7 +16,7 @@ class RetailDynamicPricingStack(cdk.Stack):
     """Root stack for the Retail Dynamic Pricing system.
 
     This stack contains all constructs for DynamoDB tables, Cognito,
-    API Gateway, Lambda functions, CloudFront, and Amplify hosting.
+    API Gateway, Lambda functions, and S3 + CloudFront hosting.
     """
 
     def __init__(
@@ -40,7 +40,7 @@ class RetailDynamicPricingStack(cdk.Stack):
         # MCP Server Lambda functions
         self.mcp_servers = McpServersConstruct(self, "McpServers")
 
-        # Hosting: CloudFront + Amplify for Dashboard and Storefront
+        # Hosting: S3 + CloudFront for Dashboard and Storefront
         self.hosting = HostingConstruct(self, "Hosting")
 
         # Update Cognito callback URLs with the actual CloudFront domain

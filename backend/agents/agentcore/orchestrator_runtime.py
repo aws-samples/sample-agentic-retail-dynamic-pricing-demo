@@ -28,6 +28,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 import boto3
 
 from backend.agents.agentcore.memory_config import create_session_manager
+from shared.model_config import ORCHESTRATOR_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,9 @@ def _sanitize_agent_output(data: dict, agent_name: str) -> dict:
 
 app = BedrockAgentCoreApp()
 
-# The orchestrator agent uses Claude Opus for complex reasoning
-ORCHESTRATOR_MODEL = "us.anthropic.claude-opus-4-7"
+# The orchestrator model comes from shared.model_config (set by
+# scripts/select_model.py -> model-config.json, or the ORCHESTRATOR_MODEL_ID
+# env var). Imported above as ORCHESTRATOR_MODEL.
 
 # Agent ARNs (set as environment variables on the container)
 CI_ARN = os.environ["COMPETITIVE_INTELLIGENCE_AGENT_ARN"]
