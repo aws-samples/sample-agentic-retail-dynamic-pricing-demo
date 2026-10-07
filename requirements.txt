@@ -4,7 +4,7 @@
 #
 # Last validated: September 2026 (full end-to-end deploy on us-east-1)
 
-PyJWT==2.14.0
+PyJWT==2.15.0
 PyYAML==6.0.3
 Pygments==2.21.0
 aiohappyeyeballs==2.7.1
