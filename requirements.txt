@@ -56,7 +56,7 @@ opentelemetry-instrumentation==0.65b0
 opentelemetry-sdk==1.44.0
 opentelemetry-semantic-conventions==0.65b0
 packaging==26.3
-pillow==12.3.0
+pillow==13.0.0
 prompt_toolkit==3.0.53
 propcache==0.5.4
 publication==0.0.3
