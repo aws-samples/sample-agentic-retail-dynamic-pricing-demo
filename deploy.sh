@@ -229,10 +229,10 @@ else
 fi
 
 # Step 1.7: Model Selection
-print_step "1.7" "Selecting AI model (Bedrock)"
+print_step "1.7" "Selecting AI models (Bedrock): orchestrator + specialists"
 echo "Scanning available models and checking access..."
 python3 scripts/select_model.py --region $REGION
-print_success "Model selected — config written to model-config.json"
+print_success "Models selected — config written to model-config.json"
 
 # Step 2: Deploy Infrastructure (CDK) — first pass
 print_step "2" "Deploying infrastructure (CDK)"

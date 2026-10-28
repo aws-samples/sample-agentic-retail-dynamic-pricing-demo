@@ -23,7 +23,7 @@
 | **Purpose** | Transform retail pricing from 6-10 week manual process to an AI-driven workflow completing in under 2 minutes |
 | **Architecture** | 6 AI agents on Amazon Bedrock AgentCore Runtime |
 | **Framework** | Strands Agents SDK |
-| **Models** | Claude Opus 4.7 (orchestrator, synthesis), Claude Sonnet 4.6 (specialists) |
+| **Models** | Two tiers chosen at deploy: orchestrator (recommended: Claude Opus) and the five specialists, including synthesis (recommended: Claude Sonnet) |
 | **Data Integration** | 4 MCP Servers via AgentCore Gateway |
 | **Compliance** | Bedrock Guardrails (4 policies) + full audit trail |
 | **Approval** | Risk-based HITL routing + Straight-Through Processing for LOW risk |
