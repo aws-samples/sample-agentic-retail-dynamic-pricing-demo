@@ -479,7 +479,11 @@ class ApiHandlersConstruct(Construct):
             description=description,
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler=f"{handler_module}.handler",
-            code=lambda_.Code.from_asset(str(API_HANDLERS_DIR)),
+            # Exclude bytecode caches so local test runs don't change the asset hash.
+            code=lambda_.Code.from_asset(
+                str(API_HANDLERS_DIR),
+                exclude=["**/__pycache__", "**/*.pyc"],
+            ),
             memory_size=256,
             timeout=cdk.Duration.seconds(timeout_seconds),
             environment=environment or {},

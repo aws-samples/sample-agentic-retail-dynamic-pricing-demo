@@ -2,16 +2,11 @@
 # strands-agents>=1.53.0: the runtimes build their gateway tool client with
 # MCPClient(url=...), which does not exist in earlier releases.
 strands-agents>=1.53.0
-strands-agents-tools>=0.6.0
 bedrock-agentcore>=1.18.1
 pydantic>=2.0.0
 boto3>=1.43.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 urllib3>=2.0.0
-# multidict (transitive, via aiohttp/yarl): CVE-2026-104874 is fixed in 6.9.1.
-# This file is intentionally unpinned, so floor it to keep the container image
-# from ever resolving a vulnerable release.
-multidict>=6.9.1
 # Observability - OpenTelemetry auto-instrumentation
 aws-opentelemetry-distro>=0.10.1

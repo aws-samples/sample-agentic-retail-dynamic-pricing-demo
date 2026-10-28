@@ -78,8 +78,11 @@ class McpServersConstruct(Construct):
             description=description,
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.handler",
+            # Exclude bytecode caches: they change on every local test run,
+            # which changed the asset hash and re-uploaded the Lambda each deploy.
             code=lambda_.Code.from_asset(
                 str(MCP_SERVERS_DIR / handler_dir),
+                exclude=["**/__pycache__", "**/*.pyc"],
             ),
             memory_size=256,
             timeout=cdk.Duration.seconds(30),

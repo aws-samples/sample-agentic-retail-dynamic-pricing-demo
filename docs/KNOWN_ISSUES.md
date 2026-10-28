@@ -468,7 +468,7 @@ Defects found by checking a finished `./deploy.sh` run against the live account.
 
 **Symptom:** Step 1.5 showed a `pip-audit` traceback (`ensurepip ... died with <Signals.SIGABRT: 6>`) immediately followed by `✓ No known vulnerabilities found in dependencies`. A real finding (`multidict` 6.9.0, CVE-2026-104874, fixed in 6.9.1) was never reported.
 **Root Cause:** The scan was `if pip-audit ... | tail -5; then`, which tests the exit status of `tail`, not `pip-audit`, so it always passed. Separately, `pip-audit`'s default mode builds a temporary virtualenv to resolve `-r requirements.txt`, and that step aborted on this host.
-**Fix:** Step 1.5 now audits the pinned set directly (`--no-deps --disable-pip --strict`, no temporary venv), tests `pip-audit`'s own exit status, and reports exactly one of: no known vulnerabilities (✓), vulnerabilities found (listed, deploy continues), or scan could not run (warning, never ✓). It also audits the dependency set the agent containers would install (resolved with `pip install --dry-run`, because `backend/agents/agentcore/requirements.txt` is unpinned). `multidict` is bumped to 6.9.1 and floored in the container requirements.
+**Fix:** Step 1.5 now audits the pinned set directly (`--no-deps --disable-pip --strict`, no temporary venv), tests `pip-audit`'s own exit status, and reports exactly one of: no known vulnerabilities (✓), vulnerabilities found (listed, deploy continues), or scan could not run (warning, never ✓). It also audits the dependency set the agent containers would install (resolved with `pip install --dry-run`, because `backend/agents/agentcore/requirements.txt` is unpinned). `multidict` was bumped to 6.9.1 at the time; it has since been removed entirely, along with the unused package that pulled it in (see "Unused `strands-agents-tools` pulled in vulnerable Pillow, aiohttp and multidict" below).
 **Prevention:** Never pipe a gate command into another command inside an `if`; capture the output and test the real status.
 
 ### Issue: Agents deployed without the gateway and memory (no MCP tools, memory disabled)
@@ -498,3 +498,51 @@ Defects found by checking a finished `./deploy.sh` run against the live account.
 **Root Cause:** The existing-memory check treated `list_memories()` (a list) as a dict, swallowed the resulting error, matched on a `name` field the summaries do not have, and compared against the base name while the real ID carries a random suffix (`RetailDynamicPricingMemory-Ab12Cd34Ef`).
 **Fix:** The check now matches on the ID prefix, reuses the existing memory, and lets lookup errors fail the script instead of falling through to create.
 **Prevention:** Look resources up by what the API actually returns, and never create after a failed lookup.
+
+---
+
+## Dependency Hygiene
+
+Dependency findings from a review of the open Dependabot PRs and alerts. Each entry is either fixed or deliberately deferred with a trigger for when to act.
+
+### Issue: Unused `strands-agents-tools` pulled in vulnerable Pillow, aiohttp and multidict
+
+**Symptom:** Dependabot reported 50 open alerts on `requirements.txt` (41 Pillow including 5 critical, 8 aiohttp, 1 multidict). Dependabot's Pillow 13.0.0 PR made `pip install -r requirements.txt` fail with `ResolutionImpossible`.
+**Root Cause:** `strands-agents-tools` was declared in `requirements.txt`, `pyproject.toml` and `backend/agents/agentcore/requirements.txt`, but no code imports `strands_tools`. It was the only package requiring Pillow, aiohttp, multidict and 24 other packages, and it caps `pillow<13.0.0` (even in its latest release), so the Pillow fixes could not be installed. The same vulnerable Pillow also shipped inside all six agent container images, which Dependabot does not scan.
+**Fix:** Removed `strands-agents-tools` from all three files and dropped the 27 pins only it needed (also removed from `THIRD-PARTY-LICENSES`). The container requirements no longer floor `multidict`, because nothing installs it now.
+**Prevention:** Before bumping a vulnerable transitive dependency, check what requires it (`pip show <pkg>` / the resolver report); an unused parent is cheaper to remove than to patch around.
+
+### Issue: Dependabot single-package bumps break `pip install`
+
+**Symptom:** Dependabot PRs that bump one pin in `requirements.txt` (e.g. `opentelemetry-api` 1.45.1, `mcp` 2.2.0) fail `pip install -r requirements.txt` with `ResolutionImpossible`, which breaks `deploy.sh` Step 1.
+**Root Cause:** `requirements.txt` pins the full resolved set, and some packages are versioned together: `opentelemetry-sdk` and `opentelemetry-semantic-conventions` require an exact `opentelemetry-api` version, and `mcp` requires an exact `mcp-types` version. Dependabot bumps only the one package.
+**Fix:** The OpenTelemetry packages are bumped as a group (`opentelemetry-api` / `-sdk` 1.45.1; `-semantic-conventions`, `-instrumentation`, `-instrumentation-threading` 0.66b1). Close single-package Dependabot PRs for grouped packages and bump the group instead.
+**Prevention:** Before merging any dependency PR, run `pip install --dry-run -r requirements.txt` (or `deploy.sh` Step 1) on its branch.
+
+### Issue: `mcp` 2.1.1 has open advisories but cannot be upgraded yet
+
+**Symptom:** Dependabot and `pip-audit` report `mcp` 2.1.1 (fixed in 2.2.0).
+**Root Cause:** `strands-agents` (including its latest release, 1.62.0) requires `mcp<2.2`, so 2.2.0 cannot be installed alongside it.
+**Fix:** Intentionally deferred, alert dismissed as tolerable risk. The Dependabot-tracked advisory is in the MCP server StreamableHTTP transport; this project only uses the MCP client (`strands.tools.mcp.MCPClient`), and the agents connect only to this deployment's own AgentCore Gateway, which limits the client-side advisories (cross-origin redirects, server-chosen `$ref` URLs) to a server you control.
+**Prevention / when to act:** When a `strands-agents` release allows `mcp>=2.2`, bump `strands-agents`, `mcp` and `mcp-types` together and re-run the tests and `pip-audit`.
+
+### Issue: Competitor API price-variance tests failed intermittently
+
+**Symptom:** `test_competitor_price_points_within_variance` and `test_history_prices_within_10_percent_variance` failed occasionally (e.g. `assert 5.391 <= 5.39`), with a price a fraction of a cent outside the variance band.
+**Root Cause:** The handler rounds prices to 2 decimals, so a random price at the edge of the band can round to a value up to 0.005 outside it. All four variance-bound tests in `tests/test_competitor_api_handler.py` had the same exact-bound check.
+**Fix:** The four tests share a `_variance_bounds()` helper that widens the band by a 0.005 rounding tolerance.
+**Prevention:** When asserting bounds on rounded values, allow for the rounding.
+
+### Issue: Every deploy re-uploaded the Lambda assets
+
+**Symptom:** `cdk deploy` uploaded and updated the MCP server and API handler Lambdas on every run, even with no code changes.
+**Root Cause:** `Code.from_asset` packaged the whole handler directory, including `__pycache__` files that change on every local test run, so the asset hash changed each time.
+**Fix:** Both stacks exclude `**/__pycache__` and `**/*.pyc` from the Lambda assets.
+**Prevention:** Exclude build and cache artifacts from every `Code.from_asset` directory.
+
+### Issue: Agent containers still resolve OpenTelemetry 1.44.0
+
+**Symptom:** `pip-audit` on the agent container dependency set (Step 1.5 audits it) reports `opentelemetry-api` 1.44.0 (CVE-2026-114603, unbounded tracestate parsing) and `opentelemetry-propagator-jaeger` 1.44.0 (CVE-2026-116694, unbounded memory in Jaeger baggage propagation), although the host `requirements.txt` pins 1.45.1. Dependabot does not report these, because it does not scan `backend/agents/agentcore/requirements.txt`.
+**Root Cause:** `aws-opentelemetry-distro` (including its latest release, 0.21.0) pins `opentelemetry-api`, `opentelemetry-sdk` and `opentelemetry-propagator-jaeger` to exactly `==1.44.0`. Overriding the pin would break the distro.
+**Fix:** Intentionally deferred. Both advisories need attacker-controlled trace headers; the agent runtimes are reached only through IAM-authenticated `InvokeAgentRuntime` calls from this deployment's own Lambda and orchestrator, so an outside caller cannot send them crafted `tracestate` or baggage headers.
+**Prevention / when to act:** When an `aws-opentelemetry-distro` release allows OpenTelemetry 1.45.1 or later, rebuild the agent images (the file is unpinned, so the next deploy picks it up) and confirm Step 1.5's container audit is clean.

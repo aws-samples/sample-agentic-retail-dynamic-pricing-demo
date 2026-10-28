@@ -26,9 +26,6 @@ Name: strands-agents
 License: Apache License 2.0
 URL: https://github.com/strands-agents/sdk-python
 
-Name: strands-agents-tools
-License: Apache License 2.0
-URL: https://github.com/strands-agents/tools-python
 
 Name: bedrock-agentcore
 License: Apache License 2.0

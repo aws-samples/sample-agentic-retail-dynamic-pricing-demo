@@ -34,7 +34,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | Agent Runtime | Amazon Bedrock AgentCore Runtime | Serverless execution of 6 AI agents |
 | Agent Gateway | Amazon Bedrock AgentCore Gateway | MCP protocol endpoint for 4 data server targets |
 | Agent Memory | Amazon Bedrock AgentCore Memory | Persistent state across pricing cycles |
-| Guardrails | Amazon Bedrock Guardrails | Policy enforcement (4 denied topics + PII) |
+| Guardrails | Amazon Bedrock Guardrails (optional, bring your own) | Policy enforcement (4 denied topics + PII) when a guardrail is configured; otherwise the agents deploy with `DISABLE_BEDROCK_GUARDRAILS=true` |
 | Foundation Models | Amazon Bedrock — Claude Opus tier (orchestrator, strategy synthesis) + Claude Sonnet tier (specialists); exact model selected at deploy via `select_model.py` | LLM reasoning for pricing analysis |
 | Container Registry | Amazon ECR (6 repositories) | Docker images for agent runtimes |
 
@@ -109,7 +109,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
    → Orchestrator dispatches 3 intelligence agents in parallel
    → Each agent calls MCP Servers via Gateway for data
    → Results aggregated → Strategy Synthesis generates 5 ranked scenarios
-   → Bedrock Guardrails validate all recommendations
+   → Bedrock Guardrails validate all recommendations (when a guardrail is configured)
    → Scenarios written to DynamoDB
    → LOW risk scenarios auto-approved (STP)
    → Status updated to COMPLETE
@@ -144,6 +144,9 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 - Lambda extracts `sub` claim for audit trail attribution
 
 ### Guardrails (Amazon Bedrock Guardrails)
+
+The demo does not create this guardrail. `scripts/deploy_agentcore.py` attaches the one named by `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` if it exists in the account; otherwise it warns and deploys the agents with `DISABLE_BEDROCK_GUARDRAILS=true`. To enforce the policies below, create a guardrail with these denied topics and pass its ID at deploy time.
+
 - **PredatoryPricing** — blocks below-cost pricing to eliminate competitors
 - **PriceFixingAndCollusion** — blocks coordination with competitors
 - **DiscriminatoryPricing** — blocks pricing based on protected characteristics
