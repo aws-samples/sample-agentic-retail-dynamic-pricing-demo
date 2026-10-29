@@ -16,16 +16,24 @@ Usage:
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 import boto3
+from botocore.config import Config
+from botocore.exceptions import (
+    ClientError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    ReadTimeoutError,
+)
 
 from backend.agents.agentcore.memory_config import create_session_manager
 from shared.model_config import ORCHESTRATOR_MODEL
@@ -78,18 +86,111 @@ MI_ARN = os.environ["MARKET_INTELLIGENCE_AGENT_ARN"]
 SS_ARN = os.environ["STRATEGY_SYNTHESIS_AGENT_ARN"]
 IM_ARN = os.environ["IMPLEMENTATION_MONITORING_AGENT_ARN"]
 
-# Timeout and retry configuration
-AGENT_TIMEOUT_SECONDS = 120
+# Timeout and retry configuration.
+#
+# Sized from sandbox runs: Market Intelligence ~38 s, Competitive Intelligence
+# ~58 s, Demand Forecasting 58-240 s, Strategy Synthesis 71-83 s. Each value is
+# the botocore read timeout for that call. The runtimes reply with one JSON body
+# when the agent finishes, so the read timeout bounds the whole call.
+SPECIALIST_TIMEOUT_SECONDS = 300
+SYNTHESIS_TIMEOUT_SECONDS = 180
+CONNECT_TIMEOUT_SECONDS = 10
+
+# The orchestrator is the only layer that retries specialist calls: the SDK
+# retries are off. It retries only failures that are retryable AND fast (the
+# request was rejected or never reached the agent). A read timeout or a slow
+# failure means the agent probably ran, so retrying would re-run it and pay for
+# it twice.
 MAX_RETRIES = 2
+FAST_FAILURE_SECONDS = 15
+RETRY_BACKOFF_SECONDS = 1.0
+_RETRYABLE_ERROR_CODES = frozenset({
+    "ThrottlingException",
+    "ServiceUnavailableException",
+    "InternalServerException",
+})
+
+# Upper bound for one cycle, used by rdp-api-pricing-cycles to size its own read
+# timeout (tests/test_pricing_cycle_timeouts.py checks the chain). Per call: two
+# fast failures plus backoff, then one full-length attempt.
+_RETRY_OVERHEAD_SECONDS = MAX_RETRIES * FAST_FAILURE_SECONDS + sum(
+    RETRY_BACKOFF_SECONDS * 2**attempt for attempt in range(MAX_RETRIES)
+)
+ORCHESTRATOR_WORST_CASE_SECONDS = int(
+    SPECIALIST_TIMEOUT_SECONDS + SYNTHESIS_TIMEOUT_SECONDS + 2 * _RETRY_OVERHEAD_SECONDS
+)
 
 # Minimum session ID length required by AgentCore Runtime
 _MIN_SESSION_ID_LENGTH = 33
 
+# Fields of a pricing cycle request. rdp-api-pricing-cycles sends them at the top
+# level of the payload; older versions sent them as a JSON string in "prompt".
+_CYCLE_REQUEST_KEYS = ("pricing_group", "objectives", "constraints", "product_costs", "session_id")
 
-def _get_agentcore_client():
-    """Create a boto3 client for bedrock-agentcore."""
+
+@functools.lru_cache(maxsize=None)
+def _get_agentcore_client(read_timeout: int):
+    """Return a bedrock-agentcore client with the given read timeout and no SDK retries."""
     region = os.environ.get("AWS_REGION_NAME", os.environ.get("AWS_REGION", "us-east-1"))
-    return boto3.client("bedrock-agentcore", region_name=region)
+    return boto3.client(
+        "bedrock-agentcore",
+        region_name=region,
+        config=Config(
+            connect_timeout=CONNECT_TIMEOUT_SECONDS,
+            read_timeout=read_timeout,
+            retries={"total_max_attempts": 1, "mode": "standard"},
+        ),
+    )
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """True if the failed call most likely never ran the agent."""
+    if isinstance(exc, ReadTimeoutError):
+        return False
+    if isinstance(exc, (ConnectTimeoutError, EndpointConnectionError)):
+        return True
+    if isinstance(exc, ClientError):
+        return exc.response.get("Error", {}).get("Code", "") in _RETRYABLE_ERROR_CODES
+    return False
+
+
+def _parse_cycle_request(payload: dict) -> dict:
+    """Read the cycle request from the payload, accepting both payload shapes.
+
+    Raises ValueError if a field is present with the wrong type.
+    """
+    request = dict(payload)
+    if "pricing_group" not in request and isinstance(request.get("prompt"), str):
+        try:
+            nested = json.loads(request["prompt"])
+        except ValueError:
+            nested = None
+        if isinstance(nested, dict):
+            for key in _CYCLE_REQUEST_KEYS:
+                if key in nested and key not in request:
+                    request[key] = nested[key]
+
+    if "pricing_group" not in request:
+        logger.warning("Payload has no pricing_group; using 'default_category'")
+
+    parsed = {
+        "pricing_group": request.get("pricing_group", "default_category"),
+        "objectives": request.get("objectives", ["balanced"]),
+        "constraints": request.get("constraints", {}),
+        "product_costs": request.get("product_costs", []),
+        "session_id": request.get("session_id"),
+    }
+    if not isinstance(parsed["pricing_group"], str) or not parsed["pricing_group"]:
+        raise ValueError("pricing_group must be a non-empty string")
+    if not isinstance(parsed["objectives"], list) or not all(isinstance(o, str) for o in parsed["objectives"]):
+        raise ValueError("objectives must be a list of strings")
+    if not isinstance(parsed["constraints"], dict):
+        raise ValueError("constraints must be an object")
+    if not isinstance(parsed["product_costs"], list):
+        raise ValueError("product_costs must be a list")
+    if parsed["session_id"] is not None and not isinstance(parsed["session_id"], str):
+        raise ValueError("session_id must be a string")
+    return parsed
 
 
 def _ensure_session_id(session_id: str | None) -> str:
@@ -106,12 +207,15 @@ def _invoke_agent_runtime(
     agent_arn: str,
     prompt: str,
     session_id: str,
-    timeout_seconds: int = AGENT_TIMEOUT_SECONDS,
+    timeout_seconds: int = SPECIALIST_TIMEOUT_SECONDS,
 ) -> dict:
-    """Invoke an agent via AgentCore Runtime API."""
-    client = _get_agentcore_client()
+    """Invoke an agent via AgentCore Runtime API.
+
+    timeout_seconds is the read timeout. A slow but successful response is
+    returned, not discarded.
+    """
+    client = _get_agentcore_client(timeout_seconds)
     payload = json.dumps({"prompt": prompt}).encode()
-    start_time = time.time()
 
     response = client.invoke_agent_runtime(
         agentRuntimeArn=agent_arn,
@@ -121,13 +225,6 @@ def _invoke_agent_runtime(
     )
 
     response_body = response["response"].read()
-    elapsed_ms = int((time.time() - start_time) * 1000)
-
-    if elapsed_ms > timeout_seconds * 1000:
-        raise TimeoutError(
-            f"AgentCore invocation exceeded {timeout_seconds}s timeout "
-            f"(took {elapsed_ms}ms)"
-        )
 
     try:
         result = json.loads(response_body)
@@ -143,9 +240,9 @@ def _invoke_with_retry(
     agent_name: str,
     session_id: str,
     max_retries: int = MAX_RETRIES,
-    timeout_seconds: int = AGENT_TIMEOUT_SECONDS,
+    timeout_seconds: int = SPECIALIST_TIMEOUT_SECONDS,
 ) -> dict:
-    """Invoke an agent with retry logic. Returns result dict with status."""
+    """Invoke an agent, retrying only fast, retryable failures. Returns result dict with status."""
     runtime_session_id = _ensure_session_id(session_id)
 
     for attempt in range(1 + max_retries):
@@ -173,15 +270,21 @@ def _invoke_with_retry(
             }
         except Exception as e:
             duration_ms = int((time.time() - start_time) * 1000)
-            if attempt < max_retries:
+            retry = (
+                attempt < max_retries
+                and _is_retryable(e)
+                and duration_ms < FAST_FAILURE_SECONDS * 1000
+            )
+            if retry:
                 logger.warning(
                     "%s failed on attempt %d/%d (%dms): %s. Retrying...",
                     agent_name, attempt + 1, 1 + max_retries, duration_ms, str(e),
                 )
+                time.sleep(RETRY_BACKOFF_SECONDS * 2**attempt)
             else:
                 logger.error(
-                    "%s failed after %d attempts (%dms): %s. Degrading.",
-                    agent_name, 1 + max_retries, duration_ms, str(e),
+                    "%s failed on attempt %d (%dms), not retrying: %s. Degrading.",
+                    agent_name, attempt + 1, duration_ms, str(e),
                 )
                 return {
                     "agent_name": agent_name,
@@ -223,7 +326,9 @@ def _run_parallel_intelligence(prompt: str, session_id: str) -> list[dict]:
         for future in as_completed(futures):
             agent_name = futures[future]
             try:
-                result = future.result(timeout=AGENT_TIMEOUT_SECONDS * (1 + MAX_RETRIES))
+                # as_completed only yields finished futures; each call is
+                # bounded by its read timeout.
+                result = future.result()
                 results.append(result)
             except Exception as e:
                 logger.error("%s raised unexpected exception: %s", agent_name, e)
@@ -252,7 +357,8 @@ def _get_agent_data(results: list[dict], agent_name: str) -> dict:
 def invoke(payload: dict) -> dict:
     """Handle an invocation request from AgentCore Runtime.
 
-    Expected payload:
+    Expected payload (the same fields as a JSON string in "prompt" are also
+    accepted, for callers deployed before the top-level shape):
         {
             "pricing_group": "Electronics",
             "objectives": ["revenue_maximization"],
@@ -271,11 +377,12 @@ def invoke(payload: dict) -> dict:
         }
     """
     try:
-        pricing_group = payload.get("pricing_group", "default_category")
-        objectives = payload.get("objectives", ["balanced"])
-        constraints = payload.get("constraints", {})
-        product_costs = payload.get("product_costs", [])
-        session_id = payload.get("session_id")
+        request = _parse_cycle_request(payload)
+        pricing_group = request["pricing_group"]
+        objectives = request["objectives"]
+        constraints = request["constraints"]
+        product_costs = request["product_costs"]
+        session_id = request["session_id"]
 
         cycle_id = str(uuid.uuid4())
         cycle_start = time.time()
@@ -348,13 +455,26 @@ def invoke(payload: dict) -> dict:
             len(successful_results), len(agent_results),
         )
 
-        synthesis_session = _ensure_session_id(session_id)
-        synthesis_result = _invoke_agent_runtime(
+        synthesis = _invoke_with_retry(
             agent_arn=SS_ARN,
             prompt=synthesis_prompt,
-            session_id=synthesis_session,
-            timeout_seconds=AGENT_TIMEOUT_SECONDS,
+            agent_name="Strategy Synthesis",
+            session_id=session_id,
+            timeout_seconds=SYNTHESIS_TIMEOUT_SECONDS,
         )
+        if not synthesis["success"]:
+            return {
+                "cycle_id": cycle_id,
+                "status": "FAILED",
+                "ranked_scenarios": [],
+                "degraded_agents": degraded_agents + ["Strategy Synthesis"],
+                "error": synthesis.get("error"),
+                "metadata": {
+                    "duration_ms": int((time.time() - cycle_start) * 1000),
+                    "reason": "Strategy Synthesis failed",
+                },
+            }
+        synthesis_result = synthesis["data"]
 
         ranked_scenarios = synthesis_result.get("ranked_scenarios", [])
         status = "DEGRADED" if degraded_agents else "COMPLETE"
