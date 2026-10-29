@@ -36,6 +36,16 @@ API_HANDLERS_DIR = Path(__file__).parent.parent.parent / "backend" / "api_handle
 # backend/api_handlers/pricing_cycles.py and stay within Lambda's 900 s maximum.
 PRICING_CYCLES_TIMEOUT_SECONDS = 720
 
+# API Gateway throttling (requests per second / burst) for the prod stage, and a
+# tighter limit for POST /pricing-cycles, which starts a model-backed cycle.
+STAGE_THROTTLE_RATE = 50
+STAGE_THROTTLE_BURST = 100
+CREATE_CYCLE_THROTTLE_RATE = 1
+CREATE_CYCLE_THROTTLE_BURST = 2
+
+# POST /pricing-cycles returns 429 while this many cycles are running.
+MAX_ACTIVE_CYCLES = 3
+
 
 class ApiHandlersConstruct(Construct):
     """Construct containing API Gateway Lambda handlers and route integrations.
@@ -89,7 +99,21 @@ class ApiHandlersConstruct(Construct):
                     "X-CSRF-Token",
                 ],
             ),
-            deploy_options=apigw.StageOptions(stage_name="prod"),
+            deploy_options=apigw.StageOptions(
+                stage_name="prod",
+                # Stage default, instead of the account-wide 10,000 rps. Leaves
+                # room for the dashboard's polling (every 5 s per open view).
+                throttling_rate_limit=STAGE_THROTTLE_RATE,
+                throttling_burst_limit=STAGE_THROTTLE_BURST,
+                method_options={
+                    # Each POST starts a model-backed pricing cycle. This limits
+                    # bursts; the handler also caps running cycles (MAX_ACTIVE_CYCLES).
+                    "/pricing-cycles/POST": apigw.MethodDeploymentOptions(
+                        throttling_rate_limit=CREATE_CYCLE_THROTTLE_RATE,
+                        throttling_burst_limit=CREATE_CYCLE_THROTTLE_BURST,
+                    ),
+                },
+            ),
         )
 
         # --- Cognito Authorizer ---
@@ -132,6 +156,7 @@ class ApiHandlersConstruct(Construct):
                 # which in turn coordinates the other 5 agents on AgentCore.
                 # Read from ORCHESTRATOR_AGENT_ARN env var or scripts/agent_arns.env
                 "ORCHESTRATOR_AGENT_ARN": self._get_agent_arn("ORCHESTRATOR_AGENT_ARN"),
+                "MAX_ACTIVE_CYCLES": str(MAX_ACTIVE_CYCLES),
             },
             # The async self-invocation waits for the whole pricing cycle. This must
             # exceed ORCHESTRATOR_READ_TIMEOUT_SECONDS in pricing_cycles.py (660 s).
@@ -423,9 +448,10 @@ class ApiHandlersConstruct(Construct):
             apigw.LambdaIntegration(self.products_fn),
         )
 
-        # [C5 FIX] Create a usage plan with rate limiting for public endpoints.
-        # Limits: 100 requests/second burst, 50 requests/second sustained.
-        # This prevents mass scraping and DoS on the unauthenticated /products endpoint.
+        # [C5 FIX] Usage plan with rate limiting for public endpoints.
+        # Note: usage-plan throttles apply only to requests that send an API key,
+        # and these routes do not require one. The stage default throttle in
+        # deploy_options (STAGE_THROTTLE_RATE / _BURST) is what limits /products.
         usage_plan = self.api.add_usage_plan(
             "PublicEndpointUsagePlan",
             name="public-products-rate-limit",

@@ -1,5 +1,9 @@
 """Main CDK stack for the Retail Dynamic Pricing system."""
 
+import hashlib
+import os
+import re
+
 from constructs import Construct
 import aws_cdk as cdk
 from aws_cdk import aws_budgets as budgets
@@ -10,6 +14,45 @@ from stacks.dynamodb import DynamoDBTables
 from stacks.mcp_servers import McpServersConstruct
 from stacks.hosting import HostingConstruct
 from stacks.api_handlers import ApiHandlersConstruct
+
+# Cost Explorer / Budgets service names this solution's model spend is billed
+# under. Anthropic models on Bedrock are billed as "Amazon Bedrock Service", not
+# "Amazon Bedrock", so a filter on the latter alone misses almost all the spend.
+BEDROCK_BILLING_SERVICES = (
+    "Amazon Bedrock",
+    "Amazon Bedrock Service",
+    "Amazon Bedrock AgentCore",
+)
+
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+BUDGET_NAME_PREFIX = "RetailDynamicPricing-BedrockSpend"
+
+
+def budget_name(alert_email: str | None) -> str:
+    """Budget name, unique per notification setup.
+
+    CloudFormation replaces an AWS::Budgets::Budget when its notifications change,
+    creating the new budget before deleting the old one. Budget names must be
+    unique, so a fixed name makes every alert-email change fail with
+    AlreadyExists. The suffix changes whenever the subscriber does.
+    """
+    key = (alert_email or "no-notifications").lower()
+    return f"{BUDGET_NAME_PREFIX}-{hashlib.sha256(key.encode()).hexdigest()[:8]}"
+
+
+def resolve_alert_email(scope: Construct) -> str | None:
+    """Alert email from CDK context 'alertEmail' or the ALERT_EMAIL env var.
+
+    Returns None if neither is set. Raises ValueError for a malformed address.
+    """
+    value = scope.node.try_get_context("alertEmail") or os.environ.get("ALERT_EMAIL") or ""
+    value = value.strip()
+    if not value:
+        return None
+    if not _EMAIL_PATTERN.match(value):
+        raise ValueError(f"alertEmail / ALERT_EMAIL is not a valid email address: {value!r}")
+    return value
 
 
 class RetailDynamicPricingStack(cdk.Stack):
@@ -73,23 +116,11 @@ class RetailDynamicPricingStack(cdk.Stack):
         )
 
         # --- AWS Budget Alarm for Bedrock Spend ---
-        # Triggers notification when monthly Bedrock spend exceeds $50
-        budgets.CfnBudget(
-            self,
-            "BedrockSpendBudget",
-            budget=budgets.CfnBudget.BudgetDataProperty(
-                budget_name="RetailDynamicPricing-BedrockSpend",
-                budget_type="COST",
-                time_unit="MONTHLY",
-                budget_limit=budgets.CfnBudget.SpendProperty(
-                    amount=50,
-                    unit="USD",
-                ),
-                cost_filters={
-                    "Service": ["Amazon Bedrock"],
-                },
-            ),
-            notifications_with_subscribers=[
+        # Notifies alert_email when monthly Bedrock spend passes 80 % of $50.
+        alert_email = resolve_alert_email(self)
+        notifications = []
+        if alert_email:
+            notifications.append(
                 budgets.CfnBudget.NotificationWithSubscribersProperty(
                     notification=budgets.CfnBudget.NotificationProperty(
                         comparison_operator="GREATER_THAN",
@@ -99,12 +130,31 @@ class RetailDynamicPricingStack(cdk.Stack):
                     ),
                     subscribers=[
                         budgets.CfnBudget.SubscriberProperty(
-                            address="admin@example.com",
+                            address=alert_email,
                             subscription_type="EMAIL",
                         ),
                     ],
+                )
+            )
+        else:
+            cdk.Annotations.of(self).add_warning(
+                "No alert email set (-c alertEmail=... or ALERT_EMAIL): the Bedrock "
+                "spend budget is created without notifications."
+            )
+        budgets.CfnBudget(
+            self,
+            "BedrockSpendBudget",
+            budget=budgets.CfnBudget.BudgetDataProperty(
+                budget_name=budget_name(alert_email),
+                budget_type="COST",
+                time_unit="MONTHLY",
+                budget_limit=budgets.CfnBudget.SpendProperty(
+                    amount=50,
+                    unit="USD",
                 ),
-            ],
+                cost_filters={"Service": list(BEDROCK_BILLING_SERVICES)},
+            ),
+            notifications_with_subscribers=notifications or None,
         )
 
         # --- CloudWatch Operational Dashboard ---

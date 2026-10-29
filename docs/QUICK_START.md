@@ -31,8 +31,9 @@ pip install -e . --no-deps
 # Bootstrap CDK (first time only)
 npx cdk bootstrap
 
-# Deploy all stacks
-npx cdk deploy --all --require-approval never
+# Deploy all stacks (alertEmail receives the Bedrock spend budget alert;
+# without it the budget is created with no notifications)
+npx cdk deploy --all --require-approval never -c alertEmail=you@example.com
 ```
 
 This creates:
@@ -84,7 +85,7 @@ The script discovers the gateway and memory from step 3 and sets `AGENTCORE_GATE
 The agent deploy script saves ARNs to `scripts/agent_arns.env`. Re-deploy so the Lambda picks up the orchestrator ARN:
 
 ```bash
-npx cdk deploy --all --require-approval never
+npx cdk deploy --all --require-approval never -c alertEmail=you@example.com
 ```
 
 ### 6. Seed Product Data
