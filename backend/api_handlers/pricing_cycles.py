@@ -21,6 +21,7 @@ from typing import Any
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.config import Config
 
 try:
     from log_config import configure_logging
@@ -62,6 +63,30 @@ ORCHESTRATOR_AGENT_ARN = _require_env("ORCHESTRATOR_AGENT_ARN")
 
 # Minimum session ID length required by AgentCore Runtime
 _MIN_SESSION_ID_LENGTH = 33
+
+# Read timeout for the orchestrator call. It must exceed the orchestrator's own
+# worst case (ORCHESTRATOR_WORST_CASE_SECONDS in orchestrator_runtime.py, 546 s)
+# and stay below this function's timeout (cdk/stacks/api_handlers.py) and the
+# 15-minute limit on a synchronous InvokeAgentRuntime call.
+# tests/test_pricing_cycle_timeouts.py checks the chain.
+ORCHESTRATOR_READ_TIMEOUT_SECONDS = 660
+
+
+def _get_orchestrator_client():
+    """bedrock-agentcore client for the orchestrator call.
+
+    SDK retries are off: a retry would start a second full pricing cycle. The
+    orchestrator retries its own specialist calls.
+    """
+    return boto3.client(
+        "bedrock-agentcore",
+        region_name=AWS_REGION,
+        config=Config(
+            connect_timeout=10,
+            read_timeout=ORCHESTRATOR_READ_TIMEOUT_SECONDS,
+            retries={"total_max_attempts": 1, "mode": "standard"},
+        ),
+    )
 
 
 def _ensure_session_id(session_id: str | None = None) -> str:
@@ -252,14 +277,13 @@ def _invoke_orchestrator(
     Returns:
         Parsed response from the orchestrator agent.
     """
-    client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
+    client = _get_orchestrator_client()
 
+    # The orchestrator reads these fields from the top level of the payload.
     payload = json.dumps({
-        "prompt": json.dumps({
-            "pricing_group": pricing_group,
-            "objectives": objectives,
-            "constraints": constraints,
-        })
+        "pricing_group": pricing_group,
+        "objectives": objectives,
+        "constraints": constraints,
     }).encode()
 
     runtime_session_id = _ensure_session_id(session_id)
@@ -537,7 +561,8 @@ def _handle_async_orchestrator(event: dict[str, Any]) -> dict[str, Any]:
             "market_intelligence": {"status": "running", "startTime": _iso_now()},
         })
 
-        # Phase 3: Call AgentCore orchestrator (this takes ~50s)
+        # Phase 3: Call the AgentCore orchestrator. A real cycle takes several
+        # minutes (specialists in parallel, then strategy synthesis).
         result = _invoke_orchestrator(
             pricing_group=pricing_group,
             objectives=objectives,

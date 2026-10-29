@@ -31,6 +31,11 @@ from aws_cdk import (
 # Path to the backend/api_handlers directory relative to the CDK project root
 API_HANDLERS_DIR = Path(__file__).parent.parent.parent / "backend" / "api_handlers"
 
+# rdp-api-pricing-cycles waits for a whole pricing cycle in its async
+# self-invocation. Must exceed ORCHESTRATOR_READ_TIMEOUT_SECONDS (660 s) in
+# backend/api_handlers/pricing_cycles.py and stay within Lambda's 900 s maximum.
+PRICING_CYCLES_TIMEOUT_SECONDS = 720
+
 
 class ApiHandlersConstruct(Construct):
     """Construct containing API Gateway Lambda handlers and route integrations.
@@ -128,7 +133,12 @@ class ApiHandlersConstruct(Construct):
                 # Read from ORCHESTRATOR_AGENT_ARN env var or scripts/agent_arns.env
                 "ORCHESTRATOR_AGENT_ARN": self._get_agent_arn("ORCHESTRATOR_AGENT_ARN"),
             },
-            timeout_seconds=300,  # 5 min for async AgentCore invocations
+            # The async self-invocation waits for the whole pricing cycle. This must
+            # exceed ORCHESTRATOR_READ_TIMEOUT_SECONDS in pricing_cycles.py (660 s).
+            timeout_seconds=PRICING_CYCLES_TIMEOUT_SECONDS,
+            # A failed or timed-out cycle is marked FAILED, not re-run: each Lambda
+            # retry would start another full (and billed) pricing cycle.
+            retry_attempts=0,
         )
         dynamodb_tables.pricing_cycles_table.grant_read_write_data(self.pricing_cycles_fn)
         dynamodb_tables.pricing_scenarios_table.grant_read_write_data(self.pricing_cycles_fn)
@@ -459,6 +469,7 @@ class ApiHandlersConstruct(Construct):
         description: str,
         environment: dict[str, str] | None = None,
         timeout_seconds: int = 30,
+        retry_attempts: int | None = None,
     ) -> lambda_.Function:
         """Create a Lambda function for an API handler.
 
@@ -468,6 +479,7 @@ class ApiHandlersConstruct(Construct):
             description: Description of the handler's purpose.
             environment: Environment variables for the Lambda function.
             timeout_seconds: Lambda timeout in seconds (default 30).
+            retry_attempts: Retries for asynchronous invocations (Lambda default: 2).
 
         Returns:
             The created Lambda function.
@@ -487,6 +499,7 @@ class ApiHandlersConstruct(Construct):
             memory_size=256,
             timeout=cdk.Duration.seconds(timeout_seconds),
             environment=environment or {},
+            retry_attempts=retry_attempts,
         )
 
         # Tag the function for identification
