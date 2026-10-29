@@ -203,10 +203,10 @@ Options:
 git clone <REPOSITORY_URL>
 cd "Retail Dynamic Pricing"
 chmod +x deploy.sh
-./deploy.sh
+./deploy.sh --alert-email you@example.com
 ```
 
-The script automates all steps below, including prerequisites check, CDK deployment, AgentCore role/gateway/memory setup, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments (`--skip-agents` skips only the agent deploy in Step 4; the role, gateway and memory are still created).
+`--alert-email` (or `ALERT_EMAIL`) is required: it receives the Bedrock spend budget alert (80 % of $50/month). The script automates all steps below, including prerequisites check, CDK deployment, AgentCore role/gateway/memory setup, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments (`--skip-agents` skips only the agent deploy in Step 4; the role, gateway and memory are still created).
 
 After deployment completes, run the validation script:
 
