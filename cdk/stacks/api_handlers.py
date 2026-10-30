@@ -19,6 +19,7 @@ from pathlib import Path
 
 from constructs import Construct
 import aws_cdk as cdk
+from shared.cycle_timeouts import DEFAULT as DEFAULT_CYCLE_TIMEOUTS, CycleTimeouts
 from aws_cdk import (
     aws_lambda as lambda_,
     aws_iam as iam,
@@ -30,6 +31,21 @@ from aws_cdk import (
 
 # Path to the backend/api_handlers directory relative to the CDK project root
 API_HANDLERS_DIR = Path(__file__).parent.parent.parent / "backend" / "api_handlers"
+
+# rdp-api-pricing-cycles waits for a whole pricing cycle in its async
+# self-invocation. Its timeout, its read timeout for the orchestrator call and the
+# stale-cycle threshold are derived from the agent timeouts in
+# shared/cycle_timeouts.py (passed in as cycle_timeouts).
+
+# API Gateway throttling (requests per second / burst) for the prod stage, and a
+# tighter limit for POST /pricing-cycles, which starts a model-backed cycle.
+STAGE_THROTTLE_RATE = 50
+STAGE_THROTTLE_BURST = 100
+CREATE_CYCLE_THROTTLE_RATE = 1
+CREATE_CYCLE_THROTTLE_BURST = 2
+
+# POST /pricing-cycles returns 429 while this many cycles are running.
+MAX_ACTIVE_CYCLES = 3
 
 
 class ApiHandlersConstruct(Construct):
@@ -48,6 +64,7 @@ class ApiHandlersConstruct(Construct):
         dynamodb_tables: "DynamoDBTables",
         cognito_auth: "CognitoAuth",
         hosting: "HostingConstruct",
+        cycle_timeouts: CycleTimeouts = DEFAULT_CYCLE_TIMEOUTS,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -84,7 +101,21 @@ class ApiHandlersConstruct(Construct):
                     "X-CSRF-Token",
                 ],
             ),
-            deploy_options=apigw.StageOptions(stage_name="prod"),
+            deploy_options=apigw.StageOptions(
+                stage_name="prod",
+                # Stage default, instead of the account-wide 10,000 rps. Leaves
+                # room for the dashboard's polling (every 5 s per open view).
+                throttling_rate_limit=STAGE_THROTTLE_RATE,
+                throttling_burst_limit=STAGE_THROTTLE_BURST,
+                method_options={
+                    # Each POST starts a model-backed pricing cycle. This limits
+                    # bursts; the handler also caps running cycles (MAX_ACTIVE_CYCLES).
+                    "/pricing-cycles/POST": apigw.MethodDeploymentOptions(
+                        throttling_rate_limit=CREATE_CYCLE_THROTTLE_RATE,
+                        throttling_burst_limit=CREATE_CYCLE_THROTTLE_BURST,
+                    ),
+                },
+            ),
         )
 
         # --- Cognito Authorizer ---
@@ -127,8 +158,16 @@ class ApiHandlersConstruct(Construct):
                 # which in turn coordinates the other 5 agents on AgentCore.
                 # Read from ORCHESTRATOR_AGENT_ARN env var or scripts/agent_arns.env
                 "ORCHESTRATOR_AGENT_ARN": self._get_agent_arn("ORCHESTRATOR_AGENT_ARN"),
+                "MAX_ACTIVE_CYCLES": str(MAX_ACTIVE_CYCLES),
+                # Read timeout for the orchestrator call and stale-cycle threshold.
+                **cycle_timeouts.lambda_environment(),
             },
-            timeout_seconds=300,  # 5 min for async AgentCore invocations
+            # The async self-invocation waits for the whole pricing cycle: longer
+            # than ORCHESTRATOR_READ_TIMEOUT_SECONDS, at most 900 s.
+            timeout_seconds=cycle_timeouts.lambda_timeout,
+            # A failed or timed-out cycle is marked FAILED, not re-run: each Lambda
+            # retry would start another full (and billed) pricing cycle.
+            retry_attempts=0,
         )
         dynamodb_tables.pricing_cycles_table.grant_read_write_data(self.pricing_cycles_fn)
         dynamodb_tables.pricing_scenarios_table.grant_read_write_data(self.pricing_cycles_fn)
@@ -413,9 +452,10 @@ class ApiHandlersConstruct(Construct):
             apigw.LambdaIntegration(self.products_fn),
         )
 
-        # [C5 FIX] Create a usage plan with rate limiting for public endpoints.
-        # Limits: 100 requests/second burst, 50 requests/second sustained.
-        # This prevents mass scraping and DoS on the unauthenticated /products endpoint.
+        # [C5 FIX] Usage plan with rate limiting for public endpoints.
+        # Note: usage-plan throttles apply only to requests that send an API key,
+        # and these routes do not require one. The stage default throttle in
+        # deploy_options (STAGE_THROTTLE_RATE / _BURST) is what limits /products.
         usage_plan = self.api.add_usage_plan(
             "PublicEndpointUsagePlan",
             name="public-products-rate-limit",
@@ -459,6 +499,7 @@ class ApiHandlersConstruct(Construct):
         description: str,
         environment: dict[str, str] | None = None,
         timeout_seconds: int = 30,
+        retry_attempts: int | None = None,
     ) -> lambda_.Function:
         """Create a Lambda function for an API handler.
 
@@ -468,6 +509,7 @@ class ApiHandlersConstruct(Construct):
             description: Description of the handler's purpose.
             environment: Environment variables for the Lambda function.
             timeout_seconds: Lambda timeout in seconds (default 30).
+            retry_attempts: Retries for asynchronous invocations (Lambda default: 2).
 
         Returns:
             The created Lambda function.
@@ -483,6 +525,7 @@ class ApiHandlersConstruct(Construct):
             memory_size=256,
             timeout=cdk.Duration.seconds(timeout_seconds),
             environment=environment or {},
+            retry_attempts=retry_attempts,
         )
 
         # Tag the function for identification

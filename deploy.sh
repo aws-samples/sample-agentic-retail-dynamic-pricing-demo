@@ -25,7 +25,15 @@
 #
 # Usage:
 #   chmod +x deploy.sh
-#   ./deploy.sh [--region us-east-1] [--skip-agents] [--skip-frontend]
+#   ./deploy.sh --alert-email you@example.com [--region us-east-1] [--skip-agents] [--skip-frontend]
+#
+#   --alert-email (or ALERT_EMAIL) is required: it receives the Bedrock spend
+#   budget alert (80 % of $50/month).
+#
+#   --specialist-timeout / --synthesis-timeout SECONDS (or SPECIALIST_TIMEOUT_SECONDS /
+#   SYNTHESIS_TIMEOUT_SECONDS; defaults 300 / 180) set how long the orchestrator waits
+#   for each agent. The Lambda timeouts are derived from them (shared/cycle_timeouts.py);
+#   their sum can be at most 714 s. Raise them if a slower model times out.
 #
 #   --skip-agents skips only the agent deploy (Step 4); the IAM role, gateway and
 #   memory (Step 3) are still created because they do not depend on the agents.
@@ -45,16 +53,36 @@ OPS_USER="ops@example.com"
 OPS_PASSWORD="OpsPass2024!"
 SKIP_AGENTS=false
 SKIP_FRONTEND=false
+ALERT_EMAIL="${ALERT_EMAIL:-}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --region) REGION="$2"; shift 2 ;;
+        --alert-email) ALERT_EMAIL="$2"; shift 2 ;;
+        --specialist-timeout) SPECIALIST_TIMEOUT_SECONDS="$2"; shift 2 ;;
+        --synthesis-timeout) SYNTHESIS_TIMEOUT_SECONDS="$2"; shift 2 ;;
         --skip-agents) SKIP_AGENTS=true; shift ;;
         --skip-frontend) SKIP_FRONTEND=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
+
+# The Bedrock spend budget alerts this address. Without it the budget would alert
+# nobody, so refuse to deploy rather than create a cost control that does nothing.
+if [[ ! "$ALERT_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
+    echo "Error: an alert email is required for the Bedrock spend budget." >&2
+    echo "  ./deploy.sh --alert-email you@example.com   (or export ALERT_EMAIL=you@example.com)" >&2
+    exit 1
+fi
+
+# Pricing-cycle timeouts: check them before anything is deployed, then export them
+# so the agent deploy (orchestrator) and both CDK deploys (Lambda) use the same values.
+export SPECIALIST_TIMEOUT_SECONDS="${SPECIALIST_TIMEOUT_SECONDS:-}"
+export SYNTHESIS_TIMEOUT_SECONDS="${SYNTHESIS_TIMEOUT_SECONDS:-}"
+if ! CYCLE_TIMEOUTS=$(python3 -m shared.cycle_timeouts); then
+    exit 1
+fi
 
 # --- Helper Functions ---
 print_step() {
@@ -237,7 +265,7 @@ print_success "Model selected — config written to model-config.json"
 # Step 2: Deploy Infrastructure (CDK) — first pass
 print_step "2" "Deploying infrastructure (CDK)"
 npx cdk bootstrap aws://$ACCOUNT_ID/$REGION --app ".venv/bin/python3 cdk/app.py" 2>/dev/null || true
-npx cdk deploy --all --require-approval never --app ".venv/bin/python3 cdk/app.py" --outputs-file cdk-outputs.json
+npx cdk deploy --all --require-approval never --app ".venv/bin/python3 cdk/app.py" -c alertEmail="$ALERT_EMAIL" --outputs-file cdk-outputs.json
 print_success "CDK stacks deployed"
 
 # Step 3: AgentCore prerequisites — IAM role, Gateway & Memory
@@ -292,7 +320,7 @@ fi
 # Step 5: Re-deploy CDK (links orchestrator ARN to Lambda)
 # Must run after Step 4: CDK reads scripts/agent_arns.env at synth time.
 print_step "5" "Re-deploying CDK (linking agent ARNs)"
-npx cdk deploy --all --require-approval never --app ".venv/bin/python3 cdk/app.py" --outputs-file cdk-outputs.json
+npx cdk deploy --all --require-approval never --app ".venv/bin/python3 cdk/app.py" -c alertEmail="$ALERT_EMAIL" --outputs-file cdk-outputs.json
 print_success "Lambda updated with orchestrator ARN"
 
 # Step 6: Seed Data
@@ -496,6 +524,8 @@ echo "  │  Ops Login:  $OPS_USER / $OPS_PASSWORD"
 echo "  │"
 echo "  │  Region: $REGION"
 echo "  │  Account: $ACCOUNT_ID"
+echo "  │  Budget alerts: $ALERT_EMAIL"
+echo "  │  Cycle timeouts: $CYCLE_TIMEOUTS"
 echo "  └─────────────────────────────────────────────────────────┘"
 echo ""
 echo "  Next: Open the Dashboard URL and log in to start the demo."

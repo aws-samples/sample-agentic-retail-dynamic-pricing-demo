@@ -20,7 +20,8 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
+from botocore.config import Config
 
 try:
     from log_config import configure_logging
@@ -62,6 +63,43 @@ ORCHESTRATOR_AGENT_ARN = _require_env("ORCHESTRATOR_AGENT_ARN")
 
 # Minimum session ID length required by AgentCore Runtime
 _MIN_SESSION_ID_LENGTH = 33
+
+# Both values are derived in shared/cycle_timeouts.py from the agent timeouts and
+# set by CDK (the Lambda bundle does not include shared/). The defaults match the
+# default agent timeouts.
+#
+# Read timeout for the orchestrator call: above the orchestrator's worst case and
+# below this function's timeout and the 15-minute synchronous-invoke limit.
+ORCHESTRATOR_READ_TIMEOUT_SECONDS = int(os.environ.get("ORCHESTRATOR_READ_TIMEOUT_SECONDS", "660"))
+
+# A cycle still INITIATED or ANALYZING after this long can no longer finish: the
+# async run that owns it has hit the function timeout or died, and async retries
+# are off. Reads report such a cycle as FAILED (and record that).
+STALE_CYCLE_SECONDS = int(os.environ.get("STALE_CYCLE_SECONDS", "900"))
+_ACTIVE_STATUSES = ("INITIATED", "ANALYZING")
+
+# Each cycle runs five model-backed agents. POST /pricing-cycles returns 429
+# while this many cycles are still running, so a script, a leaked token or
+# repeated clicks cannot start an unbounded number of paid cycles. API Gateway
+# throttling on the method limits bursts; this limits concurrent spend.
+MAX_ACTIVE_CYCLES = int(os.environ.get("MAX_ACTIVE_CYCLES", "3"))
+
+
+def _get_orchestrator_client():
+    """bedrock-agentcore client for the orchestrator call.
+
+    SDK retries are off: a retry would start a second full pricing cycle. The
+    orchestrator retries its own specialist calls.
+    """
+    return boto3.client(
+        "bedrock-agentcore",
+        region_name=AWS_REGION,
+        config=Config(
+            connect_timeout=10,
+            read_timeout=ORCHESTRATOR_READ_TIMEOUT_SECONDS,
+            retries={"total_max_attempts": 1, "mode": "standard"},
+        ),
+    )
 
 
 def _ensure_session_id(session_id: str | None = None) -> str:
@@ -146,8 +184,12 @@ def update_cycle_status(
     cycle_id: str,
     status: str,
     table_name: str = PRICING_CYCLES_TABLE,
+    extra: dict[str, Any] | None = None,
 ) -> None:
-    """Update the status of a pricing cycle in DynamoDB."""
+    """Update the status of a pricing cycle in DynamoDB.
+
+    extra: additional attributes to set on the item (for example failureReason).
+    """
     resource = _get_dynamodb_resource()
     table = resource.Table(table_name)
 
@@ -166,6 +208,8 @@ def update_cycle_status(
 
     new_item = dict(existing_item)
     new_item["status"] = status
+    if extra:
+        new_item.update(extra)
 
     if status == "COMPLETE":
         new_item["completedAt"] = _iso_now()
@@ -252,14 +296,13 @@ def _invoke_orchestrator(
     Returns:
         Parsed response from the orchestrator agent.
     """
-    client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
+    client = _get_orchestrator_client()
 
+    # The orchestrator reads these fields from the top level of the payload.
     payload = json.dumps({
-        "prompt": json.dumps({
-            "pricing_group": pricing_group,
-            "objectives": objectives,
-            "constraints": constraints,
-        })
+        "pricing_group": pricing_group,
+        "objectives": objectives,
+        "constraints": constraints,
     }).encode()
 
     runtime_session_id = _ensure_session_id(session_id)
@@ -429,6 +472,25 @@ def _create_pricing_cycle(event: dict[str, Any]) -> dict[str, Any]:
             "error": f"'constraints' object exceeds maximum serialized size of {_MAX_CONSTRAINTS_DEPTH_STR_LEN} characters"
         })
 
+    # Cap concurrent paid cycles. Fail closed: if the count cannot be read, no
+    # new cycle is started. Two simultaneous requests can both pass the check,
+    # so this is a soft cap (API Gateway's method throttle bounds that burst).
+    try:
+        active_cycles = _count_active_cycles()
+    except Exception as e:
+        logger.error("Could not count active pricing cycles: %s", e)
+        return _response(503, {"error": "Could not check running pricing cycles; try again shortly"})
+    if active_cycles >= MAX_ACTIVE_CYCLES:
+        logger.warning("Rejected pricing cycle: %d cycles already running (limit %d)", active_cycles, MAX_ACTIVE_CYCLES)
+        return _response(429, {
+            "error": (
+                f"{active_cycles} pricing cycles are already running (limit {MAX_ACTIVE_CYCLES}). "
+                "Wait for one to finish, then try again."
+            ),
+            "activeCycles": active_cycles,
+            "maxActiveCycles": MAX_ACTIVE_CYCLES,
+        })
+
     # Generate unique cycle ID
     cycle_id = str(uuid.uuid4())
 
@@ -537,7 +599,8 @@ def _handle_async_orchestrator(event: dict[str, Any]) -> dict[str, Any]:
             "market_intelligence": {"status": "running", "startTime": _iso_now()},
         })
 
-        # Phase 3: Call AgentCore orchestrator (this takes ~50s)
+        # Phase 3: Call the AgentCore orchestrator. A real cycle takes several
+        # minutes (specialists in parallel, then strategy synthesis).
         result = _invoke_orchestrator(
             pricing_group=pricing_group,
             objectives=objectives,
@@ -1291,12 +1354,79 @@ def _generate_scenarios_from_products(
     return scenarios
 
 
+def _cycle_age_seconds(cycle: dict[str, Any], now: datetime | None = None) -> float | None:
+    """Seconds since the cycle was created, or None if createdAt is missing or unparseable."""
+    created = cycle.get("createdAt")
+    if not isinstance(created, str):
+        return None
+    try:
+        created_at = datetime.fromisoformat(created)
+    except ValueError:
+        return None
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)) - created_at).total_seconds()
+
+
+def _is_stale(cycle: dict[str, Any], now: datetime | None = None) -> bool:
+    """True if the cycle is still active but older than STALE_CYCLE_SECONDS."""
+    if cycle.get("status") not in _ACTIVE_STATUSES:
+        return False
+    age = _cycle_age_seconds(cycle, now)
+    return age is not None and age > STALE_CYCLE_SECONDS
+
+
+def _expire_if_stale(cycle: dict[str, Any]) -> dict[str, Any]:
+    """Return the cycle, reported as FAILED (and recorded as such) if it is stale.
+
+    Recording is best-effort: if the write fails, the response still says FAILED.
+    """
+    if not _is_stale(cycle):
+        return cycle
+    reason = (
+        f"No result after {STALE_CYCLE_SECONDS} s: the pricing cycle run stopped "
+        "before it could record a result."
+    )
+    cycle_id = cycle.get("cycleId", "")
+    logger.warning("Pricing cycle %s is stale (status %s); marking FAILED", cycle_id, cycle.get("status"))
+    try:
+        update_cycle_status(
+            cycle_id=cycle_id,
+            status="FAILED",
+            table_name=PRICING_CYCLES_TABLE,
+            extra={"failureReason": reason},
+        )
+        _update_agent_statuses(cycle_id, {"orchestrator": {"status": "failed", "error": reason}})
+    except Exception:
+        logger.exception("Could not record stale pricing cycle %s as FAILED", cycle_id)
+    return {**cycle, "status": "FAILED", "failureReason": reason}
+
+
+def _count_active_cycles() -> int:
+    """Number of cycles that are still running (INITIATED or ANALYZING, not stale)."""
+    table = _get_dynamodb_resource().Table(PRICING_CYCLES_TABLE)
+    kwargs: dict[str, Any] = {
+        "FilterExpression": Attr("status").is_in(list(_ACTIVE_STATUSES)),
+        "ProjectionExpression": "cycleId, #s, createdAt",
+        "ExpressionAttributeNames": {"#s": "status"},
+    }
+    active = 0
+    while True:
+        response = table.scan(**kwargs)
+        active += sum(1 for item in response.get("Items", []) if not _is_stale(item))
+        if "LastEvaluatedKey" not in response:
+            return active
+        kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+
 def _get_pricing_cycle(cycle_id: str) -> dict[str, Any]:
     """Handle GET /pricing-cycles/{id} - get cycle status and metadata."""
     cycle = get_cycle(cycle_id, table_name=PRICING_CYCLES_TABLE)
 
     if cycle is None:
         return _response(404, {"error": f"Pricing cycle '{cycle_id}' not found"})
+
+    cycle = _expire_if_stale(cycle)
 
     return _response(200, {
         "cycleId": cycle.get("cycleId"),
@@ -1309,6 +1439,7 @@ def _get_pricing_cycle(cycle_id: str) -> dict[str, Any]:
         "requestedBy": cycle.get("requestedBy"),
         "createdAt": cycle.get("createdAt"),
         "completedAt": cycle.get("completedAt"),
+        "failureReason": cycle.get("failureReason"),
     })
 
 
@@ -1329,8 +1460,8 @@ def _list_pricing_cycles(event: dict[str, Any]) -> dict[str, Any]:
         response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
         all_items.extend(response.get("Items", []))
 
-    # Convert Decimals and sort by createdAt descending
-    cycles = [_convert_decimals_to_float(item) for item in all_items]
+    # Convert Decimals, report stale cycles as FAILED, sort by createdAt descending
+    cycles = [_expire_if_stale(_convert_decimals_to_float(item)) for item in all_items]
     cycles.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
 
     # Enrich with scenario data for audit completeness

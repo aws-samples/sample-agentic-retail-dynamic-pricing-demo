@@ -245,7 +245,7 @@ def test_api_handler_lambda_runtime():
             "FunctionName": "rdp-api-pricing-cycles",
             "Runtime": "python3.12",
             "MemorySize": 256,
-            "Timeout": 300,
+            "Timeout": 720,
         },
     )
 
