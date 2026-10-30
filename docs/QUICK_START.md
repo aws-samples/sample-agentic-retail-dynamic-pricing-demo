@@ -36,6 +36,8 @@ npx cdk bootstrap
 npx cdk deploy --all --require-approval never -c alertEmail=you@example.com
 ```
 
+Pricing-cycle timeouts: to change how long the orchestrator waits for the agents (defaults 300 s / 180 s), `export SPECIALIST_TIMEOUT_SECONDS=… SYNTHESIS_TIMEOUT_SECONDS=…` in the shell you run **both** `cdk deploy` and `deploy_agentcore.py` from. CDK derives the Lambda timeouts from them and `deploy_agentcore.py` sets them on the orchestrator; `verify_deployment.py` fails if the two disagree.
+
 This creates:
 - API Gateway + Lambda handlers
 - DynamoDB tables (Products, PricingCycles, PricingScenarios, Approvals, AuditTrail)

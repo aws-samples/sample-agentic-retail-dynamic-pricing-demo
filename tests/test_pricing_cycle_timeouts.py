@@ -306,12 +306,19 @@ class TestTimeoutChain:
         assert orchestrator.SYNTHESIS_TIMEOUT_SECONDS > 83
 
     def test_each_layer_waits_longer_than_the_one_below(self, orchestrator, pricing_cycles):
-        from stacks.api_handlers import PRICING_CYCLES_TIMEOUT_SECONDS
+        from shared.cycle_timeouts import DEFAULT
 
         assert orchestrator.ORCHESTRATOR_WORST_CASE_SECONDS < pricing_cycles.ORCHESTRATOR_READ_TIMEOUT_SECONDS
         assert pricing_cycles.ORCHESTRATOR_READ_TIMEOUT_SECONDS < SYNC_INVOKE_LIMIT_SECONDS
-        assert pricing_cycles.ORCHESTRATOR_READ_TIMEOUT_SECONDS < PRICING_CYCLES_TIMEOUT_SECONDS
-        assert PRICING_CYCLES_TIMEOUT_SECONDS <= LAMBDA_MAX_TIMEOUT_SECONDS
+        assert pricing_cycles.ORCHESTRATOR_READ_TIMEOUT_SECONDS < DEFAULT.lambda_timeout
+        assert DEFAULT.lambda_timeout <= LAMBDA_MAX_TIMEOUT_SECONDS
+
+    def test_lambda_defaults_match_the_derived_defaults(self, pricing_cycles):
+        """The Lambda's fallbacks (used if CDK did not set the env vars) must equal the derived defaults."""
+        from shared.cycle_timeouts import DEFAULT
+
+        assert pricing_cycles.ORCHESTRATOR_READ_TIMEOUT_SECONDS == DEFAULT.lambda_read_timeout
+        assert pricing_cycles.STALE_CYCLE_SECONDS == DEFAULT.stale_cycle_seconds
 
     def test_worst_case_counts_both_phases_and_their_retries(self, orchestrator):
         assert orchestrator.ORCHESTRATOR_WORST_CASE_SECONDS >= (
@@ -325,9 +332,10 @@ class TestLambdaDoesNotRetryCycles:
     def test_pricing_cycles_function_has_no_async_retries(self):
         import aws_cdk as cdk
         from aws_cdk.assertions import Match, Template
-        from stacks.api_handlers import PRICING_CYCLES_TIMEOUT_SECONDS
+        from shared.cycle_timeouts import DEFAULT
         from stacks.pricing_stack import RetailDynamicPricingStack
 
+        PRICING_CYCLES_TIMEOUT_SECONDS = DEFAULT.lambda_timeout
         template = Template.from_stack(RetailDynamicPricingStack(cdk.App(), "TimeoutTestStack"))
 
         functions = template.find_resources(

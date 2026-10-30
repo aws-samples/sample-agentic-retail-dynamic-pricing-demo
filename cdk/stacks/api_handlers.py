@@ -19,6 +19,7 @@ from pathlib import Path
 
 from constructs import Construct
 import aws_cdk as cdk
+from shared.cycle_timeouts import DEFAULT as DEFAULT_CYCLE_TIMEOUTS, CycleTimeouts
 from aws_cdk import (
     aws_lambda as lambda_,
     aws_iam as iam,
@@ -32,9 +33,9 @@ from aws_cdk import (
 API_HANDLERS_DIR = Path(__file__).parent.parent.parent / "backend" / "api_handlers"
 
 # rdp-api-pricing-cycles waits for a whole pricing cycle in its async
-# self-invocation. Must exceed ORCHESTRATOR_READ_TIMEOUT_SECONDS (660 s) in
-# backend/api_handlers/pricing_cycles.py and stay within Lambda's 900 s maximum.
-PRICING_CYCLES_TIMEOUT_SECONDS = 720
+# self-invocation. Its timeout, its read timeout for the orchestrator call and the
+# stale-cycle threshold are derived from the agent timeouts in
+# shared/cycle_timeouts.py (passed in as cycle_timeouts).
 
 # API Gateway throttling (requests per second / burst) for the prod stage, and a
 # tighter limit for POST /pricing-cycles, which starts a model-backed cycle.
@@ -63,6 +64,7 @@ class ApiHandlersConstruct(Construct):
         dynamodb_tables: "DynamoDBTables",
         cognito_auth: "CognitoAuth",
         hosting: "HostingConstruct",
+        cycle_timeouts: CycleTimeouts = DEFAULT_CYCLE_TIMEOUTS,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -157,10 +159,12 @@ class ApiHandlersConstruct(Construct):
                 # Read from ORCHESTRATOR_AGENT_ARN env var or scripts/agent_arns.env
                 "ORCHESTRATOR_AGENT_ARN": self._get_agent_arn("ORCHESTRATOR_AGENT_ARN"),
                 "MAX_ACTIVE_CYCLES": str(MAX_ACTIVE_CYCLES),
+                # Read timeout for the orchestrator call and stale-cycle threshold.
+                **cycle_timeouts.lambda_environment(),
             },
-            # The async self-invocation waits for the whole pricing cycle. This must
-            # exceed ORCHESTRATOR_READ_TIMEOUT_SECONDS in pricing_cycles.py (660 s).
-            timeout_seconds=PRICING_CYCLES_TIMEOUT_SECONDS,
+            # The async self-invocation waits for the whole pricing cycle: longer
+            # than ORCHESTRATOR_READ_TIMEOUT_SECONDS, at most 900 s.
+            timeout_seconds=cycle_timeouts.lambda_timeout,
             # A failed or timed-out cycle is marked FAILED, not re-run: each Lambda
             # retry would start another full (and billed) pricing cycle.
             retry_attempts=0,
