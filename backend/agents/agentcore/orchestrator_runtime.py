@@ -36,6 +36,7 @@ from botocore.exceptions import (
 )
 
 from backend.agents.agentcore.memory_config import create_session_manager
+from shared import cycle_timeouts
 from shared.model_config import ORCHESTRATOR_MODEL
 
 logger = logging.getLogger(__name__)
@@ -86,39 +87,35 @@ MI_ARN = os.environ["MARKET_INTELLIGENCE_AGENT_ARN"]
 SS_ARN = os.environ["STRATEGY_SYNTHESIS_AGENT_ARN"]
 IM_ARN = os.environ["IMPLEMENTATION_MONITORING_AGENT_ARN"]
 
-# Timeout and retry configuration.
+# Timeout and retry configuration (see shared/cycle_timeouts.py).
 #
-# Sized from sandbox runs: Market Intelligence ~38 s, Competitive Intelligence
-# ~58 s, Demand Forecasting 58-240 s, Strategy Synthesis 71-83 s. Each value is
-# the botocore read timeout for that call. The runtimes reply with one JSON body
-# when the agent finishes, so the read timeout bounds the whole call.
-SPECIALIST_TIMEOUT_SECONDS = 300
-SYNTHESIS_TIMEOUT_SECONDS = 180
-CONNECT_TIMEOUT_SECONDS = 10
+# Each agent timeout is the botocore read timeout for that call. The runtimes
+# reply with one JSON body when the agent finishes, so it bounds the whole call.
+# Set by scripts/deploy_agentcore.py from SPECIALIST_TIMEOUT_SECONDS /
+# SYNTHESIS_TIMEOUT_SECONDS (defaults 300 s / 180 s, sized from sandbox runs:
+# Demand Forecasting up to 240 s, Strategy Synthesis 71-83 s). An invalid value
+# fails the import: deploy_agentcore.py validates it before deploying.
+TIMEOUTS = cycle_timeouts.resolve()
+SPECIALIST_TIMEOUT_SECONDS = TIMEOUTS.specialist
+SYNTHESIS_TIMEOUT_SECONDS = TIMEOUTS.synthesis
+CONNECT_TIMEOUT_SECONDS = cycle_timeouts.CONNECT_TIMEOUT_SECONDS
 
 # The orchestrator is the only layer that retries specialist calls: the SDK
 # retries are off. It retries only failures that are retryable AND fast (the
 # request was rejected or never reached the agent). A read timeout or a slow
 # failure means the agent probably ran, so retrying would re-run it and pay for
 # it twice.
-MAX_RETRIES = 2
-FAST_FAILURE_SECONDS = 15
-RETRY_BACKOFF_SECONDS = 1.0
+MAX_RETRIES = cycle_timeouts.MAX_RETRIES
+FAST_FAILURE_SECONDS = cycle_timeouts.FAST_FAILURE_SECONDS
+RETRY_BACKOFF_SECONDS = cycle_timeouts.RETRY_BACKOFF_SECONDS
 _RETRYABLE_ERROR_CODES = frozenset({
     "ThrottlingException",
     "ServiceUnavailableException",
     "InternalServerException",
 })
 
-# Upper bound for one cycle, used by rdp-api-pricing-cycles to size its own read
-# timeout (tests/test_pricing_cycle_timeouts.py checks the chain). Per call: two
-# fast failures plus backoff, then one full-length attempt.
-_RETRY_OVERHEAD_SECONDS = MAX_RETRIES * FAST_FAILURE_SECONDS + sum(
-    RETRY_BACKOFF_SECONDS * 2**attempt for attempt in range(MAX_RETRIES)
-)
-ORCHESTRATOR_WORST_CASE_SECONDS = int(
-    SPECIALIST_TIMEOUT_SECONDS + SYNTHESIS_TIMEOUT_SECONDS + 2 * _RETRY_OVERHEAD_SECONDS
-)
+# Upper bound for one invocation; rdp-api-pricing-cycles waits longer than this.
+ORCHESTRATOR_WORST_CASE_SECONDS = TIMEOUTS.orchestrator_worst_case
 
 # Minimum session ID length required by AgentCore Runtime
 _MIN_SESSION_ID_LENGTH = 33

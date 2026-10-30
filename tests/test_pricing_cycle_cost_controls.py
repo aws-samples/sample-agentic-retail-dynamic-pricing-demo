@@ -74,9 +74,9 @@ class TestStaleCycles:
 
     def test_stale_threshold_exceeds_the_function_timeout(self, pc):
         """A cycle must not be declared dead while its async run can still finish."""
-        from stacks.api_handlers import PRICING_CYCLES_TIMEOUT_SECONDS
+        from shared.cycle_timeouts import DEFAULT
 
-        assert pc.STALE_CYCLE_SECONDS > PRICING_CYCLES_TIMEOUT_SECONDS
+        assert pc.STALE_CYCLE_SECONDS > DEFAULT.lambda_timeout
 
     def test_stale_cycle_is_recorded_and_reported_as_failed(self, pc, monkeypatch):
         writes, agent_updates = [], []

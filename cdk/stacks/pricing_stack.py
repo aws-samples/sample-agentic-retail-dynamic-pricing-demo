@@ -14,6 +14,7 @@ from stacks.dynamodb import DynamoDBTables
 from stacks.mcp_servers import McpServersConstruct
 from stacks.hosting import HostingConstruct
 from stacks.api_handlers import ApiHandlersConstruct
+from shared import cycle_timeouts
 
 # Cost Explorer / Budgets service names this solution's model spend is billed
 # under. Anthropic models on Bedrock are billed as "Amazon Bedrock Service", not
@@ -74,6 +75,16 @@ class RetailDynamicPricingStack(cdk.Stack):
         cdk.Tags.of(self).add("Environment", "demo")
         cdk.Tags.of(self).add("ManagedBy", "CDK")
 
+        # Pricing-cycle timeouts: CDK context specialistTimeoutSeconds /
+        # synthesisTimeoutSeconds, else SPECIALIST_TIMEOUT_SECONDS /
+        # SYNTHESIS_TIMEOUT_SECONDS, else the defaults. Invalid values fail synth.
+        # deploy_agentcore.py must deploy the orchestrator with the same values
+        # (deploy.sh passes both; verify_deployment.py checks they match).
+        self.cycle_timeouts = cycle_timeouts.resolve(
+            self.node.try_get_context("specialistTimeoutSeconds"),
+            self.node.try_get_context("synthesisTimeoutSeconds"),
+        )
+
         # DynamoDB tables
         self.dynamodb = DynamoDBTables(self, "DynamoDB")
 
@@ -113,6 +124,7 @@ class RetailDynamicPricingStack(cdk.Stack):
             dynamodb_tables=self.dynamodb,
             cognito_auth=self.cognito,
             hosting=self.hosting,
+            cycle_timeouts=self.cycle_timeouts,
         )
 
         # --- AWS Budget Alarm for Bedrock Spend ---

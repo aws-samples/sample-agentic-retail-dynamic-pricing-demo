@@ -64,17 +64,18 @@ ORCHESTRATOR_AGENT_ARN = _require_env("ORCHESTRATOR_AGENT_ARN")
 # Minimum session ID length required by AgentCore Runtime
 _MIN_SESSION_ID_LENGTH = 33
 
-# Read timeout for the orchestrator call. It must exceed the orchestrator's own
-# worst case (ORCHESTRATOR_WORST_CASE_SECONDS in orchestrator_runtime.py, 546 s)
-# and stay below this function's timeout (cdk/stacks/api_handlers.py) and the
-# 15-minute limit on a synchronous InvokeAgentRuntime call.
-# tests/test_pricing_cycle_timeouts.py checks the chain.
-ORCHESTRATOR_READ_TIMEOUT_SECONDS = 660
+# Both values are derived in shared/cycle_timeouts.py from the agent timeouts and
+# set by CDK (the Lambda bundle does not include shared/). The defaults match the
+# default agent timeouts.
+#
+# Read timeout for the orchestrator call: above the orchestrator's worst case and
+# below this function's timeout and the 15-minute synchronous-invoke limit.
+ORCHESTRATOR_READ_TIMEOUT_SECONDS = int(os.environ.get("ORCHESTRATOR_READ_TIMEOUT_SECONDS", "660"))
 
 # A cycle still INITIATED or ANALYZING after this long can no longer finish: the
-# async run that owns it has hit the function timeout (720 s) or died, and async
-# retries are off. Reads report such a cycle as FAILED (and record that).
-STALE_CYCLE_SECONDS = 900
+# async run that owns it has hit the function timeout or died, and async retries
+# are off. Reads report such a cycle as FAILED (and record that).
+STALE_CYCLE_SECONDS = int(os.environ.get("STALE_CYCLE_SECONDS", "900"))
 _ACTIVE_STATUSES = ("INITIATED", "ANALYZING")
 
 # Each cycle runs five model-backed agents. POST /pricing-cycles returns 429
