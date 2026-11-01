@@ -13,6 +13,18 @@ from backend.mcp_servers.competitor_api.handler import (
     get_market_position,
 )
 
+# The handler rounds prices to 2 decimals, so a price at the edge of the
+# variance band can land up to half a cent outside it.
+ROUNDING_TOLERANCE = 0.005
+
+
+def _variance_bounds(baseline: float) -> tuple[float, float]:
+    """Return the ±PRICE_VARIANCE band around baseline, widened for rounding."""
+    return (
+        baseline * (1 - PRICE_VARIANCE) - ROUNDING_TOLERANCE,
+        baseline * (1 + PRICE_VARIANCE) + ROUNDING_TOLERANCE,
+    )
+
 
 class TestHandlerDispatch:
     """Tests for the Lambda handler dispatch logic."""
@@ -143,8 +155,7 @@ class TestGetCompetitorPrices:
             body = json.loads(result["body"])
             for competitor in body["data"]["competitors"]:
                 price = competitor["price"]
-                lower_bound = baseline * (1 - PRICE_VARIANCE)
-                upper_bound = baseline * (1 + PRICE_VARIANCE)
+                lower_bound, upper_bound = _variance_bounds(baseline)
                 assert lower_bound <= price <= upper_bound, (
                     f"Price {price} outside ±10% of baseline {baseline}"
                 )
@@ -229,8 +240,7 @@ class TestGetPriceHistory:
         for entry in body["data"]["history"]:
             for price_entry in entry["prices"]:
                 price = price_entry["price"]
-                lower_bound = baseline * (1 - PRICE_VARIANCE)
-                upper_bound = baseline * (1 + PRICE_VARIANCE)
+                lower_bound, upper_bound = _variance_bounds(baseline)
                 assert lower_bound <= price <= upper_bound
 
     def test_includes_trend_data(self):
@@ -297,8 +307,7 @@ class TestGetMarketPosition:
             result = handler(event, None)
             body = json.loads(result["body"])
             our_price = body["data"]["ourPrice"]
-            lower_bound = baseline * (1 - PRICE_VARIANCE)
-            upper_bound = baseline * (1 + PRICE_VARIANCE)
+            lower_bound, upper_bound = _variance_bounds(baseline)
             assert lower_bound <= our_price <= upper_bound
 
     def test_competitor_price_points_within_variance(self):
@@ -310,8 +319,7 @@ class TestGetMarketPosition:
             body = json.loads(result["body"])
             for comp in body["data"]["competitors"]:
                 price = comp["pricePoint"]
-                lower_bound = baseline * (1 - PRICE_VARIANCE)
-                upper_bound = baseline * (1 + PRICE_VARIANCE)
+                lower_bound, upper_bound = _variance_bounds(baseline)
                 assert lower_bound <= price <= upper_bound
 
     def test_includes_market_metrics(self):

@@ -18,7 +18,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `deploy.sh` now creates the AgentCore IAM role, gateway and memory (Step 3) before deploying the agents (Step 4) and re-deploying CDK (Step 5); `scripts/deploy_agentcore.py` discovers the gateway and memory by name, exits non-zero before building anything if either is missing, and sets `AGENTCORE_GATEWAY_ENDPOINT` (the gateway's `/mcp` URL), `AGENTCORE_MEMORY_ID`, the model IDs, guardrail settings and (orchestrator) the specialist ARNs as environment variables on every runtime, on create and update
 - `scripts/verify_deployment.py` now fails if any of the six runtimes lacks `AGENTCORE_GATEWAY_ENDPOINT` / `AGENTCORE_MEMORY_ID` on the version its DEFAULT endpoint serves
 - `scripts/create_agentcore_role.py` adds scoped AgentCore Memory data-plane, `InvokeAgentRuntime` (orchestrator to specialists), `InvokeGateway` and `bedrock:ApplyGuardrail` permissions; re-running it updates an existing role in place
+### Removed
+- Removed the unused `strands-agents-tools` dependency (no code imports `strands_tools`) from `requirements.txt`, `pyproject.toml` and `backend/agents/agentcore/requirements.txt`, plus the 27 pins only it required, including Pillow, aiohttp, multidict and yarl. This also removes the vulnerable Pillow from the agent container images. The container `multidict` floor is gone, since nothing installs it now
+### Security
+- Clears 51 Dependabot alerts on `requirements.txt` (41 Pillow, 8 aiohttp, 1 multidict, 1 opentelemetry-api) by the removal above and by bumping the OpenTelemetry packages as a group: `opentelemetry-api` / `opentelemetry-sdk` 1.45.1, `opentelemetry-semantic-conventions` / `opentelemetry-instrumentation` / `opentelemetry-instrumentation-threading` 0.66b1
+- Bumped `certifi` to 2026.10.23 (PYSEC-2026-4320: bundled emSign root CAs with compromised intermediate CA keys). Found by `pip-audit`; not yet raised by Dependabot
+- `mcp` stays at 2.1.1: `strands-agents` (latest 1.62.0) still requires `mcp<2.2`. Deferred and documented in `docs/KNOWN_ISSUES.md`
+- The agent containers still resolve OpenTelemetry 1.44.0, because `aws-opentelemetry-distro` (latest 0.21.0) pins it exactly. Deferred and documented in `docs/KNOWN_ISSUES.md`
 ### Fixed
+- Docs no longer state that Bedrock Guardrails are always enforced: README, `docs/ARCHITECTURE.md` and `docs/DEMO_SCRIPT.md` now say the guardrail is optional, is not created by the demo, and is attached only when `BEDROCK_GUARDRAIL_ID` names one that exists
+- The competitor API price-variance tests no longer fail intermittently: all four variance-bound checks now allow for the handler's 2-decimal rounding
+- Lambda assets are no longer re-uploaded on every deploy: `Code.from_asset` excludes `__pycache__` / `*.pyc`
 - `deploy.sh` Step 1.5 reported "No known vulnerabilities found" even when `pip-audit` crashed (it tested the exit status of `tail`). It now audits the pinned set with `--no-deps --disable-pip --strict`, tests `pip-audit`'s own exit status, and reports clean / vulnerabilities found / scan could not run; it also audits the agent container dependency set
 - Bumped `multidict` to 6.9.1 (CVE-2026-104874) and floored it in `backend/agents/agentcore/requirements.txt`
 - Agents were deployed without the gateway and memory: `MCPClient.streamable_http` does not exist (now `MCPClient(url=...)`), the guardrail was passed to `strands.Agent` (now attached to `BedrockModel`), and `AGENTCORE_MEMORY_ID not set` was logged at DEBUG (now WARNING)
