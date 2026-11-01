@@ -35,7 +35,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | Agent Gateway | Amazon Bedrock AgentCore Gateway | MCP protocol endpoint for 4 data server targets |
 | Agent Memory | Amazon Bedrock AgentCore Memory | Persistent state across pricing cycles |
 | Guardrails | Amazon Bedrock Guardrails (optional, bring your own) | Policy enforcement (4 denied topics + PII) when a guardrail is configured; otherwise the agents deploy with `DISABLE_BEDROCK_GUARDRAILS=true` |
-| Foundation Models | Amazon Bedrock — Claude Opus tier (orchestrator, strategy synthesis) + Claude Sonnet tier (specialists); exact model selected at deploy via `select_model.py` | LLM reasoning for pricing analysis |
+| Foundation Models | Amazon Bedrock — orchestrator tier (recommended: Claude Opus) + specialist tier for the five specialists, including strategy synthesis (recommended: Claude Sonnet); both selected at deploy via `select_model.py` | LLM reasoning for pricing analysis |
 | Container Registry | Amazon ECR (6 repositories) | Docker images for agent runtimes |
 
 ### 4. Data Layer (MCP Servers)
@@ -91,7 +91,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | Strategy Synthesis | Sonnet tier (`SPECIALIST_MODEL`) | Combines intelligence, generates ranked scenarios | Cost & Finance |
 | Implementation Monitoring | Sonnet tier (`SPECIALIST_MODEL`) | Executes price changes, monitors actual vs projected | ERP/POS |
 
-> Model IDs are not hardcoded: agents read `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL` from `shared/model_config.py`, which resolves from `model-config.json` (written by `scripts/select_model.py`) or the `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` environment variables. Both tiers default to the model selected at deploy time.
+> Model IDs are not hardcoded: agents read `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL` from `shared/model_config.py`, which resolves from the `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` environment variables that `scripts/deploy_agentcore.py` sets on each runtime from `model-config.json`. `scripts/select_model.py` writes that file with two separately chosen models: `modelId` (orchestrator) and `specialistModelId` (the five specialists).
 
 ---
 

@@ -440,7 +440,7 @@ when `scripts/setup_gateway.py` tries to register the MCP Server targets right a
 
 **Root Cause:** The AgentCore runtime containers hardcoded their model IDs (e.g. `us.anthropic.claude-opus-4-7` / `claude-sonnet-4-6`) instead of reading the selected configuration, so `select_model.py` was effectively a no-op for the deployed agents.
 
-**Fix:** The runtime containers now read the shared model configuration (`shared.model_config` → `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) instead of hardcoding model IDs, and `scripts/select_model.py` writes both `modelId` and `specialistModelId` to `model-config.json`. The selected model now genuinely drives all agents; both tiers default to the selected model unless `SPECIALIST_MODEL_ID` overrides the specialist tier.
+**Fix:** The runtime containers now read the shared model configuration (`shared.model_config` → `ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) instead of hardcoding model IDs, and `scripts/select_model.py` writes both `modelId` and `specialistModelId` to `model-config.json`. The selected models now genuinely drive the agents. (At the time one selection was written to both tiers; see "Model selection set the same model for all six agents" below for the tiered selection.)
 
 **Prevention:** Keep configurable values in one shared config source that both scripts and runtime read from — never duplicate them as hardcoded constants in the runtime.
 
@@ -546,3 +546,28 @@ Dependency findings from a review of the open Dependabot PRs and alerts. Each en
 **Root Cause:** `aws-opentelemetry-distro` (including its latest release, 0.21.0) pins `opentelemetry-api`, `opentelemetry-sdk` and `opentelemetry-propagator-jaeger` to exactly `==1.44.0`. Overriding the pin would break the distro.
 **Fix:** Intentionally deferred. Both advisories need attacker-controlled trace headers; the agent runtimes are reached only through IAM-authenticated `InvokeAgentRuntime` calls from this deployment's own Lambda and orchestrator, so an outside caller cannot send them crafted `tracestate` or baggage headers.
 **Prevention / when to act:** When an `aws-opentelemetry-distro` release allows OpenTelemetry 1.45.1 or later, rebuild the agent images (the file is unpinned, so the next deploy picks it up) and confirm Step 1.5's container audit is clean.
+
+---
+
+## Model Selection
+
+### Issue: Model selection set the same model for all six agents
+
+**Symptom:** Step 1.7 asked for one model and deployed it to all six agents, although the README described a tiered strategy (Opus for the orchestrator, Sonnet for the specialists). Setting `SPECIALIST_MODEL_ID` before `deploy.sh` had no effect.
+**Root Cause:** `scripts/select_model.py` wrote the single selection to both `modelId` and `specialistModelId`. `deploy_agentcore.py` reads only `model-config.json`, so a `SPECIALIST_MODEL_ID` in the deploy shell never reached the agents (the variable is only read inside the runtimes, from what `deploy_agentcore.py` sets).
+**Fix:** `select_model.py` now asks twice: the orchestrator model (recommended: newest ACTIVE Opus) and the specialist model (recommended: newest ACTIVE Sonnet). Pressing Enter twice, or `--non-interactive`, takes the recommended pair. `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` in the environment skip the matching prompt. Strategy Synthesis is a specialist (`SPECIALIST_MODEL`), and the README now says so.
+**Prevention:** `tests/test_select_model.py` covers the two prompts, the overrides and the config `deploy_agentcore.py` reads.
+
+### Issue: The recommended model was not the newest one
+
+**Symptom:** With Claude Opus 5.5, 5 and 4.8 available, Step 1.7 recommended Claude Opus 4.5.
+**Root Cause:** Models were ranked by the release date inside the model ID. Newer IDs carry no date (`claude-opus-5-5`), so they sorted below older dated IDs (`claude-opus-4-5-20251101-v1:0`).
+**Fix:** Ranking now uses the model version parsed from the ID (major, minor), then the date.
+**Prevention:** The sort is covered by `tests/test_select_model.py` with a mix of dated and undated IDs.
+
+### Issue: `switch_model.sh` said a skipped redeploy would still apply the new model
+
+**Symptom:** Skipping the redeploy printed "Agents will use the new model on next cold start", but the agents kept their old models. A failed redeploy was also reported as "✓ Agents redeployed".
+**Root Cause:** `model-config.json` is not in the agent images; the models reach the agents only as environment variables set by `deploy_agentcore.py`. The redeploy was piped into `tail -5`, so the script tested `tail`'s exit status instead of the deploy's.
+**Fix:** The messages now say the change applies only after a redeploy, the redeploy output is no longer piped, and the summary shows both models.
+**Prevention:** Never pipe a command whose exit status matters into another command.

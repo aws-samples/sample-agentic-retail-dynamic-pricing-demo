@@ -2,10 +2,12 @@
 ###############################################################################
 # Switch AI Model — Update model configuration for deployed agents
 #
-# Use this script AFTER initial deployment to change the AI model.
-# It runs the model selection tool and updates model-config.json.
-# AgentCore agents read model config at startup, so they will pick up
-# the new model on their next cold start (or you can redeploy agents).
+# Use this script AFTER initial deployment to change the AI models.
+# It runs the model selection tool (orchestrator model + specialist model)
+# and updates model-config.json. model-config.json is not part of the agent
+# images: the models reach the agents only as environment variables set by
+# scripts/deploy_agentcore.py, so the change takes effect when you redeploy
+# the agents (Step 3 below).
 #
 # Usage:
 #   bash scripts/switch_model.sh [--non-interactive] [--region us-east-1]
@@ -51,15 +53,19 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-MODEL_ID=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['modelId'])")
-MODEL_NAME=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['modelName'])")
+read_config() {
+    python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" "$CONFIG_FILE" "$1"
+}
+MODEL_ID=$(read_config modelId)
+MODEL_NAME=$(read_config modelName)
+SPECIALIST_ID=$(read_config specialistModelId)
+SPECIALIST_NAME=$(read_config specialistModelName)
 
 echo ""
 echo "Step 2: Model config updated."
 echo ""
-echo "  The model-config.json has been written. Agents using"
-echo "  shared/model_config.py will pick up the new model on"
-echo "  their next cold start."
+echo "  model-config.json has been written. The deployed agents keep"
+echo "  their current models until they are redeployed (Step 3)."
 echo ""
 
 # Step 3: Offer to redeploy agents
@@ -68,20 +74,23 @@ echo ""
 
 if [ -n "$NON_INTERACTIVE" ]; then
     echo "  Skipping agent redeploy (--non-interactive)."
-    echo "  Run 'python3 scripts/deploy_agentcore.py' to redeploy agents."
+    echo "  Run 'python3 scripts/deploy_agentcore.py' to apply the new models."
 else
     read -p "  Redeploy AgentCore agents now? [y/N]: " REDEPLOY
     if [[ "$REDEPLOY" =~ ^[Yy]$ ]]; then
         echo ""
         echo "  Redeploying agents..."
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        # No pipe here: with `| tail` the if/set -e would test tail's exit
+        # status, and a failed redeploy would be reported as success.
         python3 scripts/deploy_agentcore.py \
             --region "$REGION" \
-            --role-arn "arn:aws:iam::${ACCOUNT_ID}:role/RetailPricingAgentCoreRole" 2>&1 | tail -5
+            --role-arn "arn:aws:iam::${ACCOUNT_ID}:role/RetailPricingAgentCoreRole"
         echo ""
-        echo "  ✓ Agents redeployed with new model."
+        echo "  ✓ Agents redeployed with the new models."
     else
-        echo "  Skipped. Agents will use the new model on next cold start."
+        echo "  Skipped. The agents keep their current models until you run"
+        echo "  'python3 scripts/deploy_agentcore.py' (or re-run this script)."
     fi
 fi
 
@@ -89,9 +98,9 @@ echo ""
 echo "=============================================="
 echo "  ✓ Model switch complete!"
 echo ""
-echo "  Model:  $MODEL_NAME"
-echo "  ID:     $MODEL_ID"
-echo "  Region: $REGION"
-echo "  Config: $CONFIG_FILE"
+echo "  Orchestrator: $MODEL_NAME ($MODEL_ID)"
+echo "  Specialists:  $SPECIALIST_NAME ($SPECIALIST_ID)"
+echo "  Region:       $REGION"
+echo "  Config:       $CONFIG_FILE"
 echo "=============================================="
 echo ""

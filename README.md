@@ -14,7 +14,7 @@
 - **Monitors post-implementation KPIs** — Implementation Monitoring agent tracks revenue and margin variance against projections with configurable thresholds (10% revenue, 3pp margin)
 - **Provides full audit trail** with immutable records (IAM-enforced) for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive)
 - **Dual frontend** — Authenticated Dashboard (pricing management, simulations, analytics, scheduling) and public Storefront (consumer catalog with live price updates)
-- **Tiered model strategy** — Claude Opus for complex reasoning (orchestrator, synthesis), Claude Sonnet for data analysis (specialists) — optimizing cost without sacrificing quality
+- **Tiered model strategy** — you pick one model for the orchestrator (recommended: Claude Opus, for complex reasoning) and one for the five specialists (recommended: Claude Sonnet, for data analysis), keeping most model calls fast and cost-efficient
 - **Price Prediction Simulator** — Interactive what-if analysis with transparent factor scoring (Competitive Pressure, Demand Signal, Margin Constraint, Market Intelligence), adjustable market condition sliders, and live price impact calculations from current catalog prices
 - **Product Catalog & Unit Economics** — Full visibility into cost structure (materials, labor, overhead, shipping), gross margins, MAP floors, inventory levels, days of supply, and stock health for every product — showing exactly what data drives AI pricing decisions
 - **One-click deployment** — Automated `deploy.sh` handles CDK infrastructure, agent deployment, MCP server setup, and frontend builds
@@ -72,7 +72,7 @@
 | Data Store | DynamoDB (on-demand) | Serverless, pay-per-request |
 | Auth | Amazon Cognito | Managed auth, JWT, API Gateway integration |
 | IaC | AWS CDK (Python) | Reproducible, automatic rollback |
-| Models | Claude Opus (orchestration/synthesis) + Sonnet (specialists) | Best reasoning + cost-effective analysis; exact model chosen at deploy via `select_model.py` |
+| Models | Claude Opus (orchestrator) + Claude Sonnet (five specialists) | Best reasoning where it matters + cost-effective analysis; both models chosen at deploy via `select_model.py` |
 
 ---
 
@@ -139,36 +139,38 @@
 
 ## Model Configuration
 
-The AI models used by the pricing agents are configurable. The system scans your Bedrock model access, flags deprecated (LEGACY) models, and recommends the best available option.
+The AI models used by the pricing agents are configurable, in two tiers: one model for the orchestrator and one for the five specialist agents. The system scans your Bedrock model access, flags deprecated (LEGACY) models, and recommends the newest ACTIVE Opus model for the orchestrator and the newest ACTIVE Sonnet model for the specialists. Running the specialists on a smaller model keeps most model calls faster and cheaper.
 
 ### During Initial Deployment
 
-Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see a table of available models with status indicators and choose one interactively. The selected model ID is written to `model-config.json` (as both `modelId` and `specialistModelId`) and is used by all agents — the AgentCore runtime containers read the shared model configuration (`ORCHESTRATOR_MODEL` / `SPECIALIST_MODEL`) at startup rather than hardcoding model IDs. `model-config.json` is not part of the container image, so `deploy_agentcore.py` passes the selected IDs to every runtime as the `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` environment variables (re-run it to apply a model change). Both tiers default to the selected model unless the `SPECIALIST_MODEL_ID` environment variable overrides the specialist tier.
+Model selection runs automatically as Step 1.7 in `deploy.sh`. You'll see one table of available models and two prompts: first the **orchestrator** model, then the **specialist** model. Press Enter at both to accept the recommended pair. The choices are written to `model-config.json` (`modelId` for the orchestrator, `specialistModelId` for the specialists). `model-config.json` is not part of the container images, so `deploy_agentcore.py` passes them to every runtime as the `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` environment variables, which the runtimes read through `shared/model_config.py`.
+
+To skip a prompt, set `ORCHESTRATOR_MODEL_ID` and/or `SPECIALIST_MODEL_ID` (a cross-region model ID such as `us.anthropic.claude-sonnet-4-6`) before running `deploy.sh` or `scripts/select_model.py`. `--non-interactive` accepts both recommendations.
 
 ### Switching Models After Deployment
 
-To change the model on an existing deployment:
+To change the models on an existing deployment:
 
 ```bash
 bash scripts/switch_model.sh
 ```
 
 This will:
-1. Scan available Bedrock models and show recommendations
+1. Scan available Bedrock models and show recommendations for both tiers
 2. Flag any LEGACY models with end-of-life dates
-3. Update `model-config.json`
-4. Optionally redeploy AgentCore agents to apply immediately
+3. Ask for the orchestrator model and the specialist model, and update `model-config.json`
+4. Optionally redeploy the AgentCore agents. **The new models take effect only after this redeploy**: the deployed agents keep their current models until `deploy_agentcore.py` runs again
 
 Options:
-- `--non-interactive` — auto-select the recommended model
+- `--non-interactive` — auto-select the recommended models (and skip the redeploy)
 - `--region us-west-2` — target a specific region
 
 ### Model Tiers
 
-| Tier | Used By | Purpose |
-|------|---------|---------|
-| Opus | Orchestrator, Strategy Synthesis | Complex multi-step reasoning |
-| Sonnet | Competitive, Demand, Market, Implementation agents | Data analysis |
+| Tier | Setting | Used By | Purpose |
+|------|---------|---------|---------|
+| Orchestrator (recommended: Opus) | `modelId` / `ORCHESTRATOR_MODEL_ID` | Orchestrator | Complex multi-step reasoning and coordination |
+| Specialist (recommended: Sonnet) | `specialistModelId` / `SPECIALIST_MODEL_ID` | Competitive Intelligence, Demand Forecasting, Market Intelligence, Strategy Synthesis, Implementation Monitoring | Data analysis and scenario generation |
 
 ---
 

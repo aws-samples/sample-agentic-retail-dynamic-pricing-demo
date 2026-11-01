@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- Model selection is tiered: `scripts/select_model.py` (Step 1.7) asks for the orchestrator model (recommended: newest ACTIVE Opus) and the specialist model for the five specialists (recommended: newest ACTIVE Sonnet), so most model calls run on the faster, cheaper tier. `--non-interactive` takes the recommended pair, and `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` in the environment skip the matching prompt. `model-config.json` gains `specialistModelName`
+- `scripts/switch_model.sh` asks for both models and shows both in its summary
 - Bumped dashboard dev dependencies to patched versions to clear vulnerability alerts: `browserslist` 4.28.8, `nanoid` 3.3.18, `postcss-selector-parser` 6.1.4 (non-breaking `npm audit fix`)
 - Bumped storefront dev dependencies to patched versions: `browserslist` 4.28.8, `nanoid` 3.3.18 (targeted update; storefront builds clean with zero audit findings)
 - Aligned both frontends on the same validated tooling: `vite` 8.3.0, `@vitejs/plugin-react` 5.2.0, `react-router-dom` 7.18.4 (dashboard was on Vite 5); `npm audit` now reports 0 vulnerabilities on both
@@ -26,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `mcp` stays at 2.1.1: `strands-agents` (latest 1.62.0) still requires `mcp<2.2`. Deferred and documented in `docs/KNOWN_ISSUES.md`
 - The agent containers still resolve OpenTelemetry 1.44.0, because `aws-opentelemetry-distro` (latest 0.21.0) pins it exactly. Deferred and documented in `docs/KNOWN_ISSUES.md`
 ### Fixed
+- Step 1.7 recommended an older model (e.g. Claude Opus 4.5 over Opus 5.5): models are now ranked by the version in the model ID, not only by the release date, which newer IDs no longer carry
+- `scripts/switch_model.sh` claimed a skipped redeploy would apply the new model "on next cold start" (it does not: the models reach the agents only through `deploy_agentcore.py`), and reported a failed redeploy as success because the redeploy was piped into `tail`
+- The README listed Strategy Synthesis on the Opus tier; it is a specialist and uses the specialist model
 - Docs no longer state that Bedrock Guardrails are always enforced: README, `docs/ARCHITECTURE.md` and `docs/DEMO_SCRIPT.md` now say the guardrail is optional, is not created by the demo, and is attached only when `BEDROCK_GUARDRAIL_ID` names one that exists
 - The competitor API price-variance tests no longer fail intermittently: all four variance-bound checks now allow for the handler's 2-decimal rounding
 - Lambda assets are no longer re-uploaded on every deploy: `Code.from_asset` excludes `__pycache__` / `*.pyc`

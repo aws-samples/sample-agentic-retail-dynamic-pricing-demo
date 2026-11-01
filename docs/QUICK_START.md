@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- AWS Account with Bedrock model access (a Claude Opus model + a Claude Sonnet model; `select_model.py` shows what you can access and lets you choose)
+- AWS Account with Bedrock model access (a Claude Opus model for the orchestrator + a Claude Sonnet model for the five specialists; `select_model.py` shows what you can access and asks for each)
 - AWS CLI configured with credentials
 - Node.js 20+ and Python 3.12+
 - Docker (for AgentCore agent deployment)
