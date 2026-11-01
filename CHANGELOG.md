@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- Frontend dependencies bumped in both the dashboard and storefront: `vite` 8.3.4, `follow-redirects` 1.16.2, `source-map-js` 1.2.2, `postcss-selector-parser` 6.1.5. `npm audit` now reports 0 vulnerabilities in both apps (including dev dependencies), still on `tailwindcss` 3.4.19
+
 ### Changed
 - Model selection is tiered: `scripts/select_model.py` (Step 1.7) asks for the orchestrator model (recommended: newest ACTIVE Opus) and the specialist model for the five specialists (recommended: newest ACTIVE Sonnet), so most model calls run on the faster, cheaper tier. `--non-interactive` takes the recommended pair, and `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` in the environment skip the matching prompt. `model-config.json` gains `specialistModelName`
 - `scripts/switch_model.sh` asks for both models and shows both in its summary

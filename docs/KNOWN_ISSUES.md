@@ -457,6 +457,7 @@ when `scripts/setup_gateway.py` tries to register the MCP Server targets right a
 **Root Cause:** These packages are build-time tooling for Tailwind/PostCSS. They run only during `npm run build` to generate the static CSS/JS and are **not included in the deployed `dist/` bundle**. The advisories are ReDoS / CPU-exhaustion issues reachable only when an attacker controls the build inputs (glob patterns, selectors) — not a runtime exposure for a static frontend built by the project owner.
 **Fix:** Intentionally deferred. The only `npm audit fix --force` remediation bumps `tailwindcss` to a new major version, which carries breaking changes (config format and utility-class changes) that would require re-validating both frontends' styling. We do not bundle a breaking major upgrade into routine security-patch merges.
 **Prevention / when to act:** If a fully clean `npm audit` is required, perform a dedicated Tailwind major upgrade on its own branch: bump `tailwindcss` and its chain, rebuild both frontends, and visually verify the dashboard and storefront before merging. Treat it as a tracked UI task, not a dependency-patch.
+**Status (resolved without a major upgrade):** patched releases inside Tailwind 3's version ranges (`postcss-selector-parser` 6.1.5, `source-map-js` 1.2.2) now clear these findings, and `npm audit` reports 0 vulnerabilities in both frontends on `tailwindcss` 3.4.19. A Tailwind 4 upgrade is no longer needed for security; do it only for its features.
 
 ---
 
