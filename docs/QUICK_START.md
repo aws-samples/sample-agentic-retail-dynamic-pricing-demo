@@ -53,7 +53,8 @@ These must exist **before** the agents are deployed (step 4): the agents are wir
 
 ```bash
 # Create (or update in place) the IAM roles: RetailPricingAgentCoreRole (agents)
-# and RetailPricingGatewayRole (gateway; only invokes the rdp-mcp-* Lambdas)
+# and RetailPricingGatewayRole (gateway; only invokes the rdp-mcp-* Lambdas). On an
+# older deployment it also moves the open retail-pricing-gateway onto the gateway role.
 python3 scripts/create_agentcore_role.py --region us-east-1
 
 # Get MCP Server Lambda ARNs

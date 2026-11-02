@@ -39,6 +39,8 @@
 #
 #   --skip-agents skips only the agent deploy (Step 4); the IAM role, gateway and
 #   memory (Step 3) are still created because they do not depend on the agents.
+#   It stops before Step 2 on a deployment that still uses the open gateway of an
+#   earlier version: upgrading one needs the agent deploy (see Step 4.5).
 #
 # Rollback:
 #   To tear down everything (CDK stack, AgentCore resources, ECR, IAM role):
@@ -250,6 +252,15 @@ source .venv/bin/activate
 .venv/bin/pip install -r requirements.txt --quiet
 .venv/bin/pip install -e . --no-deps --quiet
 print_success "Dependencies installed (pinned from requirements.txt)"
+
+# --skip-agents cannot upgrade a deployment that still uses the open gateway of
+# an earlier version: Step 4.5 deletes it only once the agents (Step 4) sign
+# their calls to the new one. Stop here, before anything is deployed, instead
+# of failing at Step 4.5 with the infrastructure already updated.
+if [ "$SKIP_AGENTS" = true ]; then
+    python3 scripts/secure_gateway.py --region $REGION --check-skip-agents
+    print_success "No open gateway of an earlier version in use: --skip-agents can finish"
+fi
 
 # Step 1.5: Security — Dependency vulnerability scan
 print_step "1.5" "Scanning dependencies for known vulnerabilities"

@@ -18,11 +18,13 @@ deploy.sh runs this after the agents are deployed (Step 4.5). It:
    agents would lose their tools. Otherwise deletes its targets and then the
    gateway, and waits until both are gone.
 
-The gateway names and the UpdateGateway helper that scripts/setup_gateway.py
-uses to move a gateway to its own service role live here too.
+The gateway names live here too, with the UpdateGateway helpers that
+scripts/create_agentcore_role.py and scripts/setup_gateway.py use to move a
+gateway to its own service role, and the check deploy.sh runs before Step 2
+when --skip-agents is given (--check-skip-agents).
 
 Usage:
-    python scripts/secure_gateway.py [--region us-east-1]
+    python scripts/secure_gateway.py [--region us-east-1] [--check-skip-agents]
 """
 
 from __future__ import annotations
@@ -144,6 +146,46 @@ def move_gateway_to_role(client, gateway: dict, role_arn: str) -> dict:
     if problems:
         raise GatewayError("Gateway update did not keep its configuration: " + "; ".join(problems))
     return updated
+
+
+def move_legacy_gateway_to_role(control, role_arn: str) -> dict | None:
+    """Put the open gateway of an earlier version on `role_arn`, if it exists and is not on it.
+
+    That gateway invokes the MCP Lambdas with the agents' execution role, which
+    loses Lambda invoke in this version. scripts/create_agentcore_role.py calls
+    this before it updates that role, so the gateway keeps serving the agents
+    until they are redeployed against GATEWAY_NAME and Step 4.5 deletes it.
+    Returns the gateway after the move, or None if there was nothing to move.
+    """
+    try:
+        legacy = find_gateway(control, LEGACY_GATEWAY_NAME)
+        if legacy is None or legacy.get("roleArn") == role_arn:
+            return None
+        print(f"Moving the open gateway '{LEGACY_GATEWAY_NAME}' ({legacy['gatewayId']}) from "
+              f"{legacy.get('roleArn', '').split('/')[-1]} to {role_arn.split('/')[-1]}, so its tools keep working "
+              "until deploy.sh deletes it (Step 4.5)")
+        wait_until_ready(control, legacy["gatewayId"])
+        return move_gateway_to_role(control, control.get_gateway(gatewayIdentifier=legacy["gatewayId"]), role_arn)
+    except ClientError as e:
+        # For example AccessDenied on GetGateway/UpdateGateway, or iam:PassRole on the gateway role.
+        raise GatewayError(f"{e.response.get('Error', {}).get('Code', 'Error')}: {e}") from e
+
+
+def skip_agents_blockers(control) -> list[str]:
+    """Why `./deploy.sh --skip-agents` cannot finish on this deployment (empty list: it can).
+
+    Step 4.5 deletes the open gateway of an earlier version only once every
+    gateway-calling runtime signs its calls to GATEWAY_NAME, and only an agent
+    deploy (Step 4) puts them there. deploy.sh checks this before Step 2.
+    """
+    legacy = find_gateway(control, LEGACY_GATEWAY_NAME)
+    if legacy is None:
+        return []
+    gateway = find_gateway(control, GATEWAY_NAME)
+    if gateway is None:
+        return [f"'{GATEWAY_NAME}' does not exist yet: the agents still use '{LEGACY_GATEWAY_NAME}' "
+                f"({legacy['gatewayId']}, inbound auth {legacy.get('authorizerType')})"]
+    return runtimes_not_using(control, mcp_endpoint(gateway))
 
 
 def runtimes_not_using(control, endpoint: str) -> list[str]:
@@ -332,7 +374,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Verify SigV4 on the AgentCore Gateway and delete the open gateway of earlier versions")
     parser.add_argument("--region", default="us-east-1")
+    parser.add_argument("--check-skip-agents", action="store_true",
+                        help="only check that ./deploy.sh --skip-agents can finish here (exit 1 if not); "
+                             "deploy.sh runs this before Step 2")
     args = parser.parse_args()
+    if args.check_skip_agents:
+        blockers = skip_agents_blockers(boto3.client("bedrock-agentcore-control", region_name=args.region))
+        if blockers:
+            print(
+                f"Error: this deployment still uses the open gateway '{LEGACY_GATEWAY_NAME}' of an earlier version.\n"
+                "  " + "\n  ".join(blockers) + "\n"
+                f"Upgrading redeploys the agents so they sign their calls to '{GATEWAY_NAME}', and Step 4.5 then "
+                "deletes the open gateway. Run ./deploy.sh without --skip-agents.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return
     try:
         secure_gateway(args.region)
     except GatewayError as e:

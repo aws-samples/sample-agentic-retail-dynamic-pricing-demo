@@ -213,7 +213,7 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-The script asks for an email address for the Bedrock spend budget alert (80 % of $50/month). Pass `--alert-email you@example.com` (or set `ALERT_EMAIL`) to skip the prompt; without a terminal, as in CI, it is required. `--specialist-timeout` / `--synthesis-timeout` (seconds, defaults 300 / 180) set how long the orchestrator waits for each agent; raise them if a slower model times out. The Lambda timeouts are derived from them (`shared/cycle_timeouts.py`, sum at most 714 s), and `python3 -m shared.cycle_timeouts --specialist N` prints the resulting chain. The script automates all steps below, including prerequisites check, CDK deployment, AgentCore role/gateway/memory setup, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments (`--skip-agents` skips only the agent deploy in Step 4; the role, gateway and memory are still created).
+The script asks for an email address for the Bedrock spend budget alert (80 % of $50/month). Pass `--alert-email you@example.com` (or set `ALERT_EMAIL`) to skip the prompt; without a terminal, as in CI, it is required. `--specialist-timeout` / `--synthesis-timeout` (seconds, defaults 300 / 180) set how long the orchestrator waits for each agent; raise them if a slower model times out. The Lambda timeouts are derived from them (`shared/cycle_timeouts.py`, sum at most 714 s), and `python3 -m shared.cycle_timeouts --specialist N` prints the resulting chain. The script automates all steps below, including prerequisites check, CDK deployment, AgentCore role/gateway/memory setup, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments (`--skip-agents` skips only the agent deploy in Step 4; the role, gateway and memory are still created). Upgrading a deployment from before the gateway required SigV4 needs one run without `--skip-agents`, because it moves the agents to the new gateway; with `--skip-agents` the script stops before deploying anything.
 
 After deployment completes, run the validation script:
 
@@ -258,7 +258,8 @@ The gateway and memory must exist **before** the agents are deployed (step 4), b
 
 ```bash
 # IAM roles: RetailPricingAgentCoreRole (agents) and RetailPricingGatewayRole (gateway;
-# only invokes the rdp-mcp-* Lambdas). Re-run any time to update them in place.
+# only invokes the rdp-mcp-* Lambdas). Re-run any time to update them in place. On an
+# older deployment it also moves the open retail-pricing-gateway onto the gateway role.
 python scripts/create_agentcore_role.py --region us-east-1
 
 # Export MCP Server Lambda ARNs (get from: aws lambda list-functions --query "Functions[?starts_with(FunctionName,'rdp-mcp-')].[FunctionName,FunctionArn]" --output table)
