@@ -14,6 +14,7 @@ from stacks.dynamodb import DynamoDBTables
 from stacks.mcp_servers import McpServersConstruct
 from stacks.hosting import HostingConstruct
 from stacks.api_handlers import ApiHandlersConstruct
+from stacks.guardrail import PricingGuardrail
 from shared import cycle_timeouts
 
 # Cost Explorer / Budgets service names this solution's model spend is billed
@@ -126,6 +127,11 @@ class RetailDynamicPricingStack(cdk.Stack):
             hosting=self.hosting,
             cycle_timeouts=self.cycle_timeouts,
         )
+
+        # --- Bedrock guardrail for the model-backed agents ---
+        # scripts/deploy_agentcore.py attaches the published version from the
+        # BedrockGuardrailId / BedrockGuardrailVersion outputs to every runtime.
+        self.guardrail = PricingGuardrail(self, "PricingGuardrail")
 
         # --- AWS Budget Alarm for Bedrock Spend ---
         # Notifies alert_email when monthly Bedrock spend passes 80 % of $50.

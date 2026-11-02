@@ -221,49 +221,67 @@ class TestModelAndGuardrailEnvironment:
         assert deploy_agentcore.load_model_environment() == {}
 
     @staticmethod
-    def session_with_bedrock(bedrock):
-        return SimpleNamespace(client=lambda name, **kw: bedrock)
+    def session_with(bedrock, outputs=None):
+        """Session whose cloudformation stack exports `outputs` (None: stack missing)."""
+        def describe_stacks(StackName):
+            if outputs is None:
+                raise client_error("ValidationError", f"Stack with id {StackName} does not exist")
+            return {"Stacks": [{"Outputs": [{"OutputKey": k, "OutputValue": v} for k, v in outputs.items()]}]}
 
-    def test_missing_guardrail_disables_guardrails(self, monkeypatch):
-        monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
-        bedrock = SimpleNamespace(
-            get_guardrail=lambda **kw: (_ for _ in ()).throw(client_error("ResourceNotFoundException"))
-        )
+        cloudformation = SimpleNamespace(describe_stacks=describe_stacks)
+        return SimpleNamespace(client=lambda name, **kw: cloudformation if name == "cloudformation" else bedrock)
 
-        env = deploy_agentcore.resolve_guardrail_environment(self.session_with_bedrock(bedrock), REGION)
+    STACK_OUTPUTS = {"BedrockGuardrailId": "gr-stack", "BedrockGuardrailVersion": "3"}
 
-        assert env == {"DISABLE_BEDROCK_GUARDRAILS": "true"}
+    @pytest.fixture
+    def no_guardrail_env(self, monkeypatch):
+        for var in ("DISABLE_BEDROCK_GUARDRAILS", "BEDROCK_GUARDRAIL_ID", "BEDROCK_GUARDRAIL_VERSION"):
+            monkeypatch.delenv(var, raising=False)
 
-    def test_existing_guardrail_is_attached(self, monkeypatch):
-        monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
+    def test_the_stack_guardrail_is_attached(self, no_guardrail_env):
+        seen = {}
+        bedrock = SimpleNamespace(get_guardrail=lambda **kw: seen.update(kw) or {"status": "READY"})
+
+        env = deploy_agentcore.resolve_guardrail_environment(self.session_with(bedrock, self.STACK_OUTPUTS), REGION)
+
+        assert env == {"BEDROCK_GUARDRAIL_ID": "gr-stack", "BEDROCK_GUARDRAIL_VERSION": "3"}
+        assert seen == {"guardrailIdentifier": "gr-stack", "guardrailVersion": "3"}
+
+    def test_an_explicit_guardrail_wins_over_the_stack(self, no_guardrail_env, monkeypatch):
         monkeypatch.setenv("BEDROCK_GUARDRAIL_ID", "gr-123")
         monkeypatch.setenv("BEDROCK_GUARDRAIL_VERSION", "7")
-        seen = {}
-        bedrock = SimpleNamespace(get_guardrail=lambda **kw: seen.update(kw) or {})
+        bedrock = SimpleNamespace(get_guardrail=lambda **kw: {"status": "READY"})
 
-        env = deploy_agentcore.resolve_guardrail_environment(self.session_with_bedrock(bedrock), REGION)
+        env = deploy_agentcore.resolve_guardrail_environment(self.session_with(bedrock, self.STACK_OUTPUTS), REGION)
 
         assert env == {"BEDROCK_GUARDRAIL_ID": "gr-123", "BEDROCK_GUARDRAIL_VERSION": "7"}
-        assert seen == {"guardrailIdentifier": "gr-123", "guardrailVersion": "7"}
 
-    def test_unverifiable_guardrail_stays_enabled(self, monkeypatch):
-        """Only a guardrail that definitively does not exist is switched off."""
-        monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
-        bedrock = SimpleNamespace(
-            get_guardrail=lambda **kw: (_ for _ in ()).throw(client_error("AccessDeniedException"))
-        )
+    @pytest.mark.parametrize("outputs", [None, {}], ids=["no-stack", "no-guardrail-output"])
+    def test_no_guardrail_fails_instead_of_deploying_unguarded(self, no_guardrail_env, outputs):
+        with pytest.raises(deploy_agentcore.GuardrailError, match="DISABLE_BEDROCK_GUARDRAILS=true"):
+            deploy_agentcore.resolve_guardrail_environment(self.session_with(None, outputs), REGION)
 
-        env = deploy_agentcore.resolve_guardrail_environment(self.session_with_bedrock(bedrock), REGION)
+    @pytest.mark.parametrize("code", ["ResourceNotFoundException", "AccessDeniedException"])
+    def test_an_unreadable_guardrail_fails(self, no_guardrail_env, code):
+        bedrock = SimpleNamespace(get_guardrail=lambda **kw: (_ for _ in ()).throw(client_error(code)))
+        with pytest.raises(deploy_agentcore.GuardrailError, match=code):
+            deploy_agentcore.resolve_guardrail_environment(self.session_with(bedrock, self.STACK_OUTPUTS), REGION)
 
-        assert "DISABLE_BEDROCK_GUARDRAILS" not in env
-        assert env["BEDROCK_GUARDRAIL_ID"]
+    def test_a_guardrail_that_is_not_ready_fails(self, no_guardrail_env):
+        bedrock = SimpleNamespace(get_guardrail=lambda **kw: {"status": "UPDATING"})
+        with pytest.raises(deploy_agentcore.GuardrailError, match="not READY"):
+            deploy_agentcore.resolve_guardrail_environment(self.session_with(bedrock, self.STACK_OUTPUTS), REGION)
 
     def test_operator_kill_switch_is_passed_through(self, monkeypatch):
         monkeypatch.setenv("DISABLE_BEDROCK_GUARDRAILS", "true")
 
-        env = deploy_agentcore.resolve_guardrail_environment(self.session_with_bedrock(None), REGION)
+        env = deploy_agentcore.resolve_guardrail_environment(self.session_with(None), REGION)
 
         assert env == {"DISABLE_BEDROCK_GUARDRAILS": "true"}
+
+    def test_no_account_specific_guardrail_id_is_hardcoded(self):
+        for path in ("scripts/deploy_agentcore.py", "backend/agents/agentcore/guardrail_config.py"):
+            assert "mgu29odtpk6m" not in (PROJECT_ROOT / path).read_text()
 
 
 # ---------------------------------------------------------------------------
@@ -655,6 +673,7 @@ class TestVerifyAgentWiring:
             "verify_agent_arns": (True, 6),
             "verify_cycle_timeouts": (True, "timeouts match"),
             "verify_gateway_auth": (True, []),
+            "verify_runtime_guardrail": (True, "guardrail ok"),
         }
         for name, value in ok_checks.items():
             monkeypatch.setattr(verify_deployment, name, lambda *a, _v=value, **k: _v)
@@ -678,6 +697,7 @@ class TestVerifyAgentWiring:
             "verify_agent_arns": (True, 6),
             "verify_cycle_timeouts": (True, "timeouts match"),
             "verify_gateway_auth": (True, []),
+            "verify_runtime_guardrail": (True, "guardrail ok"),
         }
         for name, value in ok_checks.items():
             monkeypatch.setattr(verify_deployment, name, lambda *a, _v=value, **k: _v)
@@ -738,7 +758,11 @@ class TestRolePolicy:
         stmt = self.statements["BedrockApplyGuardrail"]
 
         assert stmt["Action"] == ["bedrock:ApplyGuardrail"]
-        assert stmt["Resource"] == [f"arn:aws:bedrock:{REGION}:{ACCOUNT}:guardrail/*"]
+        # The guardrail, and the Standard tier's cross-Region profile in each destination Region.
+        assert stmt["Resource"] == [
+            f"arn:aws:bedrock:{REGION}:{ACCOUNT}:guardrail/*",
+            f"arn:aws:bedrock:*:{ACCOUNT}:guardrail-profile/us.guardrail.v1:0",
+        ]
 
     def test_no_new_wildcard_resources(self):
         """Only the pre-existing ECR auth-token statement may use Resource '*'."""
@@ -924,48 +948,112 @@ SPECIALIST_RUNTIMES = [
 
 
 class TestGuardrailConfig:
-    def test_defaults_attach_the_default_guardrail_to_the_model(self, monkeypatch):
+    def test_no_guardrail_and_no_opt_out_fails_closed(self, monkeypatch):
         for var in ("DISABLE_BEDROCK_GUARDRAILS", "BEDROCK_GUARDRAIL_ID", "BEDROCK_GUARDRAIL_VERSION"):
             monkeypatch.delenv(var, raising=False)
 
-        assert guardrail_config.get_guardrail_model_kwargs() == {
-            "guardrail_id": guardrail_config.GUARDRAIL_ID,
-            "guardrail_version": guardrail_config.GUARDRAIL_VERSION,
-            "guardrail_trace": "enabled",
-        }
+        with pytest.raises(guardrail_config.GuardrailNotConfigured):
+            guardrail_config.get_guardrail_model_kwargs()
 
-    def test_environment_overrides_the_guardrail(self, monkeypatch):
+    def test_configured_guardrail_screens_the_latest_prompt_and_every_response(self, monkeypatch):
         monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
         monkeypatch.setenv("BEDROCK_GUARDRAIL_ID", "gr-abc")
         monkeypatch.setenv("BEDROCK_GUARDRAIL_VERSION", "9")
 
-        kwargs = guardrail_config.get_guardrail_model_kwargs()
-
-        assert kwargs["guardrail_id"] == "gr-abc" and kwargs["guardrail_version"] == "9"
+        assert guardrail_config.get_guardrail_model_kwargs() == {
+            "guardrail_id": "gr-abc",
+            "guardrail_version": "9",
+            "guardrail_trace": "enabled",
+            "guardrail_latest_message": True,
+        }
 
     def test_kill_switch_returns_no_kwargs(self, monkeypatch):
         monkeypatch.setenv("DISABLE_BEDROCK_GUARDRAILS", "true")
 
         assert guardrail_config.get_guardrail_model_kwargs() == {}
 
-    def test_empty_guardrail_id_returns_no_kwargs(self, monkeypatch):
+    def test_empty_guardrail_id_fails_closed(self, monkeypatch):
         monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
         monkeypatch.setenv("BEDROCK_GUARDRAIL_ID", "")
 
-        assert guardrail_config.get_guardrail_model_kwargs() == {}
+        with pytest.raises(guardrail_config.GuardrailNotConfigured):
+            guardrail_config.get_guardrail_model_kwargs()
 
     def test_kwargs_are_valid_bedrock_model_config(self, monkeypatch):
         monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
+        monkeypatch.setenv("BEDROCK_GUARDRAIL_ID", "gr-abc")
+        monkeypatch.setenv("BEDROCK_GUARDRAIL_VERSION", "2")
 
         model = BedrockModel(model_id="m", region_name=REGION, **guardrail_config.get_guardrail_model_kwargs())
 
-        assert model.get_config()["guardrail_id"] == guardrail_config.get_guardrail_id()
+        assert model.get_config()["guardrail_id"] == "gr-abc"
+        assert model.get_config()["guardrail_latest_message"] is True
 
     def test_strands_agent_has_no_guardrail_parameter(self):
         """Why the guardrail must go on the model: Agent(**kwargs) raised TypeError."""
         parameters = inspect.signature(Agent.__init__).parameters
         assert "guardrail_config" not in parameters
         assert not any(p.kind is p.VAR_KEYWORD for p in parameters.values())
+
+
+SYNTHESIS_PROMPT = json.dumps({
+    "competitive_intelligence": {"result": "Raise online prices to $113.99; don't follow ValueStore's $103.02."},
+    "demand_forecasting": {}, "market_intelligence": {}, "product_costs": [], "cycle_id": "c1",
+    "objectives": ["margin_protection"], "constraints": {"minMargin": 20, "maxPriceChange": 15},
+})
+
+
+class TestSynthesisGuardrailInput:
+    """Strategy Synthesis screens only the request as guardrail input (live: the whole prompt was blocked)."""
+
+    @pytest.fixture(autouse=True)
+    def guardrail_env(self, monkeypatch):
+        monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
+        monkeypatch.setenv("BEDROCK_GUARDRAIL_ID", "gr-abc")
+
+    def test_only_the_request_is_in_a_guard_content_block(self):
+        guard, text = guardrail_config.synthesis_prompt_content(SYNTHESIS_PROMPT)
+        assert guard == {"guardContent": {"text": {"text": 'Pricing request: {"objectives": ["margin_protection"], '
+                                                           '"constraints": {"minMargin": 20, "maxPriceChange": 15}}'}}}
+        assert text == {"text": SYNTHESIS_PROMPT}  # the model still sees the whole prompt
+
+    @pytest.mark.parametrize("prompt", [
+        "Synthesize pricing strategies",  # not JSON
+        json.dumps(["a", "list"]),
+        json.dumps({"objectives": ["x"]}),  # no analyst report: not the orchestrator's prompt
+        json.dumps({"competitive_intelligence": {}, "objectives": [], "constraints": {}}),  # nothing to screen
+    ])
+    def test_other_prompts_are_screened_whole(self, prompt):
+        assert guardrail_config.synthesis_prompt_content(prompt) is None
+
+    def test_disabled_guardrail_needs_no_blocks(self, monkeypatch):
+        monkeypatch.setenv("DISABLE_BEDROCK_GUARDRAILS", "true")
+        assert guardrail_config.synthesis_prompt_content(SYNTHESIS_PROMPT) is None
+
+    def test_the_request_shape_reaches_bedrock(self):
+        """With latest_message off, strands sends the guardContent block as given and leaves the text alone."""
+        model = BedrockModel(model_id="m", region_name=REGION,
+                             **guardrail_config.get_guardrail_model_kwargs(latest_message=False))
+        content = guardrail_config.synthesis_prompt_content(SYNTHESIS_PROMPT)
+        request = model.format_request(messages=[{"role": "user", "content": content}])
+        (message,) = request["messages"]
+        assert [next(iter(block)) for block in message["content"]] == ["guardContent", "text"]
+        assert request["guardrailConfig"]["guardrailIdentifier"] == "gr-abc"
+
+    def test_the_synthesis_runtime_uses_it(self, monkeypatch):
+        runtime = importlib.import_module("backend.agents.agentcore.strategy_synthesis_runtime")
+        record = {}
+        monkeypatch.setattr(runtime, "GATEWAY_ENDPOINT", GATEWAY_MCP)
+        monkeypatch.setattr(runtime, "Agent", make_signature_checking_agent(record))
+        monkeypatch.setattr(runtime, "create_session_manager", lambda **kw: None)
+
+        assert runtime.invoke({"prompt": SYNTHESIS_PROMPT})["status"] == "success"
+        assert record["prompt"] == guardrail_config.synthesis_prompt_content(SYNTHESIS_PROMPT)
+        assert record["kwargs"]["model"].get_config()["guardrail_latest_message"] is False
+
+        assert runtime.invoke({"prompt": "Synthesize", "context": {"constraints": {}}})["status"] == "success"
+        assert isinstance(record["prompt"], str)
+        assert record["kwargs"]["model"].get_config()["guardrail_latest_message"] is True
 
 
 def make_signature_checking_agent(record):
@@ -992,6 +1080,9 @@ def make_signature_checking_agent(record):
 def region_env(monkeypatch):
     monkeypatch.setenv("AWS_DEFAULT_REGION", REGION)
     monkeypatch.delenv("DISABLE_BEDROCK_GUARDRAILS", raising=False)
+    # deploy_agentcore.py always sets a guardrail (or the explicit opt-out).
+    monkeypatch.setenv("BEDROCK_GUARDRAIL_ID", "gr-test")
+    monkeypatch.setenv("BEDROCK_GUARDRAIL_VERSION", "1")
 
 
 class TestSpecialistRuntimesGatewayPath:
