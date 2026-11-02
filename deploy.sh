@@ -25,10 +25,11 @@
 #
 # Usage:
 #   chmod +x deploy.sh
-#   ./deploy.sh --alert-email you@example.com [--region us-east-1] [--skip-agents] [--skip-frontend]
+#   ./deploy.sh [--alert-email you@example.com] [--region us-east-1] [--skip-agents] [--skip-frontend]
 #
-#   --alert-email (or ALERT_EMAIL) is required: it receives the Bedrock spend
-#   budget alert (80 % of $50/month).
+#   --alert-email (or ALERT_EMAIL) receives the Bedrock spend budget alert (80 % of
+#   $50/month). If it is not given, the script asks for it; without a terminal
+#   (for example in CI) it fails instead.
 #
 #   --specialist-timeout / --synthesis-timeout SECONDS (or SPECIALIST_TIMEOUT_SECONDS /
 #   SYNTHESIS_TIMEOUT_SECONDS; defaults 300 / 180) set how long the orchestrator waits
@@ -69,8 +70,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 # The Bedrock spend budget alerts this address. Without it the budget would alert
-# nobody, so refuse to deploy rather than create a cost control that does nothing.
-if [[ ! "$ALERT_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
+# nobody, so the deploy needs one. In a terminal, ask for it if it was not given;
+# without a terminal (CI, piped input) fail instead of guessing.
+EMAIL_PATTERN='^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+if [[ -z "$ALERT_EMAIL" && -t 0 ]]; then
+    for _attempt in 1 2 3; do
+        read -r -p "Email address for Bedrock spend budget alerts (80 % of \$50/month): " ALERT_EMAIL || break
+        [[ "$ALERT_EMAIL" =~ $EMAIL_PATTERN ]] && break
+        echo "  Not a valid email address: '$ALERT_EMAIL'" >&2
+    done
+fi
+if [[ ! "$ALERT_EMAIL" =~ $EMAIL_PATTERN ]]; then
     echo "Error: an alert email is required for the Bedrock spend budget." >&2
     echo "  ./deploy.sh --alert-email you@example.com   (or export ALERT_EMAIL=you@example.com)" >&2
     exit 1
