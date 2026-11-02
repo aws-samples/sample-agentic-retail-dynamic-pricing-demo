@@ -14,7 +14,10 @@ account's AgentCore resource cannot use them (confused-deputy protection).
 
 Idempotent: existing roles get their trust policy and inline policy overwritten
 with the current definitions, so rerunning this script is how permission changes
-reach an existing deployment.
+reach an existing deployment. On a deployment from an earlier version it first
+moves the open gateway (retail-pricing-gateway, which uses the agents' role) onto
+the gateway role, and only then removes Lambda invoke from the agents' role, so
+the deployed agents keep their tools through the upgrade.
 
 Usage:
     python scripts/create_agentcore_role.py [--region us-east-1] [--role-name RetailPricingAgentCoreRole]
@@ -34,6 +37,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+sys.path.insert(1, str(Path(__file__).resolve().parent))  # scripts/, for secure_gateway
+import secure_gateway  # noqa: E402
 from shared.pricing_guardrail import guardrail_profile_for_region  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -296,20 +301,33 @@ def create_roles(
     iam = session.client("iam")
     account_id = session.client("sts").get_caller_identity()["Account"]
 
-    runtime_arn, runtime_created = ensure_role(
-        iam, role_name, runtime_trust_policy(account_id, region),
-        INLINE_POLICY_NAME, get_inline_policy(account_id, region),
-        "IAM role for Retail Dynamic Pricing agents deployed to Amazon Bedrock AgentCore Runtime",
-    )
+    # Order matters on an upgrade. The open gateway of an earlier version invokes
+    # the MCP Lambdas with the agents' role, and the agents' role loses Lambda
+    # invoke below. So the gateway role comes first and that gateway moves onto
+    # it before the agents' role changes: the deployed agents keep their tools
+    # until they are redeployed against the SigV4 gateway (deploy.sh Step 4.5
+    # then deletes the open one).
     gateway_arn, gateway_created = ensure_role(
         iam, gateway_role_name, gateway_trust_policy(account_id, region),
         GATEWAY_POLICY_NAME, get_gateway_policy(account_id, region),
         "Service role of the Retail Dynamic Pricing AgentCore Gateway (invokes the MCP server Lambdas)",
     )
+    if gateway_created:
+        # A new role takes a few seconds to propagate in IAM before AgentCore can assume it.
+        logger.info("Waiting for IAM propagation of the new gateway role (15s)...")
+        time.sleep(15)
+    secure_gateway.move_legacy_gateway_to_role(session.client("bedrock-agentcore-control", region_name=region),
+                                               gateway_arn)
+
+    runtime_arn, runtime_created = ensure_role(
+        iam, role_name, runtime_trust_policy(account_id, region),
+        INLINE_POLICY_NAME, get_inline_policy(account_id, region),
+        "IAM role for Retail Dynamic Pricing agents deployed to Amazon Bedrock AgentCore Runtime",
+    )
 
     # New roles and trust-policy changes take a few seconds to propagate in IAM.
-    logger.info("Waiting for IAM propagation (%ds)...", 15 if (runtime_created or gateway_created) else 10)
-    time.sleep(15 if (runtime_created or gateway_created) else 10)
+    logger.info("Waiting for IAM propagation (%ds)...", 15 if runtime_created else 10)
+    time.sleep(15 if runtime_created else 10)
     return runtime_arn, gateway_arn
 
 
@@ -329,7 +347,13 @@ def main() -> None:
     args = parser.parse_args()
 
     session = boto3.Session(region_name=args.region)
-    runtime_arn, gateway_arn = create_roles(session, args.region, args.role_name, args.gateway_role_name)
+    try:
+        runtime_arn, gateway_arn = create_roles(session, args.region, args.role_name, args.gateway_role_name)
+    except secure_gateway.GatewayError as e:
+        # Raised before the agents' role is changed, so the deployed agents still work.
+        logger.error("Could not move the open gateway to %s: %s", args.gateway_role_name, e)
+        logger.error("The agents' role was not changed. Fix the gateway and run this script again.")
+        sys.exit(1)
 
     logger.info("=" * 60)
     logger.info("IAM roles ready (created, or updated in place)")

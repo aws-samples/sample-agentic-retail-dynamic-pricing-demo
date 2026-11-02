@@ -710,8 +710,9 @@ class TestRoles:
             def put_role_policy(self, RoleName, PolicyName, PolicyDocument):
                 calls.append(("policy", RoleName, PolicyName))
 
-        session = SimpleNamespace(client=lambda name: Iam() if name == "iam"
-                                  else SimpleNamespace(get_caller_identity=lambda: {"Account": ACCOUNT}))
+        clients = {"iam": Iam(), "bedrock-agentcore-control": FakeControl()}
+        session = SimpleNamespace(client=lambda name, **kw: clients.get(name) or SimpleNamespace(
+            get_caller_identity=lambda: {"Account": ACCOUNT}))
         monkeypatch.setattr(create_agentcore_role.time, "sleep", lambda s: None)
 
         runtime_arn, gateway_arn = create_agentcore_role.create_roles(session, REGION)
@@ -723,6 +724,148 @@ class TestRoles:
         assert ("policy", "RetailPricingGatewayRole", "RetailPricingGatewayPolicy") in calls
 
 
+class TestUpgradeOrder:
+    """create_agentcore_role.py moves the open gateway onto the gateway role before the agents' role
+    loses Lambda invoke, so the deployed agents keep their tools through Step 3 of an upgrade."""
+
+    @pytest.fixture
+    def roles(self, monkeypatch):
+        calls = []
+
+        def go(control):
+            class Iam:
+                def create_role(self, **kw):
+                    from botocore.exceptions import ClientError
+                    raise ClientError({"Error": {"Code": "EntityAlreadyExists"}}, "CreateRole")
+
+                def get_role(self, RoleName):
+                    return {"Role": {"Arn": f"arn:aws:iam::{ACCOUNT}:role/{RoleName}"}}
+
+                def update_assume_role_policy(self, RoleName, PolicyDocument):
+                    calls.append(("trust", RoleName))
+
+                def put_role_policy(self, RoleName, PolicyName, PolicyDocument):
+                    calls.append(("policy", RoleName))
+
+            original = control.update_gateway
+
+            def update_gateway(**request):
+                calls.append(("move", request["gatewayIdentifier"], request["roleArn"]))
+                return original(**request)
+
+            control.update_gateway = update_gateway
+            clients = {"iam": Iam(), "bedrock-agentcore-control": control}
+            session = SimpleNamespace(client=lambda name, **kw: clients.get(name) or SimpleNamespace(
+                get_caller_identity=lambda: {"Account": ACCOUNT}))
+            monkeypatch.setattr(create_agentcore_role.time, "sleep", lambda s: None)
+            monkeypatch.setattr(secure_gateway.time, "sleep", lambda s: None)
+            return create_agentcore_role.create_roles(session, REGION)
+
+        go.calls = calls
+        return go
+
+    def test_the_open_gateway_moves_before_the_agents_role_loses_lambda_invoke(self, roles):
+        control = FakeControl(gateways=[OPEN_GATEWAY])
+
+        assert roles(control) == (RUNTIME_ROLE, GATEWAY_ROLE)
+
+        gateway_role = roles.calls.index(("policy", "RetailPricingGatewayRole"))
+        move = roles.calls.index(("move", LEGACY_ID, GATEWAY_ROLE))
+        runtime_role = roles.calls.index(("policy", "RetailPricingAgentCoreRole"))
+        assert gateway_role < move < runtime_role
+        assert control.gateways[LEGACY_ID]["roleArn"] == GATEWAY_ROLE
+        assert control.gateways[LEGACY_ID]["authorizerType"] == "NONE"  # still serving the old agents
+
+    def test_a_gateway_already_on_its_role_is_left_alone(self, roles):
+        roles(FakeControl(gateways=[{**OPEN_GATEWAY, "roleArn": GATEWAY_ROLE}, SIGV4_GATEWAY]))
+        assert not [c for c in roles.calls if c[0] == "move"]
+        assert ("policy", "RetailPricingAgentCoreRole") in roles.calls
+
+    def test_a_failed_move_leaves_the_agents_role_unchanged(self, roles):
+        # find, wait and re-read see READY; after UpdateGateway the gateway is UPDATE_UNSUCCESSFUL.
+        control = FakeControl(gateways=[OPEN_GATEWAY],
+                              statuses={LEGACY_ID: ["READY", "READY", "READY", "UPDATE_UNSUCCESSFUL"]})
+
+        with pytest.raises(secure_gateway.GatewayError, match="UPDATE_UNSUCCESSFUL"):
+            roles(control)
+
+        assert ("move", LEGACY_ID, GATEWAY_ROLE) in roles.calls
+        assert ("policy", "RetailPricingAgentCoreRole") not in roles.calls
+        assert ("trust", "RetailPricingAgentCoreRole") not in roles.calls
+
+    def test_an_aws_error_on_the_move_becomes_a_gateway_error(self, roles):
+        """For example AccessDenied on UpdateGateway or iam:PassRole: still stops before the agents' role changes."""
+        from botocore.exceptions import ClientError
+
+        control = FakeControl(gateways=[OPEN_GATEWAY])
+
+        def denied(**request):
+            raise ClientError({"Error": {"Code": "AccessDeniedException", "Message": "not authorized"}},
+                              "UpdateGateway")
+
+        control.update_gateway = denied
+        with pytest.raises(secure_gateway.GatewayError, match="AccessDeniedException"):
+            roles(control)
+        assert ("policy", "RetailPricingAgentCoreRole") not in roles.calls
+
+    def test_main_stops_with_the_agents_role_unchanged_when_the_move_fails(self, monkeypatch, caplog):
+        def failing(*a, **k):
+            raise secure_gateway.GatewayError("Gateway retail-pricing-gateway-x is UPDATE_UNSUCCESSFUL")
+
+        monkeypatch.setattr(create_agentcore_role, "create_roles", failing)
+        monkeypatch.setattr(create_agentcore_role.boto3, "Session", lambda **kw: None)
+        monkeypatch.setattr(sys, "argv", ["create_agentcore_role.py"])
+        with pytest.raises(SystemExit) as exit_info, caplog.at_level("ERROR"):
+            create_agentcore_role.main()
+        assert exit_info.value.code == 1
+        assert "agents' role was not changed" in caplog.text
+
+
+class TestSkipAgentsCheck:
+    """deploy.sh --skip-agents stops before Step 2 if the upgrade still needs an agent deploy."""
+
+    def test_nothing_blocks_without_an_open_gateway(self):
+        assert secure_gateway.skip_agents_blockers(FakeControl(gateways=[SIGV4_GATEWAY])) == []
+
+    def test_an_upgrade_that_has_not_created_the_new_gateway_is_blocked(self):
+        (blocker,) = secure_gateway.skip_agents_blockers(FakeControl(gateways=[OPEN_GATEWAY]))
+        assert "'retail-pricing-gateway-iam' does not exist yet" in blocker and LEGACY_ID in blocker
+
+    def test_agents_still_on_the_open_gateway_block_it(self):
+        control = FakeControl(gateways=[SIGV4_GATEWAY, OPEN_GATEWAY],
+                              runtime_env={"AGENTCORE_GATEWAY_ENDPOINT": LEGACY_MCP})
+        blockers = secure_gateway.skip_agents_blockers(control)
+        assert len(blockers) == len(secure_gateway.GATEWAY_CLIENT_RUNTIMES)
+        assert all("AGENTCORE_GATEWAY_ENDPOINT" in b for b in blockers)
+
+    def test_agents_already_signing_to_the_new_gateway_do_not_block_it(self):
+        """For example a deploy whose Step 4 finished but Step 4.5 did not: Step 4.5 can still delete it."""
+        assert secure_gateway.skip_agents_blockers(FakeControl(gateways=[SIGV4_GATEWAY, OPEN_GATEWAY])) == []
+
+    @pytest.fixture
+    def main(self, monkeypatch, capsys):
+        def go(control):
+            monkeypatch.setattr(secure_gateway.boto3, "client", lambda *a, **k: control)
+            monkeypatch.setattr(sys, "argv", ["secure_gateway.py", "--check-skip-agents"])
+            monkeypatch.setattr(secure_gateway, "secure_gateway", lambda *a: pytest.fail("must only check"))
+            try:
+                secure_gateway.main()
+                code = 0
+            except SystemExit as e:
+                code = e.code
+            return code, capsys.readouterr().err
+        return go
+
+    def test_the_check_fails_with_what_to_do(self, main):
+        code, err = main(FakeControl(gateways=[OPEN_GATEWAY]))
+        assert code == 1
+        assert "still uses the open gateway 'retail-pricing-gateway'" in err
+        assert "Run ./deploy.sh without --skip-agents" in err
+
+    def test_the_check_passes_without_an_open_gateway(self, main):
+        assert main(FakeControl(gateways=[SIGV4_GATEWAY])) == (0, "")
+
+
 DEPLOY_TEXT = (PROJECT_ROOT / "deploy.sh").read_text()
 TEARDOWN_TEXT = (PROJECT_ROOT / "teardown.sh").read_text()
 
@@ -730,9 +873,14 @@ TEARDOWN_TEXT = (PROJECT_ROOT / "teardown.sh").read_text()
 class TestDeployAndTeardownWiring:
     def test_gateway_is_secured_after_the_agents_and_before_the_cdk_relink(self):
         agents = DEPLOY_TEXT.index("scripts/deploy_agentcore.py \\")
-        secure = DEPLOY_TEXT.index("scripts/secure_gateway.py")
+        secure = DEPLOY_TEXT.index("python3 scripts/secure_gateway.py --region $REGION\n")
         relink = DEPLOY_TEXT.index("npx cdk deploy", agents)
         assert agents < secure < relink
+
+    def test_skip_agents_is_checked_before_anything_is_deployed(self):
+        check = DEPLOY_TEXT.index('if [ "$SKIP_AGENTS" = true ]; then\n'
+                                  "    python3 scripts/secure_gateway.py --region $REGION --check-skip-agents\n")
+        assert DEPLOY_TEXT.index("set -e") < check < DEPLOY_TEXT.index("npx cdk deploy")
 
     def test_secure_step_runs_even_with_skip_agents(self):
         """With --skip-agents on an old deployment it must refuse (fail the deploy), not be skipped."""

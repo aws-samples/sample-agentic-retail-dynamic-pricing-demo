@@ -803,15 +803,17 @@ class TestRoleUpdatedInPlace:
     def test_policy_is_applied_to_new_and_existing_roles(self, monkeypatch, exists):
         iam = FakeIam(exists)
         sts = SimpleNamespace(get_caller_identity=lambda: {"Account": ACCOUNT})
-        session = SimpleNamespace(client=lambda name, **kw: iam if name == "iam" else sts)
+        control = SimpleNamespace(list_gateways=lambda **kw: {"items": []})  # no open gateway to move
+        clients = {"iam": iam, "bedrock-agentcore-control": control}
+        session = SimpleNamespace(client=lambda name, **kw: clients.get(name, sts))
         monkeypatch.setattr(create_agentcore_role.time, "sleep", lambda s: None)
 
         arn = create_agentcore_role.create_role(session, "RetailPricingAgentCoreRole", REGION)
 
         assert arn == ROLE_ARN
-        # Runtime role and gateway role, each with its own inline policy.
-        assert [put["RoleName"] for put in iam.put] == ["RetailPricingAgentCoreRole", "RetailPricingGatewayRole"]
-        applied = json.loads(iam.put[0]["PolicyDocument"])
+        # Gateway role first (an open gateway of an earlier version moves onto it), then the runtime role.
+        assert [put["RoleName"] for put in iam.put] == ["RetailPricingGatewayRole", "RetailPricingAgentCoreRole"]
+        applied = json.loads(iam.put[1]["PolicyDocument"])
         assert "AgentCoreMemoryDataPlane" in {s["Sid"] for s in applied["Statement"]}
         assert len(iam.trust_updates) == (2 if exists else 0)
 

@@ -35,6 +35,7 @@ from secure_gateway import (
     REQUIRED_AUTHORIZER,
     find_gateway,
     move_gateway_to_role,
+    move_legacy_gateway_to_role,
 )
 
 # Gateway readiness polling configuration
@@ -143,17 +144,15 @@ def setup_gateway(region: str = "us-east-1") -> str:
     # name. It keeps serving the agents until they are redeployed against this
     # one (Step 4); deploy.sh then deletes it (scripts/secure_gateway.py, Step
     # 4.5). It used the agents' role, which no longer invokes Lambdas, so it
-    # needs the gateway role until then.
+    # needs the gateway role until then. scripts/create_agentcore_role.py moves
+    # it before it changes the agents' role; this covers a run without that step.
     legacy = find_gateway(client, LEGACY_GATEWAY_NAME)
     if legacy:
         print(
             f"  Open gateway from an earlier version: {legacy['gatewayId']} (inbound auth "
             f"{legacy.get('authorizerType')}). scripts/secure_gateway.py deletes it once the agents use {GATEWAY_NAME}."
         )
-        if legacy.get("roleArn") != role_arn:
-            print(f"  Moving it to {role_arn.split('/')[-1]} so its tools keep working until then")
-            _wait_for_gateway_ready(client, legacy["gatewayId"])
-            move_gateway_to_role(client, client.get_gateway(gatewayIdentifier=legacy["gatewayId"]), role_arn)
+        move_legacy_gateway_to_role(client, role_arn)
 
     # Define MCP Server Lambda targets with their tool schemas
     mcp_targets = [
