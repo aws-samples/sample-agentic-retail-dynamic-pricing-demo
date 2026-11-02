@@ -485,12 +485,15 @@ for key, value in stack.items():
 " 2>/dev/null)
 
 if [ -n "$USER_POOL_ID" ] && [ -n "$CLIENT_ID" ] && [ -n "$DASHBOARD_CF" ]; then
+    # update-user-pool-client replaces the client's OAuth settings. Keep them as
+    # the CDK client defines them (cdk/stacks/cognito.py): authorization code
+    # flow only, no implicit grant. The dashboard uses response_type=code.
     aws cognito-idp update-user-pool-client \
         --user-pool-id $USER_POOL_ID \
         --client-id $CLIENT_ID \
         --callback-urls "[\"${DASHBOARD_CF}/callback\",\"http://localhost:5173/callback\"]" \
         --logout-urls "[\"${DASHBOARD_CF}\",\"http://localhost:5173\"]" \
-        --allowed-o-auth-flows "code" "implicit" \
+        --allowed-o-auth-flows "code" \
         --allowed-o-auth-scopes "openid" "email" "profile" \
         --supported-identity-providers "COGNITO" \
         --allowed-o-auth-flows-user-pool-client \

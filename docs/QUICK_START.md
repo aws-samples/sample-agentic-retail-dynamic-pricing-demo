@@ -163,7 +163,7 @@ aws cognito-idp update-user-pool-client \
   --client-id <CLIENT_ID> \
   --callback-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>/callback"]' \
   --logout-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>"]' \
-  --allowed-o-auth-flows "code" "implicit" \
+  --allowed-o-auth-flows "code" \
   --allowed-o-auth-scopes "openid" "email" "profile" \
   --supported-identity-providers "COGNITO" \
   --allowed-o-auth-flows-user-pool-client \
