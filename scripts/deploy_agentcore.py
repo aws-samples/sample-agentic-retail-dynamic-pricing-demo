@@ -12,8 +12,10 @@ This script:
      AGENTCORE_GATEWAY_ENDPOINT  gateway MCP URL (<gatewayUrl>/mcp)
      AGENTCORE_MEMORY_ID         AgentCore Memory ID
      ORCHESTRATOR_MODEL_ID / SPECIALIST_MODEL_ID   from model-config.json
+     AGENTCORE_GATEWAY_AUTH=AWS_IAM  the runtimes sign their MCP calls (SigV4)
      BEDROCK_GUARDRAIL_ID / BEDROCK_GUARDRAIL_VERSION, or
        DISABLE_BEDROCK_GUARDRAILS=true when the guardrail does not exist
+     SPECIALIST_TIMEOUT_SECONDS / SYNTHESIS_TIMEOUT_SECONDS  (shared/cycle_timeouts.py)
      <AGENT>_AGENT_ARN x5        (orchestrator only) the specialist runtime ARNs
 6. Saves the agent runtime ARNs to agent_config.json and scripts/agent_arns.env
 
@@ -46,6 +48,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+sys.path.insert(1, str(Path(__file__).resolve().parent))  # scripts/, for secure_gateway
+from secure_gateway import GATEWAY_NAME  # noqa: E402
 from shared import cycle_timeouts  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -105,7 +109,7 @@ GUARDRAIL_CONFIG_FILE = PROJECT_ROOT / "backend" / "agents" / "agentcore" / "gua
 
 # Names used by scripts/setup_gateway.py and scripts/setup_memory.py. The memory
 # ID is this name plus a random suffix (RetailDynamicPricingMemory-Ab12Cd34Ef).
-DEFAULT_GATEWAY_NAME = "retail-pricing-gateway"
+DEFAULT_GATEWAY_NAME = GATEWAY_NAME
 DEFAULT_MEMORY_NAME = "RetailDynamicPricingMemory"
 
 # Env var that carries each agent's runtime ARN (agent_arns.env, the CDK Lambda
@@ -884,6 +888,10 @@ def main() -> None:
     base_environment = {
         "AGENTCORE_GATEWAY_ENDPOINT": gateway_endpoint,
         "AGENTCORE_MEMORY_ID": memory_id,
+        # The runtimes sign their MCP requests with SigV4 (gateway_auth.py).
+        # scripts/secure_gateway.py checks this before it deletes the open
+        # gateway an earlier version created.
+        "AGENTCORE_GATEWAY_AUTH": "AWS_IAM",
         **load_model_environment(),
         **resolve_guardrail_environment(session, region),
         **timeouts.agent_environment(),

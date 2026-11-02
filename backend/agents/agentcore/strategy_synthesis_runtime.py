@@ -23,9 +23,9 @@ import os
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import Agent
 from strands.models import BedrockModel
-from strands.tools.mcp import MCPClient
 
 from backend.agents.agentcore.memory_config import create_session_manager
+from backend.agents.agentcore.gateway_auth import create_gateway_mcp_client
 from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs
 from shared.model_config import SPECIALIST_MODEL
 
@@ -125,7 +125,8 @@ def invoke(payload: dict) -> dict:
             # AGENTCORE_GATEWAY_ENDPOINT is the gateway's MCP URL (<gatewayUrl>/mcp).
             # The MCPClient is a tool provider: the Agent loads the gateway's tools
             # from it and manages the connection lifecycle.
-            mcp_client = MCPClient(url=GATEWAY_ENDPOINT)
+            # Signed with SigV4 (AWS_IAM inbound auth on the gateway); see gateway_auth.py.
+            mcp_client = create_gateway_mcp_client(GATEWAY_ENDPOINT)
             tools = [mcp_client]
         else:
             # Fallback: import tools directly from the agent module

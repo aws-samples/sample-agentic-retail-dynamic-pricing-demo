@@ -29,7 +29,7 @@ import verify_deployment  # noqa: E402
 
 ACCOUNT = "123456789012"
 REGION = "us-east-1"
-GATEWAY_URL = "https://retail-pricing-gateway-abc123.gateway.bedrock-agentcore.us-east-1.amazonaws.com"
+GATEWAY_URL = "https://retail-pricing-gateway-iam-abc123.gateway.bedrock-agentcore.us-east-1.amazonaws.com"
 GATEWAY_MCP = f"{GATEWAY_URL}/mcp"
 MEMORY_ID = "RetailDynamicPricingMemory-Ab12Cd34Ef"
 ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/RetailPricingAgentCoreRole"
@@ -132,30 +132,30 @@ class FakeControl:
 
 class TestDiscovery:
     def test_gateway_endpoint_is_the_mcp_url(self):
-        control = FakeControl(gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}])
+        control = FakeControl(gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}])
 
-        assert deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway") == GATEWAY_MCP
+        assert deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway-iam") == GATEWAY_MCP
 
     def test_trailing_slash_in_gateway_url_is_normalised(self):
         control = FakeControl(
-            gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}], gateway_url=GATEWAY_URL + "/"
+            gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}], gateway_url=GATEWAY_URL + "/"
         )
 
-        assert deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway") == GATEWAY_MCP
+        assert deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway-iam") == GATEWAY_MCP
 
     def test_missing_gateway_is_an_error(self):
         control = FakeControl(gateways=[{"gatewayId": "gw-2", "name": "something-else"}])
 
         with pytest.raises(deploy_agentcore.WiringError, match="not found"):
-            deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway")
+            deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway-iam")
 
     def test_gateway_that_is_not_ready_is_an_error(self):
         control = FakeControl(
-            gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}], gateway_status="CREATING"
+            gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}], gateway_status="CREATING"
         )
 
         with pytest.raises(deploy_agentcore.WiringError, match="not READY"):
-            deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway")
+            deploy_agentcore.resolve_gateway_endpoint(control, "retail-pricing-gateway-iam")
 
     def test_memory_is_matched_by_id_prefix_not_name(self):
         control = FakeControl(
@@ -454,7 +454,7 @@ class TestMainFailsFastBeforeBuilding:
         assert calls == []
 
     def test_missing_memory_exits_non_zero_without_building(self, monkeypatch):
-        control = FakeControl(gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}])
+        control = FakeControl(gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}])
 
         code, calls = self.run_main(monkeypatch, control)
 
@@ -471,7 +471,7 @@ class TestMainFailsFastBeforeBuilding:
 
     def test_orchestrator_alone_needs_the_specialists_to_exist(self, monkeypatch):
         control = FakeControl(
-            gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}],
+            gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}],
             memories=[{"id": MEMORY_ID, "status": "ACTIVE"}],
         )
         monkeypatch.setattr(
@@ -527,7 +527,7 @@ class FakeWiringClient:
         return {"environmentVariables": self.env_by_agent.get(agent, self.default_env)}
 
     def list_gateways(self, **kwargs):
-        return {"items": [{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}]}
+        return {"items": [{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}]}
 
     def get_gateway(self, gatewayIdentifier):
         return {"gatewayUrl": self.gateway_url}
@@ -654,6 +654,7 @@ class TestVerifyAgentWiring:
             "verify_s3_buckets": [("Dashboard bucket", True)],
             "verify_agent_arns": (True, 6),
             "verify_cycle_timeouts": (True, "timeouts match"),
+            "verify_gateway_auth": (True, []),
         }
         for name, value in ok_checks.items():
             monkeypatch.setattr(verify_deployment, name, lambda *a, _v=value, **k: _v)
@@ -676,6 +677,7 @@ class TestVerifyAgentWiring:
             "verify_s3_buckets": [("Dashboard bucket", True)],
             "verify_agent_arns": (True, 6),
             "verify_cycle_timeouts": (True, "timeouts match"),
+            "verify_gateway_auth": (True, []),
         }
         for name, value in ok_checks.items():
             monkeypatch.setattr(verify_deployment, name, lambda *a, _v=value, **k: _v)
@@ -705,9 +707,11 @@ class TestRolePolicy:
     def test_existing_statements_are_kept(self):
         for sid in (
             "BedrockModelInvocation", "ECRAuthToken", "ECRImagePull", "CloudWatchLogs",
-            "DynamoDBAccess", "S3ReadAccess", "LambdaInvokeMcpServers",
+            "DynamoDBAccess", "S3ReadAccess",
         ):
             assert sid in self.statements
+        # The gateway invokes the MCP Lambdas with its own role (RetailPricingGatewayRole).
+        assert "LambdaInvokeMcpServers" not in self.statements
 
     def test_memory_data_plane_is_granted_and_scoped_to_the_memory(self):
         stmt = self.statements["AgentCoreMemoryDataPlane"]
@@ -781,10 +785,11 @@ class TestRoleUpdatedInPlace:
         arn = create_agentcore_role.create_role(session, "RetailPricingAgentCoreRole", REGION)
 
         assert arn == ROLE_ARN
-        assert len(iam.put) == 1
+        # Runtime role and gateway role, each with its own inline policy.
+        assert [put["RoleName"] for put in iam.put] == ["RetailPricingAgentCoreRole", "RetailPricingGatewayRole"]
         applied = json.loads(iam.put[0]["PolicyDocument"])
         assert "AgentCoreMemoryDataPlane" in {s["Sid"] for s in applied["Statement"]}
-        assert bool(iam.trust_updates) == exists
+        assert len(iam.trust_updates) == (2 if exists else 0)
 
 
 # ---------------------------------------------------------------------------
@@ -868,10 +873,12 @@ class TestSetupGatewayOutput:
     def test_prints_the_real_mcp_endpoint_not_a_placeholder(self, monkeypatch, capsys):
         class Control:
             def list_gateways(self):
-                return {"items": [{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}]}
+                return {"items": [{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}]}
 
             def get_gateway(self, gatewayIdentifier):
-                return {"status": "READY", "gatewayUrl": GATEWAY_URL}
+                return {"status": "READY", "gatewayUrl": GATEWAY_URL, "gatewayId": "gw-1",
+                        "roleArn": f"arn:aws:iam::{ACCOUNT}:role/RetailPricingGatewayRole",
+                        "authorizerType": "AWS_IAM"}
 
             def create_gateway_target(self, **kwargs):
                 raise client_error("ConflictException")
