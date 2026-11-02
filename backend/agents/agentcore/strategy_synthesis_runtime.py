@@ -26,7 +26,7 @@ from strands.models import BedrockModel
 
 from backend.agents.agentcore.memory_config import create_session_manager
 from backend.agents.agentcore.gateway_auth import create_gateway_mcp_client
-from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs
+from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs, synthesis_prompt_content
 from shared.model_config import SPECIALIST_MODEL
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,13 @@ def invoke(payload: dict) -> dict:
 
         # Create agent with memory, gateway tools, and Bedrock Guardrails (if
         # configured). The guardrail is attached to the model, not to the Agent.
-        model = BedrockModel(model_id=SPECIALIST_MODEL, **get_guardrail_model_kwargs())
+        # For the orchestrator's JSON prompt only the request is screened as
+        # guardrail input; the analyst reports were screened as model output.
+        content = synthesis_prompt_content(full_prompt)
+        model = BedrockModel(
+            model_id=SPECIALIST_MODEL,
+            **get_guardrail_model_kwargs(latest_message=content is None),
+        )
         agent = Agent(
             model=model,
             system_prompt=SYSTEM_PROMPT,
@@ -155,7 +161,7 @@ def invoke(payload: dict) -> dict:
         )
 
         try:
-            result = agent(full_prompt)
+            result = agent(content or full_prompt)
         finally:
             # Release the gateway MCP connection created for this invocation.
             agent.cleanup()

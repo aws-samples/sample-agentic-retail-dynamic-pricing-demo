@@ -26,10 +26,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import sys
 import time
+from pathlib import Path
 
 import boto3
 from botocore.exceptions import ClientError
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+from shared.pricing_guardrail import guardrail_profile_for_region  # noqa: E402
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -228,8 +233,11 @@ def get_inline_policy(account_id: str, region: str) -> dict:
                 ],
             },
             {
-                # Needed only when a Bedrock guardrail is attached to the model
-                # (see backend/agents/agentcore/guardrail_config.py).
+                # The stack's guardrail is attached to every Converse call
+                # (backend/agents/agentcore/guardrail_config.py). It uses the Standard
+                # tier, which evaluates through the geography's cross-Region guardrail
+                # profile, so ApplyGuardrail is also needed on that profile in every
+                # destination Region of this account.
                 "Sid": "BedrockApplyGuardrail",
                 "Effect": "Allow",
                 "Action": [
@@ -237,6 +245,7 @@ def get_inline_policy(account_id: str, region: str) -> dict:
                 ],
                 "Resource": [
                     f"arn:aws:bedrock:{region}:{account_id}:guardrail/*",
+                    f"arn:aws:bedrock:*:{account_id}:guardrail-profile/{guardrail_profile_for_region(region)}",
                 ],
             },
         ],
