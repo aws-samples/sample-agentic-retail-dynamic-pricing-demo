@@ -1218,3 +1218,37 @@ class TestMemoryConfig:
         assert captured["config"].memory_id == MEMORY_ID
         assert captured["config"].session_id == "session-1"
         assert captured["config"].actor_id == "pricing-system"
+
+
+# ---------------------------------------------------------------------------
+# Output-token cap on every agent model
+# ---------------------------------------------------------------------------
+
+MODEL_BACKED_RUNTIMES = ("competitive_intelligence", "demand_forecasting", "market_intelligence",
+                         "strategy_synthesis", "implementation_monitoring")
+
+
+class TestOutputTokenCap:
+    @pytest.mark.parametrize("module", MODEL_BACKED_RUNTIMES)
+    def test_every_model_backed_runtime_sets_max_tokens(self, module):
+        """Without it, strands 1.56 sends no maxTokens and Bedrock stopped the agents at 4,096 tokens (evals)."""
+        source = (PROJECT_ROOT / f"backend/agents/agentcore/{module}_runtime.py").read_text()
+        assert "max_tokens=MAX_OUTPUT_TOKENS" in source
+        assert source.count("BedrockModel(") == 1
+
+    def test_the_cap_leaves_room_above_the_largest_answer_and_fits_every_offered_model(self):
+        from shared.model_config import MAX_OUTPUT_TOKENS
+
+        largest_answer_seen = 7_812  # CloudWatch OutputTokenCount maximum, one Sonnet 5.5 agent call
+        smallest_model_limit = 32_000  # Claude Opus 4.1, the lowest output limit select_model.py offers
+        assert 2 * largest_answer_seen <= MAX_OUTPUT_TOKENS <= smallest_model_limit
+
+    def test_the_model_request_carries_the_cap(self):
+        from strands.models.bedrock import BedrockModel
+
+        from shared.model_config import MAX_OUTPUT_TOKENS
+
+        model = BedrockModel(model_id="us.anthropic.claude-sonnet-5-5", region_name="us-east-1",
+                             max_tokens=MAX_OUTPUT_TOKENS)
+        request = model.format_request(messages=[{"role": "user", "content": [{"text": "hi"}]}])
+        assert request["inferenceConfig"] == {"maxTokens": MAX_OUTPUT_TOKENS}
