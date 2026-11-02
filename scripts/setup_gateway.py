@@ -1,6 +1,7 @@
 """Register MCP Server Lambda functions as AgentCore Gateway targets.
 
-This script creates an AgentCore Gateway and registers each MCP Server Lambda
+This script creates the AgentCore Gateway (retail-pricing-gateway-iam, inbound
+auth AWS_IAM, on its own service role) and registers each MCP Server Lambda
 as a target, enabling agents to discover and invoke tools through the gateway
 endpoint rather than connecting to individual MCP servers directly.
 
@@ -27,9 +28,19 @@ import time
 
 import boto3
 
+from secure_gateway import (
+    GATEWAY_NAME,
+    GATEWAY_ROLE_NAME,
+    LEGACY_GATEWAY_NAME,
+    REQUIRED_AUTHORIZER,
+    find_gateway,
+    move_gateway_to_role,
+    move_legacy_gateway_to_role,
+)
+
 # Gateway readiness polling configuration
 _GATEWAY_READY_STATES = {"READY", "ACTIVE", "AVAILABLE"}
-_GATEWAY_FAILED_STATES = {"FAILED", "CREATE_FAILED", "DELETE_FAILED"}
+_GATEWAY_FAILED_STATES = {"FAILED", "CREATE_FAILED", "DELETE_FAILED", "UPDATE_UNSUCCESSFUL"}
 _GATEWAY_WAIT_TIMEOUT_SECONDS = 180
 _GATEWAY_WAIT_INTERVAL_SECONDS = 5
 
@@ -79,32 +90,36 @@ def setup_gateway(region: str = "us-east-1") -> str:
     """
     client = boto3.client("bedrock-agentcore-control", region_name=region)
 
-    # Use the same AgentCore role for the gateway
+    # The gateway's own service role (scripts/create_agentcore_role.py): it may
+    # only invoke the MCP server Lambdas, unlike the agents' execution role.
     role_arn = os.environ.get(
-        "AGENTCORE_ROLE_ARN",
-        f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/RetailPricingAgentCoreRole"
+        "AGENTCORE_GATEWAY_ROLE_ARN",
+        f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/{GATEWAY_ROLE_NAME}"
     )
 
     # Create the gateway (idempotent — skip if already exists)
     print(f"Creating AgentCore Gateway in {region}...")
     from botocore.exceptions import ClientError
 
-    gateway_id = None
-
-    # Check if gateway already exists
-    existing_gateways = client.list_gateways()
-    for gw in existing_gateways.get("items", []):
-        if gw.get("name") == "retail-pricing-gateway":
-            gateway_id = gw["gatewayId"]
-            print(f"  Gateway already exists: {gateway_id}")
-            break
-
-    if not gateway_id:
+    existing = find_gateway(client, GATEWAY_NAME)
+    if existing:
+        gateway_id = existing["gatewayId"]
+        print(f"  Gateway already exists: {gateway_id}")
+        if existing.get("authorizerType") != REQUIRED_AUTHORIZER:
+            # The authorizer of an existing gateway cannot be changed (UpdateGateway rejects it).
+            raise RuntimeError(
+                f"Gateway '{GATEWAY_NAME}' ({gateway_id}) uses inbound auth {existing.get('authorizerType')}, "
+                f"not {REQUIRED_AUTHORIZER}, and that cannot be changed on an existing gateway. Delete it "
+                "(with its targets) and run this script again."
+            )
+    else:
+        # AWS_IAM inbound auth: every MCP request must be SigV4-signed by a
+        # principal allowed bedrock-agentcore:InvokeGateway (the agents' role).
         gateway = client.create_gateway(
-            name="retail-pricing-gateway",
+            name=GATEWAY_NAME,
             description="Gateway for Retail Dynamic Pricing MCP tools",
             roleArn=role_arn,
-            authorizerType="NONE",
+            authorizerType=REQUIRED_AUTHORIZER,
             protocolConfiguration={
                 "mcp": {
                     "searchType": "SEMANTIC",
@@ -112,13 +127,32 @@ def setup_gateway(region: str = "us-east-1") -> str:
             },
         )
         gateway_id = gateway["gatewayId"]
-        print(f"  Created gateway: {gateway_id}")
+        print(f"  Created gateway: {gateway_id} (inbound auth {REQUIRED_AUTHORIZER})")
 
     print(f"  Gateway ID: {gateway_id}")
 
     # A freshly created gateway starts in CREATING status. AgentCore rejects
     # CreateGatewayTarget until the gateway is ready, so wait before registering.
     _wait_for_gateway_ready(client, gateway_id)
+
+    current = client.get_gateway(gatewayIdentifier=gateway_id)
+    if current.get("roleArn") != role_arn:
+        print(f"  Moving gateway to its own service role: {role_arn.split('/')[-1]}")
+        move_gateway_to_role(client, current, role_arn)
+
+    # Earlier versions created an open gateway (no inbound auth) under another
+    # name. It keeps serving the agents until they are redeployed against this
+    # one (Step 4); deploy.sh then deletes it (scripts/secure_gateway.py, Step
+    # 4.5). It used the agents' role, which no longer invokes Lambdas, so it
+    # needs the gateway role until then. scripts/create_agentcore_role.py moves
+    # it before it changes the agents' role; this covers a run without that step.
+    legacy = find_gateway(client, LEGACY_GATEWAY_NAME)
+    if legacy:
+        print(
+            f"  Open gateway from an earlier version: {legacy['gatewayId']} (inbound auth "
+            f"{legacy.get('authorizerType')}). scripts/secure_gateway.py deletes it once the agents use {GATEWAY_NAME}."
+        )
+        move_legacy_gateway_to_role(client, role_arn)
 
     # Define MCP Server Lambda targets with their tool schemas
     mcp_targets = [

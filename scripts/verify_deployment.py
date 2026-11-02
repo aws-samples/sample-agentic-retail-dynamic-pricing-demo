@@ -18,6 +18,11 @@ from pathlib import Path
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+sys.path.insert(1, str(Path(__file__).resolve().parent))  # scripts/, for secure_gateway
+import secure_gateway  # noqa: E402
+from shared import cycle_timeouts  # noqa: E402
+
 
 def check_mark(passed: bool) -> str:
     return "✓" if passed else "✗"
@@ -159,7 +164,7 @@ AGENT_RUNTIME_NAMES = {
 }
 
 # Names used by scripts/setup_gateway.py and scripts/setup_memory.py.
-GATEWAY_NAME = "retail-pricing-gateway"
+GATEWAY_NAME = secure_gateway.GATEWAY_NAME
 MEMORY_NAME = "RetailDynamicPricingMemory"
 
 # Env vars deploy_agentcore.py must set on EVERY runtime. Without them the agents
@@ -293,6 +298,164 @@ def verify_agent_wiring(region: str) -> tuple[bool, list[tuple[str, bool, str]],
     return passed, rows, shared_problems
 
 
+PRICING_CYCLES_FUNCTION = "rdp-api-pricing-cycles"
+GATEWAY_AUTH_ENV = "AGENTCORE_GATEWAY_AUTH"
+
+
+GUARDED_RUNTIMES = (  # the five agents that call a model (the orchestrator does not)
+    "competitive-intelligence", "demand-forecasting", "market-intelligence",
+    "strategy-synthesis", "implementation-monitoring",
+)
+
+
+def compare_runtime_guardrails(runtime_envs: dict[str, dict], stack_outputs: dict) -> list[str]:
+    """Problems if a model-backed runtime does not use the stack's guardrail version."""
+    expected_id = stack_outputs.get("BedrockGuardrailId")
+    expected_version = stack_outputs.get("BedrockGuardrailVersion")
+    if not expected_id:
+        return ["stack has no BedrockGuardrailId output"]
+    problems = []
+    for agent in GUARDED_RUNTIMES:
+        env = runtime_envs.get(agent)
+        if env is None:
+            problems.append(f"{agent}: runtime not found")
+        elif env.get("DISABLE_BEDROCK_GUARDRAILS", "").lower() == "true":
+            problems.append(f"{agent}: DISABLE_BEDROCK_GUARDRAILS=true (no guardrail)")
+        elif (env.get("BEDROCK_GUARDRAIL_ID"), env.get("BEDROCK_GUARDRAIL_VERSION")) != (expected_id, expected_version):
+            problems.append(
+                f"{agent}: guardrail {env.get('BEDROCK_GUARDRAIL_ID')} v{env.get('BEDROCK_GUARDRAIL_VERSION')}, "
+                f"stack has {expected_id} v{expected_version}"
+            )
+    return problems
+
+
+def verify_runtime_guardrail(region: str) -> tuple[bool, str]:
+    """Every model-backed runtime must serve a version attached to the stack's guardrail."""
+    control = boto3.client("bedrock-agentcore-control", region_name=region)
+    try:
+        stack = boto3.client("cloudformation", region_name=region).describe_stacks(
+            StackName="RetailDynamicPricing")["Stacks"][0]
+        outputs = {o["OutputKey"]: o["OutputValue"] for o in stack.get("Outputs", [])}
+        ids = {r.get("agentRuntimeName"): r.get("agentRuntimeId")
+               for r in _list_all(control.list_agent_runtimes, ("agentRuntimes",))}
+        envs = {}
+        for agent in GUARDED_RUNTIMES:
+            runtime_id = ids.get(AGENT_RUNTIME_NAMES[agent])
+            if not runtime_id:
+                continue
+            live = str(control.get_agent_runtime_endpoint(agentRuntimeId=runtime_id, endpointName="DEFAULT")
+                       .get("liveVersion") or "")
+            envs[agent] = control.get_agent_runtime(agentRuntimeId=runtime_id, agentRuntimeVersion=live).get(
+                "environmentVariables") or {}
+    except (ClientError, BotoCoreError) as e:
+        return False, f"could not read the guardrail settings: {e}"
+    problems = compare_runtime_guardrails(envs, outputs)
+    if problems:
+        return False, "; ".join(problems)
+    return True, (f"{len(GUARDED_RUNTIMES)} runtimes use guardrail {outputs['BedrockGuardrailId']} "
+                  f"v{outputs['BedrockGuardrailVersion']}")
+
+
+def verify_gateway_auth(region: str) -> tuple[bool, list[str]]:
+    """The gateway must require SigV4, every runtime must sign, and no open gateway may remain.
+
+    Checks the inbound authorizer is AWS_IAM, that an unsigned MCP request is
+    rejected (401/403: anyone with the URL could otherwise call the tools), that
+    every runtime serves a version with AGENTCORE_GATEWAY_AUTH=AWS_IAM, and that
+    the open gateway earlier versions created is gone. The signed path is
+    exercised by scripts/secure_gateway.py at deploy time.
+    """
+    control = boto3.client("bedrock-agentcore-control", region_name=region)
+    try:
+        gateway = secure_gateway.find_gateway(control, GATEWAY_NAME)
+        if gateway is None:
+            return False, [f"gateway '{GATEWAY_NAME}' not found"]
+        problems = secure_gateway.check_gateway_auth(gateway, signed_checks=False)
+        legacy = secure_gateway.find_gateway(control, secure_gateway.LEGACY_GATEWAY_NAME)
+        if legacy is not None:
+            problems.append(
+                f"open gateway '{secure_gateway.LEGACY_GATEWAY_NAME}' ({legacy['gatewayId']}, inbound auth "
+                f"{legacy.get('authorizerType')}) still exists: run scripts/secure_gateway.py"
+            )
+        for agent, runtime_name in AGENT_RUNTIME_NAMES.items():
+            runtime_id = next(
+                (r["agentRuntimeId"] for r in _list_all(control.list_agent_runtimes, ("agentRuntimes",))
+                 if r.get("agentRuntimeName") == runtime_name),
+                None,
+            )
+            if not runtime_id:
+                problems.append(f"{agent}: runtime {runtime_name} not found")
+                continue
+            live = str(control.get_agent_runtime_endpoint(agentRuntimeId=runtime_id, endpointName="DEFAULT")
+                       .get("liveVersion") or "")
+            env = control.get_agent_runtime(agentRuntimeId=runtime_id, agentRuntimeVersion=live).get(
+                "environmentVariables") or {}
+            if env.get(GATEWAY_AUTH_ENV) != "AWS_IAM":
+                problems.append(f"{agent} v{live}: {GATEWAY_AUTH_ENV}={env.get(GATEWAY_AUTH_ENV)!r}, not AWS_IAM")
+    except (ClientError, BotoCoreError, OSError) as e:
+        return False, [f"could not check the gateway auth: {e}"]
+    return not problems, problems
+
+
+def expected_lambda_timeouts(orchestrator_env: dict) -> tuple[cycle_timeouts.CycleTimeouts | None, str]:
+    """Timeouts the Lambda must have for the orchestrator's deployed agent timeouts.
+
+    A runtime deployed before the timeouts were configurable has neither env var;
+    it uses the defaults, so the defaults are expected.
+    """
+    try:
+        return cycle_timeouts.resolve(environ=orchestrator_env), ""
+    except cycle_timeouts.InvalidTimeouts as e:
+        return None, f"orchestrator has invalid timeouts: {e}"
+
+
+def compare_cycle_timeouts(orchestrator_env: dict, lambda_config: dict) -> list[str]:
+    """Problems if the Lambda's timeouts do not match the orchestrator's (empty if they do)."""
+    timeouts, error = expected_lambda_timeouts(orchestrator_env)
+    if timeouts is None:
+        return [error]
+    problems = []
+    lambda_env = (lambda_config.get("Environment") or {}).get("Variables") or {}
+    for key, expected in timeouts.lambda_environment().items():
+        actual = lambda_env.get(key)
+        if actual != expected:
+            problems.append(f"{PRICING_CYCLES_FUNCTION} {key}={actual} (expected {expected})")
+    if lambda_config.get("Timeout") != timeouts.lambda_timeout:
+        problems.append(
+            f"{PRICING_CYCLES_FUNCTION} timeout {lambda_config.get('Timeout')} s (expected {timeouts.lambda_timeout} s)"
+        )
+    return problems
+
+
+def verify_cycle_timeouts(region: str) -> tuple[bool, str]:
+    """Check the Lambda waits longer than the deployed orchestrator can take.
+
+    The orchestrator (deploy_agentcore.py) and the Lambda (CDK) are deployed
+    separately; if they were given different timeouts, the chain can break.
+    """
+    control = boto3.client("bedrock-agentcore-control", region_name=region)
+    try:
+        runtime_id = next(
+            (r["agentRuntimeId"] for r in _list_all(control.list_agent_runtimes, ("agentRuntimes",))
+             if r.get("agentRuntimeName") == AGENT_RUNTIME_NAMES["orchestrator"]),
+            None,
+        )
+        if not runtime_id:
+            return False, "orchestrator runtime not found"
+        live = str(control.get_agent_runtime_endpoint(agentRuntimeId=runtime_id, endpointName="DEFAULT")
+                   .get("liveVersion") or "")
+        env = control.get_agent_runtime(agentRuntimeId=runtime_id, agentRuntimeVersion=live).get(
+            "environmentVariables") or {}
+        config = boto3.client("lambda", region_name=region).get_function_configuration(
+            FunctionName=PRICING_CYCLES_FUNCTION)
+    except (ClientError, BotoCoreError) as e:
+        return False, f"could not read the timeouts: {e}"
+    problems = compare_cycle_timeouts(env, config)
+    if problems:
+        return False, "; ".join(problems)
+    return True, expected_lambda_timeouts(env)[0].describe()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify deployment health")
     parser.add_argument("--region", default="us-east-1", help="AWS region")
@@ -373,6 +536,27 @@ def main():
     if wiring_passed:
         print(f"    {check_mark(True)} All {len(wiring_rows)} runtimes wired to the live gateway and memory")
     all_passed = all_passed and wiring_passed
+
+    # 9. Guardrail: every model-backed runtime uses the stack's guardrail
+    print("\n  Bedrock Guardrail (the stack's guardrail on every runtime):")
+    guardrail_passed, guardrail_detail = verify_runtime_guardrail(args.region)
+    print(f"    {check_mark(guardrail_passed)} {guardrail_detail}")
+    all_passed = all_passed and guardrail_passed
+
+    # 10. Gateway auth: SigV4 required, unsigned calls rejected, every agent signs
+    print("\n  AgentCore Gateway Auth (AWS_IAM, unsigned calls rejected):")
+    gateway_auth_passed, gateway_auth_problems = verify_gateway_auth(args.region)
+    for problem in gateway_auth_problems:
+        print(f"    {check_mark(False)} {problem}")
+    if gateway_auth_passed:
+        print(f"    {check_mark(True)} Inbound auth AWS_IAM; unsigned MCP request rejected; all runtimes sign")
+    all_passed = all_passed and gateway_auth_passed
+
+    # 11. Pricing-cycle timeouts: the Lambda (CDK) must match the orchestrator (deploy_agentcore.py)
+    print("\n  Pricing-Cycle Timeouts (orchestrator vs rdp-api-pricing-cycles):")
+    timeouts_passed, timeouts_detail = verify_cycle_timeouts(args.region)
+    print(f"    {check_mark(timeouts_passed)} {timeouts_detail}")
+    all_passed = all_passed and timeouts_passed
 
     # Summary
     print("")

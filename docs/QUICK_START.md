@@ -31,9 +31,12 @@ pip install -e . --no-deps
 # Bootstrap CDK (first time only)
 npx cdk bootstrap
 
-# Deploy all stacks
-npx cdk deploy --all --require-approval never
+# Deploy all stacks (alertEmail receives the Bedrock spend budget alert;
+# without it the budget is created with no notifications)
+npx cdk deploy --all --require-approval never -c alertEmail=you@example.com
 ```
+
+Pricing-cycle timeouts: to change how long the orchestrator waits for the agents (defaults 300 s / 180 s), `export SPECIALIST_TIMEOUT_SECONDS=… SYNTHESIS_TIMEOUT_SECONDS=…` in the shell you run **both** `cdk deploy` and `deploy_agentcore.py` from. CDK derives the Lambda timeouts from them and `deploy_agentcore.py` sets them on the orchestrator; `verify_deployment.py` fails if the two disagree.
 
 This creates:
 - API Gateway + Lambda handlers
@@ -49,7 +52,9 @@ Note the CDK outputs — you'll need: API Gateway URL, User Pool ID, Client ID, 
 These must exist **before** the agents are deployed (step 4): the agents are wired to the gateway and memory at deploy time.
 
 ```bash
-# Create (or update in place) the IAM role for AgentCore
+# Create (or update in place) the IAM roles: RetailPricingAgentCoreRole (agents)
+# and RetailPricingGatewayRole (gateway; only invokes the rdp-mcp-* Lambdas). On an
+# older deployment it also moves the open retail-pricing-gateway onto the gateway role.
 python3 scripts/create_agentcore_role.py --region us-east-1
 
 # Get MCP Server Lambda ARNs
@@ -63,7 +68,7 @@ export ERP_POS_LAMBDA_ARN=<ARN for rdp-mcp-erp-pos>
 export MARKET_SIGNALS_LAMBDA_ARN=<ARN for rdp-mcp-market-signals>
 export COST_FINANCE_LAMBDA_ARN=<ARN for rdp-mcp-cost-finance>
 
-# Setup gateway and memory
+# Set up the gateway (retail-pricing-gateway-iam, inbound auth AWS_IAM) and memory
 python3 scripts/setup_gateway.py --region us-east-1
 python3 scripts/setup_memory.py --region us-east-1
 ```
@@ -77,14 +82,20 @@ python3 scripts/deploy_agentcore.py \
   --role-arn arn:aws:iam::<ACCOUNT_ID>:role/RetailPricingAgentCoreRole
 ```
 
-The script discovers the gateway and memory from step 3 and sets `AGENTCORE_GATEWAY_ENDPOINT` (the gateway's `/mcp` URL), `AGENTCORE_MEMORY_ID`, the model IDs and (orchestrator only) the specialist ARNs as environment variables on every runtime, on create and update. No manual `export` is needed. It exits non-zero before building anything if the gateway or memory is missing.
+The script discovers the gateway and memory from step 3 and the guardrail from the stack outputs, and sets `AGENTCORE_GATEWAY_ENDPOINT` (the gateway's `/mcp` URL), `AGENTCORE_MEMORY_ID`, `AGENTCORE_GATEWAY_AUTH=AWS_IAM`, the guardrail, the model IDs and (orchestrator only) the specialist ARNs as environment variables on every runtime, on create and update. No manual `export` is needed. It exits non-zero before building anything if the gateway, memory or guardrail is missing.
+
+Then check SigV4 on the gateway. The script checks that an unsigned call is rejected and that a signed tool call works. If the deployment is older than this version, it then deletes the open `retail-pricing-gateway` (no inbound auth), but only once every agent signs its calls to `retail-pricing-gateway-iam`. A gateway's authorizer cannot be changed, so step 3 creates the new gateway next to the old one instead of updating it:
+
+```bash
+python3 scripts/secure_gateway.py --region us-east-1
+```
 
 ### 5. Re-deploy CDK (links agents to Lambda)
 
 The agent deploy script saves ARNs to `scripts/agent_arns.env`. Re-deploy so the Lambda picks up the orchestrator ARN:
 
 ```bash
-npx cdk deploy --all --require-approval never
+npx cdk deploy --all --require-approval never -c alertEmail=you@example.com
 ```
 
 ### 6. Seed Product Data
@@ -160,7 +171,7 @@ aws cognito-idp update-user-pool-client \
   --client-id <CLIENT_ID> \
   --callback-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>/callback"]' \
   --logout-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>"]' \
-  --allowed-o-auth-flows "code" "implicit" \
+  --allowed-o-auth-flows "code" \
   --allowed-o-auth-scopes "openid" "email" "profile" \
   --supported-identity-providers "COGNITO" \
   --allowed-o-auth-flows-user-pool-client \

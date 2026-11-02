@@ -21,7 +21,7 @@ import logging
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 from backend.agents.agentcore.memory_config import create_session_manager
-from shared.model_config import SPECIALIST_MODEL
+from shared.model_config import MAX_OUTPUT_TOKENS, SPECIALIST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,9 @@ def invoke(payload: dict) -> dict:
         from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs
 
         # The Bedrock guardrail (if configured) is attached to the model, not to the Agent.
-        model = BedrockModel(model_id=SPECIALIST_MODEL, **get_guardrail_model_kwargs())
+        model = BedrockModel(
+            model_id=SPECIALIST_MODEL, max_tokens=MAX_OUTPUT_TOKENS, **get_guardrail_model_kwargs()
+        )
         agent = Agent(
             model=model,
             system_prompt=IMPLEMENTATION_MONITORING_SYSTEM_PROMPT,

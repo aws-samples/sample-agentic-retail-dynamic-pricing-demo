@@ -572,3 +572,64 @@ Dependency findings from a review of the open Dependabot PRs and alerts. Each en
 **Root Cause:** `model-config.json` is not in the agent images; the models reach the agents only as environment variables set by `deploy_agentcore.py`. The redeploy was piped into `tail -5`, so the script tested `tail`'s exit status instead of the deploy's.
 **Fix:** The messages now say the change applies only after a redeploy, the redeploy output is no longer piped, and the summary shows both models.
 **Prevention:** Never pipe a command whose exit status matters into another command.
+
+---
+
+## Pricing Cycles, Gateway and Guardrail
+
+Found by running full pricing cycles, a posture review and the evaluation harness against the sandbox. Each is fixed in the current codebase unless marked open.
+
+### Issue: Pricing cycles analysed the wrong group and ran agents several times
+
+**Symptom:** Every cycle analysed `default_category` / `balanced` whatever the dashboard asked for. Strategy synthesis ran up to five times per cycle, and specialists that took over 120 s ran again.
+**Root Cause:** `rdp-api-pricing-cycles` nested the cycle parameters in a JSON `prompt` string that the orchestrator did not read. Both AgentCore clients kept botocore's 60 s read timeout and SDK retries, while synthesis takes 70–85 s; the orchestrator also discarded slow results, and Lambda retried the asynchronous invocation.
+**Fix:** The Lambda sends the parameters at the top level. Read timeouts are set per hop from two settings (`shared/cycle_timeouts.py`, see `deploy.sh --specialist-timeout` / `--synthesis-timeout`), the orchestrator is the only retry owner, and the Lambda has 720 s and no async retries.
+**Prevention:** `tests/test_pricing_cycle_timeouts.py` checks the payload contract and that each layer waits longer than the one below it.
+
+### Issue: The Bedrock budget saw about 2 % of the spend
+
+**Symptom:** The budget showed $0.15 of $6.87 of model spend in a month, and its only subscriber was `admin@example.com`.
+**Root Cause:** It filtered on the service "Amazon Bedrock", but Claude usage is billed as "Amazon Bedrock Service", and AgentCore separately.
+**Fix:** The budget covers all three services and alerts the address `deploy.sh` asks for (`--alert-email`).
+**Prevention:** Check a budget's filters against Cost Explorer's service names for the month before relying on it.
+
+### Issue: The AgentCore Gateway accepted unauthenticated calls
+
+**Symptom:** An unsigned `tools/list` to the gateway's `/mcp` URL returned HTTP 200, so anyone with the URL could call every tool.
+**Root Cause:** `setup_gateway.py` created the gateway with authorizer `NONE`, and it used the agents' execution role.
+**Fix:** The agents sign their MCP calls with SigV4 and the gateway uses `AWS_IAM` inbound auth on its own role (`RetailPricingGatewayRole`, Lambda invoke on `rdp-mcp-*` only). UpdateGateway rejects an authorizer change ("Authorizer type cannot be updated for an existing gateway", although the CloudFormation reference lists `AuthorizerType` as updatable), so a deployment from an earlier version gets a new gateway, `retail-pricing-gateway-iam`. `deploy.sh` Step 4.5 deletes the old `retail-pricing-gateway` only once every agent signs its calls to the new one. `deploy.sh --skip-agents` on such a deployment stops before Step 2, because only the agent deploy moves the agents. During Step 3, `create_agentcore_role.py` moves the old gateway onto the gateway role before it removes Lambda invoke from the agents' role. With the opposite order, a live test saw 9 consecutive tool calls fail over about 11 seconds ("An internal error occurred"); with this order, 0 of 62 failed.
+**Prevention:** `verify_deployment.py` fails while an unsigned call works or the old gateway exists.
+
+### Issue: Agents ran without a Bedrock guardrail
+
+**Symptom:** The agents were deployed with `DISABLE_BEDROCK_GUARDRAILS=true` and only a warning.
+**Root Cause:** The deploy looked for a hardcoded guardrail ID that the demo never created, and disabled the guardrail when it was missing.
+**Fix:** The CDK stack creates the guardrail (Standard tier) and a published version, `deploy_agentcore.py` attaches it, and an agent with neither a guardrail nor the explicit opt-out fails. On the samples in `scripts/check_guardrail.py` the Classic tier blocked 6 of 11 legitimate pricing texts and the Standard tier blocked none.
+**Prevention:** `verify_deployment.py` fails if a model-backed runtime does not use the stack's guardrail version.
+
+### Issue: The prompt-attack filter blocked strategy synthesis
+
+**Symptom:** In an evaluation run, Strategy Synthesis returned "This request was blocked by the Retail Dynamic Pricing guardrail". `ApplyGuardrail` flagged the same prompt as `PROMPT_ATTACK` (LOW or MEDIUM confidence) on all four checks.
+**Root Cause:** The synthesis prompt is mostly the three analyst reports, and pricing advice reads like instructions ("raise online prices to $113.99"). The filter blocks from LOW confidence, and the earlier guardrail samples were short user requests, not agent output.
+**Fix:** Strategy Synthesis screens only the cycle's objectives and constraints as input (a `guardContent` block). The reports were already screened as model output by the agents that wrote them. Injection and price-fixing text in the objectives is still blocked (checked live).
+**Prevention:** Validate guardrail input settings on real prompts from every agent, including those built from other agents' output.
+
+### Issue: Agents failed with `MaxTokensReachedException` outside the agent images
+
+**Symptom:** Run in-process (`evals/`), every specialist failed with "Model stopped generating due to maximum token limit". The deployed agents did not.
+**Root Cause:** The agents set no output-token limit, so it came from `strands-agents`: 1.56 (the pinned host set) sends no `maxTokens` and Bedrock stopped Claude answers at 4,096 tokens, while 1.63 (what the unpinned agent images resolve) sends the model's maximum, 128,000, which Bedrock reserves from the tokens-per-minute quota at the start of every call.
+**Fix:** The five model-backed agents set `max_tokens` 16,000 (`shared/model_config.py`), about twice the largest single answer seen.
+**Prevention:** Set model limits explicitly instead of relying on SDK defaults, which change between releases.
+
+### Issue: `deploy.sh` turned the implicit OAuth grant back on
+
+**Symptom:** The dashboard app client allowed the `implicit` OAuth flow, although the CDK stack disables it and the README says it is disabled.
+**Root Cause:** `update-user-pool-client` replaces the client's OAuth settings, and Step 9 (and the README / QUICK_START command) passed `"code" "implicit"`.
+**Fix:** They pass `"code"` only; the dashboard uses `response_type=code`.
+**Prevention:** `tests/test_cdk_stack.py` checks the CDK client, `deploy.sh` and both docs.
+
+### Issue (open): The orchestrator's injection filter drops legitimate agent answers
+
+**Symptom:** A specialist answer is replaced with `{}` before synthesis; in evaluation runs this hit most cycles.
+**Root Cause:** The `DAN` jailbreak pattern has no word boundaries, so it matches words and JSON keys such as "guidance", "abundant" and `demandAndElasticityAnalysis`.
+**Status:** Fixed on a separate branch; `evals/` reports these drops as a regression check.

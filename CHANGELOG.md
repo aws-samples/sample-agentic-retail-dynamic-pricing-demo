@@ -6,7 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `evals/`: specialist model evaluation. `python -m evals.run_eval` runs the seven dashboard presets through the real orchestrator and specialist code on each model configuration, scores the runs (deterministic checks and a blind LLM judge) and writes a report. Nothing runs without `--yes`; `--rescore` scores a saved run again
+- `docs/architecture.drawio`: two-page architecture diagram (the deployed architecture with one pricing cycle traced in numbered steps, and the agents with their gateway tools, Memory, Bedrock and the guardrail)
+- Configurable pricing-cycle timeouts: `deploy.sh --specialist-timeout` / `--synthesis-timeout` (or `SPECIALIST_TIMEOUT_SECONDS` / `SYNTHESIS_TIMEOUT_SECONDS`, defaults 300 / 180). `shared/cycle_timeouts.py` derives the orchestrator, Lambda and stale-cycle values from them, and `verify_deployment.py` fails if the deployed orchestrator and Lambda disagree
+- `deploy.sh --alert-email` (or `ALERT_EMAIL`) for the Bedrock spend alert. On a terminal the script asks for it; without one (CI) it fails before Step 0
+
 ### Security
+- The AgentCore Gateway requires SigV4 (`AWS_IAM` inbound auth). It accepted unauthenticated calls before (authorizer `NONE`), so anyone with its URL could call every tool. A gateway's authorizer cannot be changed after creation, so `scripts/setup_gateway.py` creates `retail-pricing-gateway-iam`, the agents sign their MCP calls (`backend/agents/agentcore/gateway_auth.py`), and `deploy.sh` Step 4.5 (`scripts/secure_gateway.py`) deletes the old `retail-pricing-gateway` once every agent uses the new one. The agents keep their tools through the upgrade: `scripts/create_agentcore_role.py` moves the old gateway onto the gateway role before the agents' role loses Lambda invoke, and `deploy.sh --skip-agents` stops before Step 2 on a deployment that still needs the agent deploy. `verify_deployment.py` fails while an unsigned call works or the old gateway exists
+- The gateway has its own service role, `RetailPricingGatewayRole`, which can only invoke the `rdp-mcp-*` Lambdas; the agents' role no longer invokes Lambdas. Both trust policies carry `aws:SourceAccount` / `aws:SourceArn` conditions against the confused-deputy problem
+- The CDK stack creates the Bedrock guardrail (Standard tier: four denied topics and a prompt-attack filter) and a published version, and `deploy_agentcore.py` attaches it to the five model-backed agents. An agent with neither a guardrail nor `DISABLE_BEDROCK_GUARDRAILS=true` now fails instead of running unguarded, and `verify_deployment.py` checks every runtime uses the stack's version. `scripts/check_guardrail.py` runs sample prompts against it
+- `deploy.sh` Step 9, and the matching README / QUICK_START command, turned the implicit OAuth grant back on for the dashboard app client, which the CDK stack disables. They now keep the authorization code flow only
+- Paid pricing cycles are capped: the API stage defaults to 50 rps / burst 100, `POST /pricing-cycles` to 1 rps / burst 2, and the handler returns 429 while 3 cycles are running (`MAX_ACTIVE_CYCLES`)
 - Frontend dependencies bumped in both the dashboard and storefront: `vite` 8.3.4, `follow-redirects` 1.16.2, `source-map-js` 1.2.2, `postcss-selector-parser` 6.1.5. `npm audit` now reports 0 vulnerabilities in both apps (including dev dependencies), still on `tailwindcss` 3.4.19
 
 ### Changed
@@ -47,6 +58,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `scripts/setup_gateway.py` now waits for the AgentCore gateway to reach READY before registering targets (previously failed with "gateway is in CREATING status") and synchronizes targets one at a time, treating "Target type LAMBDA is not supported for synchronization" as expected (Lambda targets get their tools from the inline `toolSchema` at registration)
 - Resolved the storefront `npm install` ERESOLVE conflict (`vite@8` was incompatible with `@vitejs/plugin-react@4.7.0`) via the frontend dependency alignment above
 - Corrected the Bedrock IAM resource ARNs in `create_agentcore_role.py` — replaced a malformed ARN with proper foundation-model and inference-profile ARNs
+- Every pricing cycle analysed `default_category` / `balanced`: `rdp-api-pricing-cycles` nested the cycle parameters in a JSON `prompt` string. It now sends them at the top level, and the orchestrator still accepts the old shape
+- Pricing cycles re-ran agents: both AgentCore clients kept botocore's 60 s read timeout and SDK retries (strategy synthesis takes 70–85 s), the orchestrator discarded results that took over 120 s, and Lambda retried the asynchronous invocation. Read timeouts are now set per hop, only the orchestrator retries (and only fast, retryable failures), and the Lambda has 720 s and no async retries
+- The Bedrock budget filtered on "Amazon Bedrock", but Claude usage is billed as "Amazon Bedrock Service" (and AgentCore separately), so it saw about 2 % of the spend, and its only subscriber was `admin@example.com`. It now covers all three services and alerts the `--alert-email` address
+- A cycle whose run died stayed `ANALYZING` forever; reads now report and store it as `FAILED` after 900 s
+- Agent model calls had no output-token limit of their own. With the pinned `strands-agents` 1.56 (tests and `evals/`) no `maxTokens` was sent, Bedrock stopped Claude answers at 4,096 tokens and the agents failed with `MaxTokensReachedException`; the agent images (`strands-agents` 1.63) sent 128,000, which Bedrock reserves from the tokens-per-minute quota on every call. The five model-backed agents now set `max_tokens` 16,000 (`shared/model_config.py`)
+- The guardrail's prompt-attack filter blocked legitimate strategy-synthesis prompts, because the analyst reports in them read like instructions. Strategy Synthesis now screens only the cycle's objectives and constraints as guardrail input; the reports were already screened as model output by the agents that wrote them
 
 ### Security
 - Added non-production sample-code disclaimer to the README Security section

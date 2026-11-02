@@ -6,9 +6,9 @@
 
 ## What It Does
 
-- **Orchestrates 6 AI agents in parallel** — Competitive Intelligence, Demand Forecasting, and Market Intelligence agents run simultaneously (120s timeout, 2 retries, graceful degradation), feeding into Strategy Synthesis for scenario generation
+- **Orchestrates 6 AI agents** — Competitive Intelligence, Demand Forecasting and Market Intelligence run in parallel, then feed Strategy Synthesis for scenario generation. Each call has its own read timeout (300 s for specialists, 180 s for synthesis by default, configurable); only fast, retryable failures are retried, and a slow agent degrades the cycle instead of re-running
 - **Generates 5 ranked pricing scenarios** per cycle — the selected objective sets the price direction (increase/decrease), and each strategy (Aggressive Growth, Market Share Capture, Balanced Optimization, Margin Protection, Conservative Protection) applies a different level of aggressiveness with corresponding risk classification and confidence scores
-- **Enforces pricing compliance** via 4 application-layer guardrails (below-cost rejection, MAP enforcement, geographic bias detection, PII protection), plus optional Amazon Bedrock Guardrails to block anti-competitive strategies at the model level. The demo does not create the guardrail; attach your own with `BEDROCK_GUARDRAIL_ID` (see Limitations)
+- **Enforces pricing compliance** via 4 application-layer guardrails (below-cost rejection, MAP enforcement, geographic bias detection, PII protection), plus an Amazon Bedrock guardrail, created by the stack, that blocks price fixing, discriminatory pricing, emergency price gouging, predatory pricing and prompt attacks at the model level (`scripts/check_guardrail.py` checks it against legitimate and harmful samples)
 - **Routes approvals by risk** — LOW risk auto-approved (Straight-Through Processing), MEDIUM requires human review, HIGH requires 50+ character justification with escalation to Pricing Manager
 - **Enforces separation of duties** — the pricing cycle initiator cannot approve their own scenarios (server-side enforcement)
 - **Monitors post-implementation KPIs** — Implementation Monitoring agent tracks revenue and margin variance against projections with configurable thresholds (10% revenue, 3pp margin)
@@ -124,11 +124,14 @@
 ├── scripts/                    # Deployment and setup scripts
 │   ├── deploy_agentcore.py     # Deploy agents to AgentCore Runtime
 │   ├── deploy_agentcore.sh     # Shell wrapper for full agent deployment
-│   ├── create_agentcore_role.py # Create IAM role for agents
-│   ├── setup_gateway.py        # Register MCP Server targets on Gateway
+│   ├── create_agentcore_role.py # Create the IAM roles for the agents and the gateway
+│   ├── setup_gateway.py        # Create the gateway (AWS_IAM) and register MCP Server targets
+│   ├── secure_gateway.py       # Check SigV4 on the gateway; delete the open one of earlier versions
+│   ├── check_guardrail.py      # Run sample prompts against the stack's Bedrock guardrail
 │   ├── setup_memory.py         # Provision AgentCore Memory
 │   ├── seed_products.py        # Seed DynamoDB product catalog
 │   └── seed_demo_cycles.py     # Seed sample pricing cycles
+├── evals/                      # Specialist model evaluation (see evals/README.md)
 ├── tests/                      # Unit and property-based tests
 ├── docs/                       # Documentation
 ├── cdk.json                    # CDK configuration
@@ -164,6 +167,10 @@ This will:
 Options:
 - `--non-interactive` — auto-select the recommended models (and skip the redeploy)
 - `--region us-west-2` — target a specific region
+
+### Checking a Model Before You Switch
+
+`python -m evals.run_eval` runs the dashboard presets through the real agent code on each specialist model you give it, scores the results (deterministic checks plus an LLM judge) and writes a report. Each request costs about as much as one pricing cycle, so nothing runs without `--yes`. See [evals/README.md](evals/README.md).
 
 ### Model Tiers
 
@@ -206,7 +213,7 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-The script automates all steps below, including prerequisites check, CDK deployment, AgentCore role/gateway/memory setup, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments (`--skip-agents` skips only the agent deploy in Step 4; the role, gateway and memory are still created).
+The script asks for an email address for the Bedrock spend budget alert (80 % of $50/month). Pass `--alert-email you@example.com` (or set `ALERT_EMAIL`) to skip the prompt; without a terminal, as in CI, it is required. `--specialist-timeout` / `--synthesis-timeout` (seconds, defaults 300 / 180) set how long the orchestrator waits for each agent; raise them if a slower model times out. The Lambda timeouts are derived from them (`shared/cycle_timeouts.py`, sum at most 714 s), and `python3 -m shared.cycle_timeouts --specialist N` prints the resulting chain. The script automates all steps below, including prerequisites check, CDK deployment, AgentCore role/gateway/memory setup, agent deployment, data seeding, user creation, and frontend build. Supports `--skip-agents` and `--skip-frontend` flags for partial redeployments (`--skip-agents` skips only the agent deploy in Step 4; the role, gateway and memory are still created). Upgrading a deployment from before the gateway required SigV4 needs one run without `--skip-agents`, because it moves the agents to the new gateway; with `--skip-agents` the script stops before deploying anything.
 
 After deployment completes, run the validation script:
 
@@ -250,7 +257,9 @@ Note the outputs: API Gateway URL, Cognito User Pool ID, Client ID, CloudFront d
 The gateway and memory must exist **before** the agents are deployed (step 4), because the agents are wired to them at deploy time.
 
 ```bash
-# IAM role for AgentCore (re-run any time to update its permissions in place)
+# IAM roles: RetailPricingAgentCoreRole (agents) and RetailPricingGatewayRole (gateway;
+# only invokes the rdp-mcp-* Lambdas). Re-run any time to update them in place. On an
+# older deployment it also moves the open retail-pricing-gateway onto the gateway role.
 python scripts/create_agentcore_role.py --region us-east-1
 
 # Export MCP Server Lambda ARNs (get from: aws lambda list-functions --query "Functions[?starts_with(FunctionName,'rdp-mcp-')].[FunctionName,FunctionArn]" --output table)
@@ -259,6 +268,7 @@ export ERP_POS_LAMBDA_ARN=<ARN for rdp-mcp-erp-pos>
 export MARKET_SIGNALS_LAMBDA_ARN=<ARN for rdp-mcp-market-signals>
 export COST_FINANCE_LAMBDA_ARN=<ARN for rdp-mcp-cost-finance>
 
+# Gateway retail-pricing-gateway-iam (inbound auth AWS_IAM) with the four MCP server targets
 python scripts/setup_gateway.py --region us-east-1
 python scripts/setup_memory.py --region us-east-1
 ```
@@ -272,7 +282,13 @@ python scripts/deploy_agentcore.py \
   --role-arn arn:aws:iam::<ACCOUNT_ID>:role/RetailPricingAgentCoreRole
 ```
 
-`deploy_agentcore.py` discovers the gateway and memory from step 3 and sets these environment variables on every runtime (on create and on update), so no manual `export` is needed: `AGENTCORE_GATEWAY_ENDPOINT` (the gateway's MCP URL, `<gatewayUrl>/mcp`), `AGENTCORE_MEMORY_ID`, the model IDs (`ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID`), and, for the orchestrator, the five specialist runtime ARNs. It exits non-zero without building anything if the gateway or memory cannot be found.
+`deploy_agentcore.py` discovers the gateway and memory from step 3 and sets these environment variables on every runtime (on create and on update), so no manual `export` is needed: `AGENTCORE_GATEWAY_ENDPOINT` (the gateway's MCP URL, `<gatewayUrl>/mcp`), `AGENTCORE_GATEWAY_AUTH=AWS_IAM` (the agents sign their MCP calls with SigV4), `AGENTCORE_MEMORY_ID`, the stack's guardrail, the model IDs (`ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID`), and, for the orchestrator, the five specialist runtime ARNs. It exits non-zero without building anything if the gateway, memory or guardrail cannot be found.
+
+Then check SigV4 on the gateway. The script checks that an unsigned call is rejected and that a signed tool call works. On a deployment older than this version it then deletes the open `retail-pricing-gateway` (no inbound auth), but only once every agent signs its calls to `retail-pricing-gateway-iam`:
+
+```bash
+python scripts/secure_gateway.py --region us-east-1
+```
 
 ### 5. Re-deploy CDK (links agents to Lambda)
 
@@ -340,7 +356,7 @@ aws cognito-idp update-user-pool-client \
   --client-id <COGNITO_CLIENT_ID> \
   --callback-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>/callback"]' \
   --logout-urls '["https://<DASHBOARD_CLOUDFRONT_DOMAIN>"]' \
-  --allowed-o-auth-flows "code" "implicit" \
+  --allowed-o-auth-flows "code" \
   --allowed-o-auth-scopes "openid" "email" "profile" \
   --supported-identity-providers "COGNITO" \
   --allowed-o-auth-flows-user-pool-client \
@@ -468,16 +484,18 @@ npx cdk destroy --all --app ".venv/bin/python3 cdk/app.py"
 #    Discover IDs with: aws bedrock-agentcore-control list-gateways / list-agent-runtimes / list-memories
 #    then delete-gateway-target, delete-gateway, delete-agent-runtime, delete-memory.
 
-# 4. Delete ECR repositories and the IAM role
+# 4. Delete ECR repositories and the IAM roles
 for r in $(aws ecr describe-repositories --query "repositories[?starts_with(repositoryName,'retail-pricing/')].repositoryName" --output text); do
   aws ecr delete-repository --repository-name "$r" --force
 done
 aws iam delete-role-policy --role-name RetailPricingAgentCoreRole --policy-name RetailPricingAgentCorePolicy
 aws iam delete-role --role-name RetailPricingAgentCoreRole
+aws iam delete-role-policy --role-name RetailPricingGatewayRole --policy-name RetailPricingGatewayPolicy
+aws iam delete-role --role-name RetailPricingGatewayRole
 ```
 
-> **Note:** this demo does not create its own Bedrock guardrail resource, so there
-> is no guardrail to delete during teardown.
+> **Note:** the Bedrock guardrail and its versions are part of the CDK stack, so
+> deleting the stack (step 1) deletes them.
 
 ---
 
@@ -504,7 +522,7 @@ A comprehensive STRIDE threat model has been completed for this solution. See [`
 - Optional KMS CMK encryption for sensitive tables
 - Memory integrity hashing (SHA-256) for AgentCore Memory with fail-closed verification
 
-**Intentionally unauthenticated:** `GET /products` and `GET /products/{id}` are public (the Storefront calls them without a token); all other API routes require Cognito. The AgentCore Gateway's inbound authorizer is `NONE` in this sample. See [Demo Limitations](#demo-limitations--production-considerations).
+**Intentionally unauthenticated:** `GET /products` and `GET /products/{id}` are public (the Storefront calls them without a token); all other API routes require Cognito. The AgentCore Gateway requires SigV4 (`AWS_IAM` inbound auth): the agents sign their MCP calls with their execution role, and `verify_deployment.py` checks that an unsigned call is rejected. Earlier versions created the gateway `retail-pricing-gateway` with no inbound auth. A gateway's authorizer cannot be changed after creation, so on those deployments `deploy.sh` creates `retail-pricing-gateway-iam`, moves the agents to it, and then deletes the open gateway (Step 4.5). See [Demo Limitations](#demo-limitations--production-considerations).
 
 ---
 
@@ -517,10 +535,10 @@ This solution is a functional demonstration. Several features illustrate product
 | **Scheduling Tab** | Displays configuration UI for autonomous pricing schedules (frequency, triggers, approval windows). Settings are persisted locally in the browser but do not trigger actual scheduled executions. | Integrate with Amazon EventBridge Scheduler to create cron/rate rules that invoke `POST /pricing-cycles`. Add a DynamoDB `Schedules` table to persist configuration server-side, with Lambda-backed CRUD endpoints. |
 | **MCP Server Data** | Returns simulated market, competitor, ERP, and cost data generated at request time. | Connect to real data sources — competitor price feeds, POS/ERP APIs, market data providers — and implement caching/staleness checks. |
 | **Server-side RBAC** | Frontend routing restricts tabs by role; all authenticated users can invoke any API endpoint. | Add `cognito:groups` claim validation in Lambda authorizers. Enforce role-based access at the API layer, not just the UI. |
-| **Public Product Endpoints & Gateway Auth** | `GET /products` and `GET /products/{id}` need no authentication because the public Storefront calls them anonymously (`verify_deployment.py` also uses `/products` as an anonymous health check). The AgentCore Gateway uses inbound authorizer `NONE`, so anyone who knows its URL can call the MCP tools (simulated data only). | Put the catalog behind WAF/CloudFront rules or API keys if it should not be scrapeable. Configure the gateway with JWT (e.g. Cognito) or IAM inbound authorization and have the agents authenticate to it. |
+| **Public Product Endpoints & Gateway Auth** | `GET /products` and `GET /products/{id}` need no authentication because the public Storefront calls them anonymously (`verify_deployment.py` also uses `/products` as an anonymous health check). The AgentCore Gateway uses `AWS_IAM` inbound auth, so any principal in the account with `bedrock-agentcore:InvokeGateway` can call every tool. | Put the catalog behind WAF/CloudFront rules or API keys if it should not be scrapeable. Attach an AgentCore Policy engine to the gateway to allow specific tools per caller. |
 | **Hardcoded Demo Credentials** | `deploy.sh` creates demo users with preset passwords. MFA is still required. | Use SSM Parameter Store or Secrets Manager for initial credentials. Rotate on first use. |
-| **Guardrails Enforcement** | Bedrock Guardrails validate at the model level only when a guardrail is configured; a default deploy has none (see Kill Switches). Application-layer guardrails use hardcoded pass/fail for demo scenarios. | Call Bedrock Guardrails API at price-modification points (before writing to Products table) for runtime validation. |
-| **Kill Switches** | `SKIP_INPUT_SANITIZATION` and `DISABLE_BEDROCK_GUARDRAILS` env vars allow bypassing controls for local testing. The demo creates no Bedrock guardrail: `deploy_agentcore.py` attaches the one named by `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` (default `mgu29odtpk6m` v4) only if it exists in the account, otherwise it warns and deploys the agents with `DISABLE_BEDROCK_GUARDRAILS=true`. | Remove or protect via AWS Service Control Policies (SCPs) and AWS Config rules. Never deploy to production. |
+| **Guardrails Enforcement** | The stack's Bedrock guardrail screens the prompt each agent receives and every model response. Strategy Synthesis screens only the cycle's objectives and constraints as input; the analyst reports in its prompt were already screened as model output. Tool results are not screened (the Converse API does not evaluate them), so instructions hidden in tool data are caught only by the orchestrator's injection filter and by output screening. Application-layer guardrails use hardcoded pass/fail for demo scenarios. | Call Bedrock Guardrails API at price-modification points (before writing to Products table) for runtime validation. |
+| **Kill Switches** | `SKIP_INPUT_SANITIZATION` and `DISABLE_BEDROCK_GUARDRAILS` env vars allow bypassing controls for local testing. `deploy_agentcore.py` attaches the stack's guardrail (or `BEDROCK_GUARDRAIL_ID` / `_VERSION` if set) and exits non-zero if it cannot find one; `DISABLE_BEDROCK_GUARDRAILS=true` is the only way to deploy agents without a guardrail, and `verify_deployment.py` then fails. | Remove or protect via AWS Service Control Policies (SCPs) and AWS Config rules. Never deploy to production. |
 | **Pricing Model** | Flat catalog pricing only — one price per product, all customers, all channels. Products with `mapPrice: null` behave as private-label (no MAP floor, cost floor only). | Add `pricingModel` field ("catalog", "private-label", "surge", "tiered") per product. Strategy Synthesis applies model-specific strategies. See "Extensible Pricing Models" below. |
 | **Architecture Pattern** | Synchronous Lambda → AgentCore invocation (optimized for real-time demo UX). | Migrate to EventBridge + Step Functions for async fan-out, independent agent scaling, automatic retries with DLQ, native event audit trail, and elimination of API Gateway timeout constraints. |
 

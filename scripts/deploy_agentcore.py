@@ -12,8 +12,11 @@ This script:
      AGENTCORE_GATEWAY_ENDPOINT  gateway MCP URL (<gatewayUrl>/mcp)
      AGENTCORE_MEMORY_ID         AgentCore Memory ID
      ORCHESTRATOR_MODEL_ID / SPECIALIST_MODEL_ID   from model-config.json
-     BEDROCK_GUARDRAIL_ID / BEDROCK_GUARDRAIL_VERSION, or
-       DISABLE_BEDROCK_GUARDRAILS=true when the guardrail does not exist
+     AGENTCORE_GATEWAY_AUTH=AWS_IAM  the runtimes sign their MCP calls (SigV4)
+     BEDROCK_GUARDRAIL_ID / BEDROCK_GUARDRAIL_VERSION  the stack's guardrail (CDK
+       outputs); exits non-zero if it cannot be found, unless
+       DISABLE_BEDROCK_GUARDRAILS=true is set explicitly
+     SPECIALIST_TIMEOUT_SECONDS / SYNTHESIS_TIMEOUT_SECONDS  (shared/cycle_timeouts.py)
      <AGENT>_AGENT_ARN x5        (orchestrator only) the specialist runtime ARNs
 6. Saves the agent runtime ARNs to agent_config.json and scripts/agent_arns.env
 
@@ -32,7 +35,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import logging
 import os
@@ -44,6 +46,11 @@ from pathlib import Path
 
 import boto3
 from botocore.exceptions import ClientError
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+sys.path.insert(1, str(Path(__file__).resolve().parent))  # scripts/, for secure_gateway
+from secure_gateway import GATEWAY_NAME  # noqa: E402
+from shared import cycle_timeouts  # noqa: E402
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -98,11 +105,14 @@ CONFIG_FILE = Path(__file__).parent.parent / "backend" / "agents" / "agentcore" 
 ENV_FILE = Path(__file__).parent / "agent_arns.env"
 PROJECT_ROOT = Path(__file__).parent.parent
 MODEL_CONFIG_FILE = PROJECT_ROOT / "model-config.json"
-GUARDRAIL_CONFIG_FILE = PROJECT_ROOT / "backend" / "agents" / "agentcore" / "guardrail_config.py"
+# The CDK stack creates the guardrail and exports its ID and published version.
+STACK_NAME = "RetailDynamicPricing"
+GUARDRAIL_ID_OUTPUT = "BedrockGuardrailId"
+GUARDRAIL_VERSION_OUTPUT = "BedrockGuardrailVersion"
 
 # Names used by scripts/setup_gateway.py and scripts/setup_memory.py. The memory
 # ID is this name plus a random suffix (RetailDynamicPricingMemory-Ab12Cd34Ef).
-DEFAULT_GATEWAY_NAME = "retail-pricing-gateway"
+DEFAULT_GATEWAY_NAME = GATEWAY_NAME
 DEFAULT_MEMORY_NAME = "RetailDynamicPricingMemory"
 
 # Env var that carries each agent's runtime ARN (agent_arns.env, the CDK Lambda
@@ -364,51 +374,64 @@ def load_model_environment() -> dict[str, str]:
     return env
 
 
-def _guardrail_defaults() -> tuple[str, str]:
-    """Default guardrail ID/version, read from the runtime's own guardrail_config."""
-    spec = importlib.util.spec_from_file_location("guardrail_config", GUARDRAIL_CONFIG_FILE)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.GUARDRAIL_ID, module.GUARDRAIL_VERSION
+class GuardrailError(RuntimeError):
+    """No usable guardrail, and the deployer did not opt out."""
+
+
+def stack_guardrail(session: boto3.Session, region: str) -> tuple[str, str] | None:
+    """(guardrail ID, version) from the CDK stack outputs, or None if the stack has none."""
+    cloudformation = session.client("cloudformation", region_name=region)
+    try:
+        stack = cloudformation.describe_stacks(StackName=STACK_NAME)["Stacks"][0]
+    except ClientError as e:
+        if "does not exist" in str(e):
+            return None
+        raise
+    outputs = {o["OutputKey"]: o["OutputValue"] for o in stack.get("Outputs", [])}
+    if GUARDRAIL_ID_OUTPUT in outputs and GUARDRAIL_VERSION_OUTPUT in outputs:
+        return outputs[GUARDRAIL_ID_OUTPUT], outputs[GUARDRAIL_VERSION_OUTPUT]
+    return None
 
 
 def resolve_guardrail_environment(session: boto3.Session, region: str) -> dict[str, str]:
-    """Decide the guardrail env vars for the runtimes.
+    """Guardrail env vars for the runtimes. Fails closed.
 
-    The demo does not create a guardrail, so the default one may not exist in the
-    target account. Attaching a missing guardrail would make every model call fail,
-    so in that case the runtimes are deployed with DISABLE_BEDROCK_GUARDRAILS=true
-    and a loud warning. Any other lookup problem keeps the guardrail enabled.
+    BEDROCK_GUARDRAIL_ID / BEDROCK_GUARDRAIL_VERSION (if set) win; otherwise the
+    stack's guardrail (CDK outputs). The guardrail must exist and be READY. With
+    neither, or a guardrail that cannot be found, raise GuardrailError instead of
+    deploying unguarded agents. DISABLE_BEDROCK_GUARDRAILS=true is the only way
+    to deploy without a guardrail.
     """
-    if os.environ.get("DISABLE_BEDROCK_GUARDRAILS", "").lower() == "true":
+    if os.environ.get("DISABLE_BEDROCK_GUARDRAILS", "").strip().lower() == "true":
         logger.warning("DISABLE_BEDROCK_GUARDRAILS=true: deploying agents WITHOUT a Bedrock guardrail.")
         return {"DISABLE_BEDROCK_GUARDRAILS": "true"}
 
-    default_id, default_version = _guardrail_defaults()
-    guardrail_id = os.environ.get("BEDROCK_GUARDRAIL_ID") or default_id
-    guardrail_version = os.environ.get("BEDROCK_GUARDRAIL_VERSION") or default_version
+    guardrail_id = os.environ.get("BEDROCK_GUARDRAIL_ID", "").strip()
+    guardrail_version = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "").strip()
+    source = "BEDROCK_GUARDRAIL_ID"
+    if not guardrail_id:
+        found = stack_guardrail(session, region)
+        if found is None:
+            raise GuardrailError(
+                f"Stack {STACK_NAME} has no {GUARDRAIL_ID_OUTPUT} output. Deploy the CDK stack first "
+                "(it creates the guardrail), set BEDROCK_GUARDRAIL_ID / BEDROCK_GUARDRAIL_VERSION, or set "
+                "DISABLE_BEDROCK_GUARDRAILS=true to deploy without a guardrail."
+            )
+        guardrail_id, guardrail_version = found
+        source = f"stack {STACK_NAME} outputs"
+    guardrail_version = guardrail_version or "DRAFT"
 
     bedrock = session.client("bedrock", region_name=region)
     try:
-        bedrock.get_guardrail(guardrailIdentifier=guardrail_id, guardrailVersion=guardrail_version)
+        guardrail = bedrock.get_guardrail(guardrailIdentifier=guardrail_id, guardrailVersion=guardrail_version)
     except ClientError as e:
-        code = e.response.get("Error", {}).get("Code", "")
-        if code in ("ResourceNotFoundException", "ValidationException"):
-            logger.warning("=" * 60)
-            logger.warning(
-                "Bedrock guardrail %s (version %s) does not exist in this account/region.",
-                guardrail_id, guardrail_version,
-            )
-            logger.warning(
-                "Deploying agents with DISABLE_BEDROCK_GUARDRAILS=true: model calls are NOT "
-                "screened by a Bedrock guardrail. Create one and pass BEDROCK_GUARDRAIL_ID / "
-                "BEDROCK_GUARDRAIL_VERSION to re-enable it."
-            )
-            logger.warning("=" * 60)
-            return {"DISABLE_BEDROCK_GUARDRAILS": "true"}
-        logger.warning(
-            "Could not verify guardrail %s (%s); leaving it enabled on the agents.", guardrail_id, code
-        )
+        raise GuardrailError(
+            f"Bedrock guardrail {guardrail_id} version {guardrail_version} (from {source}) could not be read: "
+            f"{e.response.get('Error', {}).get('Code', e)}."
+        ) from e
+    if guardrail.get("status") not in (None, "READY"):
+        raise GuardrailError(f"Bedrock guardrail {guardrail_id} v{guardrail_version} is {guardrail['status']}, not READY.")
+    logger.info("Bedrock guardrail: %s version %s (from %s)", guardrail_id, guardrail_version, source)
     return {
         "BEDROCK_GUARDRAIL_ID": guardrail_id,
         "BEDROCK_GUARDRAIL_VERSION": guardrail_version,
@@ -867,11 +890,34 @@ def main() -> None:
         logger.error("Aborting before any image is built: agents must not be deployed unwired.")
         sys.exit(1)
 
+    # Agent read timeouts for the orchestrator (SPECIALIST_TIMEOUT_SECONDS /
+    # SYNTHESIS_TIMEOUT_SECONDS). CDK derives the Lambda's timeouts from the same
+    # values, so both deploys must see the same ones (deploy.sh exports them).
+    try:
+        timeouts = cycle_timeouts.resolve()
+    except cycle_timeouts.InvalidTimeouts as e:
+        logger.error("Invalid pricing-cycle timeouts: %s", e)
+        logger.error("Aborting before any image is built.")
+        sys.exit(1)
+    logger.info("Pricing-cycle timeouts: %s", timeouts.describe())
+
+    try:
+        guardrail_environment = resolve_guardrail_environment(session, region)
+    except (GuardrailError, ClientError) as e:
+        logger.error("%s", e)
+        logger.error("Aborting before any image is built: agents must not be deployed without their guardrail.")
+        sys.exit(1)
+
     base_environment = {
         "AGENTCORE_GATEWAY_ENDPOINT": gateway_endpoint,
         "AGENTCORE_MEMORY_ID": memory_id,
+        # The runtimes sign their MCP requests with SigV4 (gateway_auth.py).
+        # scripts/secure_gateway.py checks this before it deletes the open
+        # gateway an earlier version created.
+        "AGENTCORE_GATEWAY_AUTH": "AWS_IAM",
         **load_model_environment(),
-        **resolve_guardrail_environment(session, region),
+        **guardrail_environment,
+        **timeouts.agent_environment(),
     }
     logger.info("Agent runtime wiring:")
     logger.info("  AGENTCORE_GATEWAY_ENDPOINT = %s", gateway_endpoint)

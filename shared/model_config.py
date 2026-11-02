@@ -40,3 +40,13 @@ SPECIALIST_MODEL = os.environ.get(
     "SPECIALIST_MODEL_ID",
     _config.get("specialistModelId", _DEFAULT_SPECIALIST_MODEL),
 )
+
+# Output-token cap for every agent model call (BedrockModel max_tokens). Without
+# it the cap depends on the strands-agents release: 1.56 (the pinned host set,
+# used by tests and evals/) sends none, Bedrock then stopped Claude answers at
+# 4,096 tokens and the agents failed with MaxTokensReachedException; 1.63 (what
+# the agent images resolve) sends the model's maximum, 128,000, which Bedrock
+# reserves from the tokens-per-minute quota at the start of every call. The
+# largest single agent answer seen so far is about 7,800 tokens. Every model
+# select_model.py offers allows at least 32,000.
+MAX_OUTPUT_TOKENS = 16_000
