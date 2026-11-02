@@ -201,6 +201,25 @@ def test_cognito_user_pool_client_created():
     )
 
 
+def test_cognito_client_allows_only_the_code_flow_and_deploy_keeps_it_so():
+    """The CDK client and the dashboard use the code flow only. deploy.sh Step 9 and the
+    README/QUICK_START command replace the client's OAuth settings, and used to turn the
+    implicit grant back on."""
+    from pathlib import Path
+
+    app = cdk.App()
+    stack = RetailDynamicPricingStack(app, "TestStack")
+    Template.from_stack(stack).has_resource_properties(
+        "AWS::Cognito::UserPoolClient", {"AllowedOAuthFlows": ["code"]}
+    )
+    root = Path(__file__).resolve().parent.parent
+    for name in ("deploy.sh", "README.md", "docs/QUICK_START.md"):
+        text = (root / name).read_text()
+        assert '--allowed-o-auth-flows "code" \\' in text, name
+        assert "implicit\" \\" not in text and '"code" "implicit"' not in text, name
+    assert "response_type: 'code'" in (root / "frontend/dashboard/src/lib/cognito.ts").read_text()
+
+
 def test_cognito_exposes_properties():
     """Verify the Cognito construct exposes user_pool and user_pool_client properties."""
     app = cdk.App()
