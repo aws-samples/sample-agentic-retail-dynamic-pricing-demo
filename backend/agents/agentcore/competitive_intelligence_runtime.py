@@ -24,7 +24,7 @@ from strands.models import BedrockModel
 from backend.agents.agentcore.memory_config import create_session_manager
 from backend.agents.agentcore.gateway_auth import create_gateway_mcp_client
 from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs
-from shared.model_config import SPECIALIST_MODEL
+from shared.model_config import MAX_OUTPUT_TOKENS, SPECIALIST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,9 @@ def invoke(payload: dict) -> dict:
 
         # Create agent with memory and gateway tools. The Bedrock guardrail (if
         # configured) is attached to the model, not to the Agent.
-        model = BedrockModel(model_id=SPECIALIST_MODEL, **get_guardrail_model_kwargs())
+        model = BedrockModel(
+            model_id=SPECIALIST_MODEL, max_tokens=MAX_OUTPUT_TOKENS, **get_guardrail_model_kwargs()
+        )
         agent = Agent(
             model=model,
             system_prompt=SYSTEM_PROMPT,

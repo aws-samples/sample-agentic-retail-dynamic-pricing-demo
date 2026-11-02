@@ -27,7 +27,7 @@ from strands.models import BedrockModel
 from backend.agents.agentcore.memory_config import create_session_manager
 from backend.agents.agentcore.gateway_auth import create_gateway_mcp_client
 from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs, synthesis_prompt_content
-from shared.model_config import SPECIALIST_MODEL
+from shared.model_config import MAX_OUTPUT_TOKENS, SPECIALIST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,7 @@ def invoke(payload: dict) -> dict:
         content = synthesis_prompt_content(full_prompt)
         model = BedrockModel(
             model_id=SPECIALIST_MODEL,
+            max_tokens=MAX_OUTPUT_TOKENS,
             **get_guardrail_model_kwargs(latest_message=content is None),
         )
         agent = Agent(
