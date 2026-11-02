@@ -13,7 +13,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 - **Login:** `<COGNITO_DEMO_USER>` / `<COGNITO_DEMO_PASSWORD>`
 - Open both URLs in separate browser tabs
 - Log into the Dashboard
-- **Bedrock Guardrails are optional.** The demo does not create one, so a default deploy runs the agents without a Bedrock guardrail. To back the guardrail talking points with a live guardrail, create one (the four denied topics and PII filters in `docs/ARCHITECTURE.md`) and set `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` before deploying. The **Guardrails Enforcement** cards in the Dashboard are scripted demo scenarios and work either way.
+- **The Bedrock guardrail is live.** The CDK stack creates it (four denied topics and a prompt-attack filter, see `docs/ARCHITECTURE.md`) and `deploy.sh` attaches it to every model-backed agent; `verify_deployment.py` fails if one runs without it. It covers the agents' model calls only. The **Guardrails Enforcement** cards in the Dashboard are scripted demo scenarios (in-process regex checks, no AWS call), so they show the same results with or without it.
 
 ---
 

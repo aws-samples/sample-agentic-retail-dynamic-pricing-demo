@@ -28,13 +28,15 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 | API Handlers | AWS Lambda (Python 3.12) | Thin wrappers: validate → persist → invoke AgentCore |
 | State Store | Amazon DynamoDB (5 tables) | Products, PricingCycles, PricingScenarios, Approvals, AuditTrail |
 
+Diagram: [`docs/architecture.drawio`](architecture.drawio) (open in draw.io / diagrams.net). Page 1 shows the deployed architecture with one pricing cycle traced in numbered steps; page 2 shows the agents, their gateway tools, Memory, Bedrock and the guardrail.
+
 ### 3. AgentCore Layer
 | Component | Service | Purpose |
 |-----------|---------|---------|
 | Agent Runtime | Amazon Bedrock AgentCore Runtime | Serverless execution of 6 AI agents |
-| Agent Gateway | Amazon Bedrock AgentCore Gateway | MCP protocol endpoint for 4 data server targets |
+| Agent Gateway | Amazon Bedrock AgentCore Gateway (`retail-pricing-gateway-iam`) | MCP protocol endpoint for 4 data server targets; `AWS_IAM` inbound auth (the agents sign with SigV4), its own service role (`RetailPricingGatewayRole`) that can only invoke the `rdp-mcp-*` Lambdas |
 | Agent Memory | Amazon Bedrock AgentCore Memory | Persistent state across pricing cycles |
-| Guardrails | Amazon Bedrock Guardrails (optional, bring your own) | Policy enforcement (4 denied topics + PII) when a guardrail is configured; otherwise the agents deploy with `DISABLE_BEDROCK_GUARDRAILS=true` |
+| Guardrails | Amazon Bedrock Guardrails (created by the CDK stack, Standard tier) | 4 denied topics and a prompt-attack filter on every Converse call of the five model-backed agents |
 | Foundation Models | Amazon Bedrock — orchestrator tier (recommended: Claude Opus) + specialist tier for the five specialists, including strategy synthesis (recommended: Claude Sonnet); both selected at deploy via `select_model.py` | LLM reasoning for pricing analysis |
 | Container Registry | Amazon ECR (6 repositories) | Docker images for agent runtimes |
 
@@ -109,7 +111,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
    → Orchestrator dispatches 3 intelligence agents in parallel
    → Each agent calls MCP Servers via Gateway for data
    → Results aggregated → Strategy Synthesis generates 5 ranked scenarios
-   → Bedrock Guardrails validate all recommendations (when a guardrail is configured)
+   → The Bedrock guardrail screens each agent's prompt and every model response
    → Scenarios written to DynamoDB
    → LOW risk scenarios auto-approved (STP)
    → Status updated to COMPLETE
@@ -145,13 +147,14 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 
 ### Guardrails (Amazon Bedrock Guardrails)
 
-The demo does not create this guardrail. `scripts/deploy_agentcore.py` attaches the one named by `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` if it exists in the account; otherwise it warns and deploys the agents with `DISABLE_BEDROCK_GUARDRAILS=true`. To enforce the policies below, create a guardrail with these denied topics and pass its ID at deploy time.
+The CDK stack creates `RetailDynamicPricingGuardrail` (`cdk/stacks/guardrail.py`, policy in `shared/pricing_guardrail.py`) and a published version, and `scripts/deploy_agentcore.py` attaches that version to every model-backed agent. It uses the Standard tier, which runs on cross-Region inference within the geography (`us.guardrail.v1:0` in US Regions): on the samples in `scripts/check_guardrail.py` the Classic tier blocked 6 of 11 legitimate pricing texts, such as price matching and above-cost discounts, while the Standard tier blocked none. Only the prompt each agent receives is sent as guardrail input (`guardrail_latest_message`); tool results are never screened by the Converse API. Strategy Synthesis screens only the cycle's objectives and constraints as input (a `guardContent` block, `synthesis_prompt_content()` in `guardrail_config.py`). The rest of its prompt is the three analyst reports, which were already screened as model output by the agents that wrote them. Screening them again as input let the prompt-attack filter block legitimate cycles, because pricing advice reads like instructions. Every model response is screened. Denied topics, plus a prompt-attack filter (HIGH, input):
 
-- **PredatoryPricing** — blocks below-cost pricing to eliminate competitors
-- **PriceFixingAndCollusion** — blocks coordination with competitors
-- **DiscriminatoryPricing** — blocks pricing based on protected characteristics
-- **PriceGouging** — blocks exploiting emergencies for excessive prices
-- **PII Protection** — anonymizes email/phone, blocks SSN/credit cards
+- **PriceFixingOrCollusion**: agreeing prices, discounts or market splits with a rival, or sharing private price plans with one
+- **DiscriminatoryPricing**: pricing by race, ethnicity, religion, sex, age, disability, national origin or other protected characteristics
+- **EmergencyPriceGouging**: sharply raising prices of essential goods during a disaster or public health crisis
+- **PredatoryPricing**: deliberately selling below cost to force out a competitor, then raising prices
+
+PII protection is done by the application-layer guardrails, not by this guardrail.
 
 ### Audit Trail
 - Every pricing decision recorded with full traceability
@@ -171,6 +174,7 @@ The demo does not create this guardrail. `scripts/deploy_agentcore.py` attaches 
 - Docker containers built locally, pushed to ECR
 - `deploy_agentcore.py` script creates/updates AgentCore Runtimes
 - The AgentCore Gateway and Memory are created first; `deploy_agentcore.py` wires every runtime to them with the `AGENTCORE_GATEWAY_ENDPOINT` (gateway MCP URL) and `AGENTCORE_MEMORY_ID` environment variables, and `verify_deployment.py` fails if a runtime is missing either
+- A gateway's inbound authorizer is fixed at creation. Earlier versions created an open gateway (`retail-pricing-gateway`, authorizer `NONE`); on such a deployment `deploy.sh` creates `retail-pricing-gateway-iam` next to it, redeploys the agents against the new gateway, and then deletes the open one (`scripts/secure_gateway.py`, Step 4.5). The deletion waits until every gateway-calling runtime serves a version that signs its calls to the new gateway
 - Each agent is independently deployable and scalable
 
 ### CI/CD Ready
