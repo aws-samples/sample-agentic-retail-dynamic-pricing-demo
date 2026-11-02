@@ -19,6 +19,8 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+sys.path.insert(1, str(Path(__file__).resolve().parent))  # scripts/, for secure_gateway
+import secure_gateway  # noqa: E402
 from shared import cycle_timeouts  # noqa: E402
 
 
@@ -162,7 +164,7 @@ AGENT_RUNTIME_NAMES = {
 }
 
 # Names used by scripts/setup_gateway.py and scripts/setup_memory.py.
-GATEWAY_NAME = "retail-pricing-gateway"
+GATEWAY_NAME = secure_gateway.GATEWAY_NAME
 MEMORY_NAME = "RetailDynamicPricingMemory"
 
 # Env vars deploy_agentcore.py must set on EVERY runtime. Without them the agents
@@ -297,6 +299,48 @@ def verify_agent_wiring(region: str) -> tuple[bool, list[tuple[str, bool, str]],
 
 
 PRICING_CYCLES_FUNCTION = "rdp-api-pricing-cycles"
+GATEWAY_AUTH_ENV = "AGENTCORE_GATEWAY_AUTH"
+
+
+def verify_gateway_auth(region: str) -> tuple[bool, list[str]]:
+    """The gateway must require SigV4, every runtime must sign, and no open gateway may remain.
+
+    Checks the inbound authorizer is AWS_IAM, that an unsigned MCP request is
+    rejected (401/403: anyone with the URL could otherwise call the tools), that
+    every runtime serves a version with AGENTCORE_GATEWAY_AUTH=AWS_IAM, and that
+    the open gateway earlier versions created is gone. The signed path is
+    exercised by scripts/secure_gateway.py at deploy time.
+    """
+    control = boto3.client("bedrock-agentcore-control", region_name=region)
+    try:
+        gateway = secure_gateway.find_gateway(control, GATEWAY_NAME)
+        if gateway is None:
+            return False, [f"gateway '{GATEWAY_NAME}' not found"]
+        problems = secure_gateway.check_gateway_auth(gateway, signed_checks=False)
+        legacy = secure_gateway.find_gateway(control, secure_gateway.LEGACY_GATEWAY_NAME)
+        if legacy is not None:
+            problems.append(
+                f"open gateway '{secure_gateway.LEGACY_GATEWAY_NAME}' ({legacy['gatewayId']}, inbound auth "
+                f"{legacy.get('authorizerType')}) still exists: run scripts/secure_gateway.py"
+            )
+        for agent, runtime_name in AGENT_RUNTIME_NAMES.items():
+            runtime_id = next(
+                (r["agentRuntimeId"] for r in _list_all(control.list_agent_runtimes, ("agentRuntimes",))
+                 if r.get("agentRuntimeName") == runtime_name),
+                None,
+            )
+            if not runtime_id:
+                problems.append(f"{agent}: runtime {runtime_name} not found")
+                continue
+            live = str(control.get_agent_runtime_endpoint(agentRuntimeId=runtime_id, endpointName="DEFAULT")
+                       .get("liveVersion") or "")
+            env = control.get_agent_runtime(agentRuntimeId=runtime_id, agentRuntimeVersion=live).get(
+                "environmentVariables") or {}
+            if env.get(GATEWAY_AUTH_ENV) != "AWS_IAM":
+                problems.append(f"{agent} v{live}: {GATEWAY_AUTH_ENV}={env.get(GATEWAY_AUTH_ENV)!r}, not AWS_IAM")
+    except (ClientError, BotoCoreError, OSError) as e:
+        return False, [f"could not check the gateway auth: {e}"]
+    return not problems, problems
 
 
 def expected_lambda_timeouts(orchestrator_env: dict) -> tuple[cycle_timeouts.CycleTimeouts | None, str]:
@@ -439,7 +483,16 @@ def main():
         print(f"    {check_mark(True)} All {len(wiring_rows)} runtimes wired to the live gateway and memory")
     all_passed = all_passed and wiring_passed
 
-    # 9. Pricing-cycle timeouts: the Lambda (CDK) must match the orchestrator (deploy_agentcore.py)
+    # 9. Gateway auth: SigV4 required, unsigned calls rejected, every agent signs
+    print("\n  AgentCore Gateway Auth (AWS_IAM, unsigned calls rejected):")
+    gateway_auth_passed, gateway_auth_problems = verify_gateway_auth(args.region)
+    for problem in gateway_auth_problems:
+        print(f"    {check_mark(False)} {problem}")
+    if gateway_auth_passed:
+        print(f"    {check_mark(True)} Inbound auth AWS_IAM; unsigned MCP request rejected; all runtimes sign")
+    all_passed = all_passed and gateway_auth_passed
+
+    # 10. Pricing-cycle timeouts: the Lambda (CDK) must match the orchestrator (deploy_agentcore.py)
     print("\n  Pricing-Cycle Timeouts (orchestrator vs rdp-api-pricing-cycles):")
     timeouts_passed, timeouts_detail = verify_cycle_timeouts(args.region)
     print(f"    {check_mark(timeouts_passed)} {timeouts_detail}")

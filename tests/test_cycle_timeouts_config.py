@@ -228,7 +228,7 @@ class TestDeployAgentcoreSetsTheSettings:
 
         for key, value in timeouts_env.items():
             monkeypatch.setenv(key, value)
-        control = FakeControl(gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway"}],
+        control = FakeControl(gateways=[{"gatewayId": "gw-1", "name": "retail-pricing-gateway-iam"}],
                               memories=[{"id": MEMORY_ID, "name": "RetailDynamicPricingMemory", "status": "ACTIVE"}])
         session = SimpleNamespace(client=lambda name, **kw: control)
         calls, environments = [], []

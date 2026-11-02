@@ -13,6 +13,7 @@
 #   Step 2  CDK first pass (infrastructure + MCP server Lambdas)
 #   Step 3  IAM role, AgentCore Gateway and Memory
 #   Step 4  Agents (AGENTCORE_GATEWAY_ENDPOINT / AGENTCORE_MEMORY_ID set on all 6)
+#   Step 4.5 Gateway SigV4 check; the open gateway of earlier versions is deleted
 #   Step 5  CDK re-deploy (links the orchestrator ARN into the Lambda)
 #
 # Prerequisites:
@@ -326,6 +327,17 @@ if [ "$SKIP_AGENTS" = false ]; then
 else
     print_warning "Skipping agent deployment (--skip-agents)"
 fi
+
+# Step 4.5: Check SigV4 on the gateway and delete the open gateway of earlier versions
+# Step 3 creates the gateway with AWS_IAM inbound auth. A gateway's authorizer
+# cannot be changed, so the open gateway earlier versions created
+# (retail-pricing-gateway, no inbound auth) is replaced, not updated. Must run
+# after Step 4: the script checks that an unsigned call is rejected and signed
+# calls work, then deletes the open gateway. It refuses (failing the deploy)
+# while any agent still uses the open gateway, for example after --skip-agents.
+print_step "4.5" "Checking SigV4 on the AgentCore Gateway"
+python3 scripts/secure_gateway.py --region $REGION
+print_success "Gateway rejects unsigned calls, signed agent calls work, and no open gateway is left"
 
 # Step 5: Re-deploy CDK (links orchestrator ARN to Lambda)
 # Must run after Step 4: CDK reads scripts/agent_arns.env at synth time.
