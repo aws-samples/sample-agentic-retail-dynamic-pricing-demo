@@ -356,12 +356,64 @@ class TestDeployRequiresAlertEmail:
         return subprocess.run([BASH, str(script), *args], cwd=tmp_path, env=env,
                               capture_output=True, text=True, timeout=60)
 
-    def test_missing_email_stops_the_deploy(self, tmp_path):
+    def test_missing_email_without_a_terminal_stops_the_deploy(self, tmp_path):
+        """No terminal (CI, piped input): fail instead of prompting."""
         result = self.run(tmp_path)
 
         assert result.returncode == 1
         assert "alert email is required" in result.stderr
+        assert "Email address for Bedrock" not in result.stdout + result.stderr
         assert "Step 0" not in result.stdout
+
+    def run_in_terminal(self, tmp_path, answers: list[str]) -> tuple[int, str]:
+        """Run deploy.sh on a pseudo-terminal, typing each answer at a prompt."""
+        import os
+        import pty
+        import select
+        import time
+
+        script = tmp_path / "deploy.sh"
+        script.write_text(DEPLOY_SH.read_text())
+        pid, fd = pty.fork()
+        if pid == 0:  # child
+            os.chdir(tmp_path)
+            os.execve(BASH, [BASH, str(script)], {"PATH": str(tmp_path / "empty-path"), "HOME": str(tmp_path)})
+        output, pending = b"", list(answers)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            ready, _, _ = select.select([fd], [], [], 0.5)
+            if ready:
+                try:
+                    chunk = os.read(fd, 4096)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                output += chunk
+                if pending and output.count(b"Email address for Bedrock") > len(answers) - len(pending):
+                    os.write(fd, (pending.pop(0) + "\n").encode())
+        _, status = os.waitpid(pid, 0)
+        os.close(fd)
+        return os.waitstatus_to_exitcode(status), output.decode(errors="replace")
+
+    def test_terminal_prompt_accepts_a_valid_email(self, tmp_path):
+        code, out = self.run_in_terminal(tmp_path, ["ops@example.com"])
+
+        assert "Email address for Bedrock" in out
+        assert "alert email is required" not in out
+
+    def test_terminal_prompt_retries_then_gives_up(self, tmp_path):
+        code, out = self.run_in_terminal(tmp_path, ["nope", "still-nope", "a@b"])
+
+        assert code == 1
+        assert out.count("Not a valid email address") == 3
+        assert "alert email is required" in out
+
+    def test_terminal_prompt_recovers_from_a_typo(self, tmp_path):
+        code, out = self.run_in_terminal(tmp_path, ["typo", "ops@example.com"])
+
+        assert out.count("Not a valid email address") == 1
+        assert "alert email is required" not in out
 
     @pytest.mark.parametrize("bad", ["not-an-email", "a@b", ""])
     def test_malformed_email_stops_the_deploy(self, tmp_path, bad):
