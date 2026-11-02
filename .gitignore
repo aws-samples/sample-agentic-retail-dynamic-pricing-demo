@@ -65,3 +65,6 @@ package-lock.json
 docs/GUIDANCE_PAPER_COMPARISON.docx
 docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.md
 docs/CONSOLIDATED_SECURITY_CLEARANCE_REPORT.xlsx
+
+# Evaluation runs (python -m evals.run_eval)
+evals/results/

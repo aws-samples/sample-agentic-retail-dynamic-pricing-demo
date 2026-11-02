@@ -1,0 +1,61 @@
+{
+  "_comment": "The dashboard's seven simulation presets (frontend/dashboard/src/App.tsx). The agents receive pricing_group, objectives and constraints, exactly as POST /pricing-cycles sends them; title and context are for the report only.",
+  "requests": [
+    {
+      "id": "supply-chain-disruption",
+      "title": "Supply Chain Disruption",
+      "context": "Rising costs from supply chain issues; protect margins while staying competitive.",
+      "pricing_group": "Electronics-Audio",
+      "objectives": ["margin_protection"],
+      "constraints": {"minMargin": 20, "maxPriceChange": 15}
+    },
+    {
+      "id": "viral-demand-spike",
+      "title": "Viral Demand Spike",
+      "context": "A product goes viral; balance revenue against stock depletion.",
+      "pricing_group": "Electronics-Wearables",
+      "objectives": ["revenue_maximization", "market_share_growth"],
+      "constraints": {"minMargin": 12, "maxPriceChange": 20}
+    },
+    {
+      "id": "competitor-price-war",
+      "title": "Competitor Price War",
+      "context": "A competitor cuts prices 15%; respond with competitive positioning.",
+      "pricing_group": "Grocery-Beverages",
+      "objectives": ["competitive_positioning", "margin_protection"],
+      "constraints": {"minMargin": 10, "maxPriceChange": 12}
+    },
+    {
+      "id": "seasonal-trend-shift",
+      "title": "Seasonal Trend Shift",
+      "context": "End of season; clearance pricing while protecting brand value.",
+      "pricing_group": "Home & Garden-Garden",
+      "objectives": ["revenue_maximization", "competitive_positioning"],
+      "constraints": {"minMargin": 8, "maxPriceChange": 25}
+    },
+    {
+      "id": "high-stock-clearance",
+      "title": "High Stock Clearance",
+      "context": "Excess inventory; find the markdown depth that moves units fast.",
+      "pricing_group": "Electronics-Tablets",
+      "objectives": ["revenue_maximization"],
+      "constraints": {"minMargin": 5, "maxPriceChange": 30}
+    },
+    {
+      "id": "premium-positioning",
+      "title": "Premium Positioning",
+      "context": "Luxury segment; keep a premium perception while maximizing margin.",
+      "pricing_group": "Electronics-Wearables",
+      "objectives": ["margin_protection"],
+      "constraints": {"minMargin": 35, "maxPriceChange": 8}
+    },
+    {
+      "id": "low-inventory-alert",
+      "title": "Low Inventory Alert",
+      "context": "Stock running low on a popular item; raise prices to slow demand.",
+      "pricing_group": "Electronics-Audio",
+      "objectives": ["revenue_maximization", "margin_protection"],
+      "constraints": {"minMargin": 25, "maxPriceChange": 12}
+    }
+  ]
+}
