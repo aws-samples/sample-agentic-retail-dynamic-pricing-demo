@@ -2,6 +2,7 @@ import type { PricingScenario, GuardrailResult } from './ScenarioList';
 import { useState, useRef } from 'react';
 import ApprovalActions from './ApprovalActions';
 import api from '../lib/api';
+import { isOperationsUser, isPricingAnalyst } from '../lib/roles';
 import MethodologyPanel from './MethodologyPanel';
 
 interface ScenarioDetailProps {
@@ -13,6 +14,8 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
   const [reverting, setReverting] = useState(false);
   const [reverted, setReverted] = useState(false);
   const [revertError, setRevertError] = useState<string | null>(null);
+  const canApprove = isPricingAnalyst();
+  const canRevert = isOperationsUser();
 
   const handleRevert = async () => {
     setReverting(true);
@@ -135,14 +138,21 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
         </section>
       )}
 
-      {/* Approval Actions (HITL) */}
-      {!scenario.approvalStatus && (
+      {/* Approval Actions (HITL). The API enforces these roles; the UI only
+          hides actions the signed-in user is not allowed to take. */}
+      {!scenario.approvalStatus && canApprove && (
         <ApprovalActions
           scenarioId={scenario.scenarioId}
           cycleId={scenario.cycleId}
           riskLevel={scenario.riskLevel}
           statusLabel={scenario.statusLabel}
         />
+      )}
+
+      {!scenario.approvalStatus && !canApprove && (
+        <p className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+          Awaiting a decision. Only members of the PricingAnalysts group can approve or reject scenarios.
+        </p>
       )}
 
       {scenario.approvalStatus && (
@@ -164,7 +174,7 @@ export default function ScenarioDetail({ scenario, showContributingFactors = tru
                 <p className="text-sm text-gray-600 mt-1">{scenario.approvalComment}</p>
               )}
             </div>
-            {scenario.approvalStatus === 'APPROVED' && !reverted && (
+            {scenario.approvalStatus === 'APPROVED' && !reverted && canRevert && (
               <button
                 onClick={handleRevert}
                 disabled={reverting}

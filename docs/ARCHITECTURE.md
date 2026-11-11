@@ -142,6 +142,7 @@ An agentic AI system that transforms retail pricing from a manual 6-10 week proc
 - Cognito User Pool with hosted UI (OAuth 2.0 / OIDC)
 - API Gateway Cognito Authorizer validates JWT on every request
 - Lambda extracts `sub` claim for audit trail attribution
+- Handlers check roles by exact `cognito:groups` name, before any read or write: approving or rejecting a scenario (which writes live prices) requires **PricingAnalysts**, reverting prices requires **Operations**, and the cycle initiator can never approve their own scenarios
 
 ### Guardrails (Amazon Bedrock Guardrails)
 

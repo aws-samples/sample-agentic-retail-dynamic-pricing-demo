@@ -127,6 +127,8 @@ aws cognito-idp admin-add-user-to-group \
   --region us-east-1
 ```
 
+Note: only the **PricingAnalysts** group can approve or reject scenarios, and only **Operations** can revert prices. A user in Operations only can view metrics and revert, but cannot approve. To let the ops user also approve (as `deploy.sh` does), add it to `PricingAnalysts` as well.
+
 Note: MFA (TOTP) is REQUIRED. On first login, each user will be prompted to set a new password and configure their authenticator app.
 
 ### 8. Build and Deploy Frontends
