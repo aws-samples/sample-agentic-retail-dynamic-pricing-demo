@@ -23,7 +23,18 @@ try:
 except ImportError:
     from backend.api_handlers.log_config import configure_logging
 
+try:
+    from cognito_claims import is_in_group
+except ImportError:
+    from backend.api_handlers.cognito_claims import is_in_group
+
 logger = configure_logging(__name__)
+
+# Cognito groups (cdk/stacks/cognito.py). Approving or rejecting a scenario,
+# which on approval writes live product prices, is the PricingAnalysts role.
+# Reverting approved prices is the Operations role.
+APPROVER_GROUP = "PricingAnalysts"
+REVERT_GROUP = "Operations"
 
 APPROVALS_TABLE = os.environ.get("APPROVALS_TABLE", "Approvals")
 PRICING_SCENARIOS_TABLE = os.environ.get("PRICING_SCENARIOS_TABLE", "PricingScenarios")
@@ -184,9 +195,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _process_approval(event)
         else:
             return _response(404, {"error": "Not found"})
-    except Exception as e:
+    except Exception:
+        # Details go to CloudWatch only; never return exception text to the caller.
         logger.exception("Error handling request")
-        return _response(500, {"error": str(e)})
+        return _response(500, {"error": "Internal error processing the approval"})
 
 
 def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
@@ -219,6 +231,28 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
     if not cycle_id:
         return _response(400, {
             "error": "cycleId is required for approval validation",
+        })
+
+    # [SECURITY FIX] Role check, before any read or write. Deny by default with
+    # exact group names (cognito:groups, verified by the API Gateway Cognito
+    # authorizer). Previously approve/reject had no group check, so any account
+    # in the pool could approve a scenario and overwrite live prices, and the
+    # revert check ran only after the approval record and scenario status had
+    # already been written.
+    revert_prices = body.get("revertPrices", False) is True
+    required_group = REVERT_GROUP if revert_prices else APPROVER_GROUP
+    if not is_in_group(event, required_group):
+        logger.warning(
+            "Denied %s for scenario %s: caller is not in %s",
+            "price revert" if revert_prices else f"{action} decision",
+            scenario_id, required_group,
+        )
+        return _response(403, {
+            "error": (
+                "Forbidden: only the Operations group can revert prices"
+                if revert_prices
+                else "Forbidden: only the PricingAnalysts group can approve or reject scenarios"
+            ),
         })
 
     # [C1 FIX] Initialize DynamoDB resource BEFORE any table access
@@ -439,15 +473,9 @@ def _process_approval(event: dict[str, Any]) -> dict[str, Any]:
     if action == "REJECTED" and cycle_id:
         _update_implementation_agent_status(cycle_id, {"status": "REJECTED"})
 
-    # If revertPrices flag is set, roll back product prices to previousPrice
-    # [SECURITY FIX] Only Operations group can revert prices
-    revert_prices = body.get("revertPrices", False)
+    # If revertPrices flag is set, roll back product prices to previousPrice.
+    # The Operations group check ran at the top, before any write.
     if revert_prices and cycle_id:
-        revert_groups = claims.get("cognito:groups", "")
-        if "Operations" not in revert_groups:
-            return _response(403, {
-                "error": "Forbidden: only Operations group can revert prices",
-            })
         if stored_scenario and stored_scenario.get("approvalStatus") != "APPROVED":
             return _response(400, {
                 "error": "Cannot revert prices for a scenario that was not previously approved",

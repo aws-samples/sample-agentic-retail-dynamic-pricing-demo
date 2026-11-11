@@ -572,3 +572,15 @@ Dependency findings from a review of the open Dependabot PRs and alerts. Each en
 **Root Cause:** `model-config.json` is not in the agent images; the models reach the agents only as environment variables set by `deploy_agentcore.py`. The redeploy was piped into `tail -5`, so the script tested `tail`'s exit status instead of the deploy's.
 **Fix:** The messages now say the change applies only after a redeploy, the redeploy output is no longer piped, and the summary shows both models.
 **Prevention:** Never pipe a command whose exit status matters into another command.
+
+---
+
+## Authorization
+
+### Issue: Any signed-in account could approve scenarios and change live prices (CWE-862)
+
+**Symptom:** An account whose only Cognito group was Operations (documented as metrics and health only) could call `POST /approvals` with `action: APPROVED` and get HTTP 200. The scenario was recorded as approved by that account, and every product in its `priceChanges` had its live `currentPrice` overwritten, including HIGH risk scenarios given a 50+ character justification. Reported by the security team (CVSS 3.1 8.0 High).
+**Root Cause:** API Gateway's Cognito authorizer only checks that the caller is a signed-in user of the pool, not which group they are in. The approvals handler checked separation of duties (the cycle initiator cannot approve) and the HIGH risk justification length, but never checked `cognito:groups` before approving or rejecting. The revert path did check for Operations, but only after the approval record, audit entry and scenario status had already been written, and with a substring match (`"Operations" in groups`) that accepted names such as "NotOperations".
+**Fix:** `backend/api_handlers/approvals.py` checks the role first, before any read or write: approve or reject requires **PricingAnalysts**, and `revertPrices` requires **Operations**. Group names are matched exactly (`backend/api_handlers/cognito_claims.py`). Everyone else gets 403 and nothing is written. The dashboard hides the approve/reject controls from users outside PricingAnalysts and the revert button from users outside Operations (the API remains the enforcement point). 500 responses no longer return exception text.
+**Prevention:** Every endpoint that changes state needs an explicit, deny-by-default role check before its first write, with exact group matching. `tests/test_approvals_authorization.py` reproduces the reported proof of concept.
+**Note for existing deployments:** the demo users created by `deploy.sh` keep their access (the demo user is in PricingAnalysts; the ops user is in Operations and PricingAnalysts). An account in Operations only, such as one created by following `docs/QUICK_START.md`, can no longer approve or reject.

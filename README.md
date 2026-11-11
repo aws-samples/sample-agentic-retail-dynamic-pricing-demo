@@ -10,7 +10,7 @@
 - **Generates 5 ranked pricing scenarios** per cycle — the selected objective sets the price direction (increase/decrease), and each strategy (Aggressive Growth, Market Share Capture, Balanced Optimization, Margin Protection, Conservative Protection) applies a different level of aggressiveness with corresponding risk classification and confidence scores
 - **Enforces pricing compliance** via 4 application-layer guardrails (below-cost rejection, MAP enforcement, geographic bias detection, PII protection), plus optional Amazon Bedrock Guardrails to block anti-competitive strategies at the model level. The demo does not create the guardrail; attach your own with `BEDROCK_GUARDRAIL_ID` (see Limitations)
 - **Routes approvals by risk** — LOW risk auto-approved (Straight-Through Processing), MEDIUM requires human review, HIGH requires 50+ character justification with escalation to Pricing Manager
-- **Enforces separation of duties** — the pricing cycle initiator cannot approve their own scenarios (server-side enforcement)
+- **Enforces separation of duties and roles** — only the PricingAnalysts group can approve or reject scenarios, only Operations can revert prices, and the pricing cycle initiator cannot approve their own scenarios (server-side enforcement)
 - **Monitors post-implementation KPIs** — Implementation Monitoring agent tracks revenue and margin variance against projections with configurable thresholds (10% revenue, 3pp margin)
 - **Provides full audit trail** with immutable records (IAM-enforced) for regulatory compliance (FTC, Robinson-Patman Act, EU Omnibus Directive)
 - **Dual frontend** — Authenticated Dashboard (pricing management, simulations, analytics, scheduling) and public Storefront (consumer catalog with live price updates)
@@ -497,6 +497,7 @@ A comprehensive STRIDE threat model has been completed for this solution. See [`
 - CORS restricted to known CloudFront origins
 - Cognito MFA (TOTP) required for all dashboard users
 - Separation of duties enforcement (cycle initiator cannot approve)
+- Role-based approval: approve/reject requires the PricingAnalysts group, price revert requires Operations (exact group match, checked before any write)
 - Dependency vulnerability scanning (pip-audit) in deployment pipeline
 - Audit trail immutability (IAM deny on mutations)
 - DynamoDB Streams for price change detection
