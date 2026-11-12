@@ -289,7 +289,11 @@ npx cdk deploy --all --require-approval never
 python scripts/seed_products.py
 ```
 
-### 7. Create Cognito Demo User
+### 7. Create Cognito Demo Users
+
+Two users, matching what `deploy.sh` creates:
+- `demo@example.com`: a **Pricing Analyst** (PricingAnalysts group). Runs pricing requests and simulations, and approves or rejects scenarios from cycles someone else started.
+- `ops@example.com`: an **admin** (Operations **and** PricingAnalysts groups). Sees everything, including the Operations tab, approves or rejects cycles someone else started, and reverts prices.
 
 ```bash
 aws cognito-idp admin-create-user \
@@ -303,6 +307,33 @@ aws cognito-idp admin-set-user-password \
   --username demo@example.com \
   --password <COGNITO_DEMO_PASSWORD> \
   --permanent
+
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id <COGNITO_USER_POOL_ID> \
+  --username demo@example.com \
+  --group-name PricingAnalysts
+
+aws cognito-idp admin-create-user \
+  --user-pool-id <COGNITO_USER_POOL_ID> \
+  --username ops@example.com \
+  --temporary-password TempPass2024!Secure \
+  --message-action SUPPRESS
+
+aws cognito-idp admin-set-user-password \
+  --user-pool-id <COGNITO_USER_POOL_ID> \
+  --username ops@example.com \
+  --password <COGNITO_OPS_PASSWORD> \
+  --permanent
+
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id <COGNITO_USER_POOL_ID> \
+  --username ops@example.com \
+  --group-name Operations
+
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id <COGNITO_USER_POOL_ID> \
+  --username ops@example.com \
+  --group-name PricingAnalysts
 ```
 
 > **Note:** Passwords must be at least 12 characters with uppercase, lowercase, digits, and symbols. MFA (TOTP) enrollment is required on first login — users will need an authenticator app (e.g., Google Authenticator, Authy).
@@ -359,25 +390,37 @@ aws cognito-idp update-user-pool-client \
 
 ## Running the Demo
 
+`deploy.sh` creates two users:
+
+| User | Groups | Role |
+|------|--------|------|
+| `demo@example.com` | PricingAnalysts | Pricing Analyst: runs pricing requests and simulations, approves or rejects scenarios from cycles someone else started |
+| `ops@example.com` | Operations + PricingAnalysts | Admin: everything above, plus the Operations tab and reverting prices |
+
+> **Approvals need a second person.** Whoever starts a pricing cycle cannot approve or reject its scenarios (separation of duties), and only PricingAnalysts members can approve or reject. To show an approval, start the cycle as one user and approve it as the other (for example, start as `demo@example.com` and approve as `ops@example.com`, using a second browser profile or a private window). LOW risk scenarios are auto-approved, so they need no second user.
+
 ### As Pricing Analyst (`demo@example.com` / `DemoPass2024!`)
 
 1. **Open Dashboard** → Log in with Cognito credentials
 2. **Simulations tab** → Select a scenario preset (e.g., "Competitor Price War")
 3. **Watch the pipeline** → 6 agents execute in under 2 minutes
 4. **Review scenarios** → 5 ranked recommendations with strategy names and risk levels
-5. **Approve/Reject** → HIGH risk requires justification, LOW risk auto-approves
+5. **Approve/Reject** → on a cycle started by another user (see the note above). HIGH risk requires a 50+ character justification; LOW risk auto-approves
 6. **Check Storefront** → Prices update in real-time after approval
 7. **Price Predictions tab** → Select a product, click Simulate, explore the decision tree with drill-down explainability
 8. **Product Catalog tab** → View all products with unit economics (cost, margin, inventory, MAP floors). Click any product to expand cost breakdown and pricing boundaries
 9. **Guardrails Demo** → Scroll to "Guardrails Enforcement" section, click any card to see compliance blocking in action
 
-### As Operations (`ops@example.com` / `OpsPass2024!`)
+### As Admin (`ops@example.com` / `OpsPass2024!`)
+
+The admin user is in both groups, so it can do everything the Pricing Analyst can, plus the steps below.
 
 1. **Log in** → Notice the "Operations" tab appears (not visible to Pricing Analysts)
 2. **Operations → System Health** → All 12 services with status and latency
 3. **Operations → Metrics** → Operational KPIs (cycles run, error rates, invocations)
 4. **Operations → Architecture** → System architecture diagram
 5. **Operations → TCO & ROI** → Cost breakdown per cycle, monthly projections, AWS billing data
+6. **Revert Prices** → On an approved scenario, roll prices back to their previous values (Operations group only)
 
 See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for a detailed 5-minute demo walkthrough.
 

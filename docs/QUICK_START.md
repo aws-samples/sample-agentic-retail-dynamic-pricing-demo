@@ -111,7 +111,7 @@ aws cognito-idp admin-add-user-to-group \
   --group-name PricingAnalysts \
   --region us-east-1
 
-# Create ops user (Operations group)
+# Create ops user (admin: Operations and PricingAnalysts, like deploy.sh)
 aws cognito-idp admin-create-user \
   --user-pool-id <USER_POOL_ID> \
   --username ops@example.com \
@@ -125,9 +125,17 @@ aws cognito-idp admin-add-user-to-group \
   --username ops@example.com \
   --group-name Operations \
   --region us-east-1
+
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id <USER_POOL_ID> \
+  --username ops@example.com \
+  --group-name PricingAnalysts \
+  --region us-east-1
 ```
 
-Note: only the **PricingAnalysts** group can approve or reject scenarios, and only **Operations** can revert prices. A user in Operations only can view metrics and revert, but cannot approve. To let the ops user also approve (as `deploy.sh` does), add it to `PricingAnalysts` as well.
+The two users match what `deploy.sh` creates: `demo@example.com` is a **Pricing Analyst** (PricingAnalysts only), and `ops@example.com` is an **admin** (Operations and PricingAnalysts), which sees the Operations tab and can approve, reject and revert.
+
+Note: only the **PricingAnalysts** group can approve or reject scenarios, and only **Operations** can revert prices. Whoever starts a pricing cycle cannot approve or reject its scenarios (separation of duties), so start a cycle as one user and approve it as the other. A user in Operations only can view metrics and revert, but cannot approve.
 
 Note: MFA (TOTP) is REQUIRED. On first login, each user will be prompted to set a new password and configure their authenticator app.
 
@@ -173,7 +181,7 @@ aws cognito-idp update-user-pool-client \
 
 - **Dashboard:** `https://<DASHBOARD_CLOUDFRONT_DOMAIN>`
 - **Storefront:** `https://<STOREFRONT_CLOUDFRONT_DOMAIN>`
-- **Login:** `demo@example.com` / `TempPass123!` (first login will prompt for password change + MFA setup)
+- **Login:** `demo@example.com` (Pricing Analyst) or `ops@example.com` (admin), each with `TempPass123!` (first login will prompt for password change + MFA setup)
 
 On first login:
 1. Enter the temporary password

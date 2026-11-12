@@ -10,7 +10,8 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 - **Dashboard URL:** `https://<DASHBOARD_CLOUDFRONT_DOMAIN>`
 - **Storefront URL:** `https://<STOREFRONT_CLOUDFRONT_DOMAIN>`
-- **Login:** `<COGNITO_DEMO_USER>` / `<COGNITO_DEMO_PASSWORD>`
+- **Logins** (created by `deploy.sh`): `demo@example.com` is the Pricing Analyst (PricingAnalysts group) who runs pricing requests and simulations; `ops@example.com` is the admin (Operations and PricingAnalysts) who sees every tab and can approve, reject and revert
+- **Plan the approval step (Part 3):** whoever starts a cycle cannot approve its scenarios (separation of duties). Start the simulation as `demo@example.com`, for example in a private window, and approve it as `ops@example.com`
 - Open both URLs in separate browser tabs
 - Log into the Dashboard
 - **Bedrock Guardrails are optional.** The demo does not create one, so a default deploy runs the agents without a Bedrock guardrail. To back the guardrail talking points with a live guardrail, create one (the four denied topics and PII filters in `docs/ARCHITECTURE.md`) and set `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` before deploying. The **Guardrails Enforcement** cards in the Dashboard are scripted demo scenarios and work either way.
@@ -85,7 +86,9 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 - **AI Decision Rationale** — "The AI explains WHY it made this recommendation — what data it used, what strategy it applied."
 - **Guardrail Results** — "All compliance checks passed: minimum margin, maximum price change, MAP compliance, channel consistency, and Bedrock Guardrail policy."
 
-**Action:** Type a comment like "Approved: competitive response needed to maintain market share" and click **Approve**.
+**Action:** As a different user from the one who started the cycle (see Setup), type a comment like "Approved: competitive response needed to maintain market share" and click **Approve**.
+
+> "Notice the person approving isn't the person who asked for the change. Separation of duties is enforced on the server, and only Pricing Analysts can approve."
 
 > "The approval is recorded with who approved it, when, and why. The Implementation Monitoring agent now executes the price changes."
 
@@ -225,7 +228,7 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 
 ### Part 10: Operations View — TCO & Scheduling (30 seconds)
 
-**Action:** Log in as the Operations user (or switch if already logged in). Click the **Ops** tab, then select the **TCO** sub-tab.
+**Action:** Log in as the admin user, `ops@example.com` (or switch if already logged in). Click the **Ops** tab, then select the **TCO** sub-tab.
 
 **What to say:**
 
@@ -250,6 +253,8 @@ This demo shows how AI agents autonomously transform retail pricing from a 6-10 
 ---
 
 ### Part 11: Revert Capability (15 seconds)
+
+**Action:** As `ops@example.com`, open an approved scenario and click **Revert Prices**. Only the Operations group can revert, so the Pricing Analyst does not see this button.
 
 **What to say:**
 

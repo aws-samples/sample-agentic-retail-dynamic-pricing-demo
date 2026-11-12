@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Documentation
+- The two demo users are described consistently across README, QUICK_START, DEMO_SCRIPT and docs/README: `demo@example.com` is a Pricing Analyst (PricingAnalysts), `ops@example.com` is an admin (Operations + PricingAnalysts), matching `deploy.sh`. The manual setup steps now create both users with those groups, and the demo docs explain that an approval needs a different user from the one who started the cycle
+
 ### Security
 - **`POST /approvals` missing authorization (CWE-862, CVSS 8.0).** Approve/reject had no Cognito group check, so any account in the pool (including an Operations-only account) could approve a scenario and overwrite live product prices. Approve/reject now requires the PricingAnalysts group and price revert requires Operations, both by exact group name and checked before any read or write. The revert check previously ran after the approval record and scenario status were written, and matched group names by substring. The dashboard hides actions the user's role cannot take. 500 responses no longer include exception text
 - Frontend dependencies bumped in both the dashboard and storefront: `vite` 8.3.4, `follow-redirects` 1.16.2, `source-map-js` 1.2.2, `postcss-selector-parser` 6.1.5. `npm audit` now reports 0 vulnerabilities in both apps (including dev dependencies), still on `tailwindcss` 3.4.19
