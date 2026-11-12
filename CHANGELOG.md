@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Model selection is tiered: `scripts/select_model.py` (Step 1.7) asks for the orchestrator model (recommended: newest ACTIVE Opus) and the specialist model for the five specialists (recommended: newest ACTIVE Sonnet), so most model calls run on the faster, cheaper tier. `--non-interactive` takes the recommended pair, and `ORCHESTRATOR_MODEL_ID` / `SPECIALIST_MODEL_ID` in the environment skip the matching prompt. `model-config.json` gains `specialistModelName`
 - `scripts/switch_model.sh` asks for both models and shows both in its summary
+- Both frontends' `tsconfig.json` drop the `baseUrl` option (deprecated in TypeScript 6, removed in 7) and keep the `@/*` path alias relative to the tsconfig. Editors running TypeScript 6 no longer flag it as an error; builds still use the pinned TypeScript 5.9.3
 - Bumped dashboard dev dependencies to patched versions to clear vulnerability alerts: `browserslist` 4.28.8, `nanoid` 3.3.18, `postcss-selector-parser` 6.1.4 (non-breaking `npm audit fix`)
 - Bumped storefront dev dependencies to patched versions: `browserslist` 4.28.8, `nanoid` 3.3.18 (targeted update; storefront builds clean with zero audit findings)
 - Aligned both frontends on the same validated tooling: `vite` 8.3.0, `@vitejs/plugin-react` 5.2.0, `react-router-dom` 7.18.4 (dashboard was on Vite 5); `npm audit` now reports 0 vulnerabilities on both
