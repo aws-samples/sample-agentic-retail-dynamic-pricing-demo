@@ -40,7 +40,7 @@
 | Dashboard | `https://<DASHBOARD_CLOUDFRONT_DOMAIN>` |
 | Storefront | `https://<STOREFRONT_CLOUDFRONT_DOMAIN>` |
 | API Gateway | `https://<API_GATEWAY_URL>/prod/` |
-| Login | `demo@example.com` / `ops@example.com` (MFA TOTP required) |
+| Login | `demo@example.com` (Pricing Analyst) / `ops@example.com` (admin: Operations + PricingAnalysts), MFA TOTP required |
 
 ---
 
