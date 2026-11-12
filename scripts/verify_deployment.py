@@ -18,6 +18,9 @@ from pathlib import Path
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+from shared import cycle_timeouts  # noqa: E402
+
 
 def check_mark(passed: bool) -> str:
     return "✓" if passed else "✗"
@@ -293,6 +296,68 @@ def verify_agent_wiring(region: str) -> tuple[bool, list[tuple[str, bool, str]],
     return passed, rows, shared_problems
 
 
+PRICING_CYCLES_FUNCTION = "rdp-api-pricing-cycles"
+
+
+def expected_lambda_timeouts(orchestrator_env: dict) -> tuple[cycle_timeouts.CycleTimeouts | None, str]:
+    """Timeouts the Lambda must have for the orchestrator's deployed agent timeouts.
+
+    A runtime deployed before the timeouts were configurable has neither env var;
+    it uses the defaults, so the defaults are expected.
+    """
+    try:
+        return cycle_timeouts.resolve(environ=orchestrator_env), ""
+    except cycle_timeouts.InvalidTimeouts as e:
+        return None, f"orchestrator has invalid timeouts: {e}"
+
+
+def compare_cycle_timeouts(orchestrator_env: dict, lambda_config: dict) -> list[str]:
+    """Problems if the Lambda's timeouts do not match the orchestrator's (empty if they do)."""
+    timeouts, error = expected_lambda_timeouts(orchestrator_env)
+    if timeouts is None:
+        return [error]
+    problems = []
+    lambda_env = (lambda_config.get("Environment") or {}).get("Variables") or {}
+    for key, expected in timeouts.lambda_environment().items():
+        actual = lambda_env.get(key)
+        if actual != expected:
+            problems.append(f"{PRICING_CYCLES_FUNCTION} {key}={actual} (expected {expected})")
+    if lambda_config.get("Timeout") != timeouts.lambda_timeout:
+        problems.append(
+            f"{PRICING_CYCLES_FUNCTION} timeout {lambda_config.get('Timeout')} s (expected {timeouts.lambda_timeout} s)"
+        )
+    return problems
+
+
+def verify_cycle_timeouts(region: str) -> tuple[bool, str]:
+    """Check the Lambda waits longer than the deployed orchestrator can take.
+
+    The orchestrator (deploy_agentcore.py) and the Lambda (CDK) are deployed
+    separately; if they were given different timeouts, the chain can break.
+    """
+    control = boto3.client("bedrock-agentcore-control", region_name=region)
+    try:
+        runtime_id = next(
+            (r["agentRuntimeId"] for r in _list_all(control.list_agent_runtimes, ("agentRuntimes",))
+             if r.get("agentRuntimeName") == AGENT_RUNTIME_NAMES["orchestrator"]),
+            None,
+        )
+        if not runtime_id:
+            return False, "orchestrator runtime not found"
+        live = str(control.get_agent_runtime_endpoint(agentRuntimeId=runtime_id, endpointName="DEFAULT")
+                   .get("liveVersion") or "")
+        env = control.get_agent_runtime(agentRuntimeId=runtime_id, agentRuntimeVersion=live).get(
+            "environmentVariables") or {}
+        config = boto3.client("lambda", region_name=region).get_function_configuration(
+            FunctionName=PRICING_CYCLES_FUNCTION)
+    except (ClientError, BotoCoreError) as e:
+        return False, f"could not read the timeouts: {e}"
+    problems = compare_cycle_timeouts(env, config)
+    if problems:
+        return False, "; ".join(problems)
+    return True, expected_lambda_timeouts(env)[0].describe()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify deployment health")
     parser.add_argument("--region", default="us-east-1", help="AWS region")
@@ -373,6 +438,12 @@ def main():
     if wiring_passed:
         print(f"    {check_mark(True)} All {len(wiring_rows)} runtimes wired to the live gateway and memory")
     all_passed = all_passed and wiring_passed
+
+    # 9. Pricing-cycle timeouts: the Lambda (CDK) must match the orchestrator (deploy_agentcore.py)
+    print("\n  Pricing-Cycle Timeouts (orchestrator vs rdp-api-pricing-cycles):")
+    timeouts_passed, timeouts_detail = verify_cycle_timeouts(args.region)
+    print(f"    {check_mark(timeouts_passed)} {timeouts_detail}")
+    all_passed = all_passed and timeouts_passed
 
     # Summary
     print("")
