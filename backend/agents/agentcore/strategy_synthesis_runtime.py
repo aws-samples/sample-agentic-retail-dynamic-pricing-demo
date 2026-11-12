@@ -23,11 +23,11 @@ import os
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import Agent
 from strands.models import BedrockModel
-from strands.tools.mcp import MCPClient
 
 from backend.agents.agentcore.memory_config import create_session_manager
-from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs
-from shared.model_config import SPECIALIST_MODEL
+from backend.agents.agentcore.gateway_auth import create_gateway_mcp_client
+from backend.agents.agentcore.guardrail_config import get_guardrail_model_kwargs, synthesis_prompt_content
+from shared.model_config import MAX_OUTPUT_TOKENS, SPECIALIST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,8 @@ def invoke(payload: dict) -> dict:
             # AGENTCORE_GATEWAY_ENDPOINT is the gateway's MCP URL (<gatewayUrl>/mcp).
             # The MCPClient is a tool provider: the Agent loads the gateway's tools
             # from it and manages the connection lifecycle.
-            mcp_client = MCPClient(url=GATEWAY_ENDPOINT)
+            # Signed with SigV4 (AWS_IAM inbound auth on the gateway); see gateway_auth.py.
+            mcp_client = create_gateway_mcp_client(GATEWAY_ENDPOINT)
             tools = [mcp_client]
         else:
             # Fallback: import tools directly from the agent module
@@ -145,7 +146,14 @@ def invoke(payload: dict) -> dict:
 
         # Create agent with memory, gateway tools, and Bedrock Guardrails (if
         # configured). The guardrail is attached to the model, not to the Agent.
-        model = BedrockModel(model_id=SPECIALIST_MODEL, **get_guardrail_model_kwargs())
+        # For the orchestrator's JSON prompt only the request is screened as
+        # guardrail input; the analyst reports were screened as model output.
+        content = synthesis_prompt_content(full_prompt)
+        model = BedrockModel(
+            model_id=SPECIALIST_MODEL,
+            max_tokens=MAX_OUTPUT_TOKENS,
+            **get_guardrail_model_kwargs(latest_message=content is None),
+        )
         agent = Agent(
             model=model,
             system_prompt=SYSTEM_PROMPT,
@@ -154,7 +162,7 @@ def invoke(payload: dict) -> dict:
         )
 
         try:
-            result = agent(full_prompt)
+            result = agent(content or full_prompt)
         finally:
             # Release the gateway MCP connection created for this invocation.
             agent.cleanup()

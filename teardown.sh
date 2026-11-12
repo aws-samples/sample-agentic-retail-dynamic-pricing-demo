@@ -11,7 +11,7 @@
 #   2. cdk destroy --all (DynamoDB, Cognito, API GW, Lambdas, CloudFront, S3, MCP)
 #   3. AgentCore: gateway targets -> gateway -> agent runtimes -> memory
 #   4. ECR repositories (retail-pricing/*)
-#   5. IAM role (RetailPricingAgentCoreRole) + its inline policies
+#   5. IAM roles (RetailPricingAgentCoreRole, RetailPricingGatewayRole) + their inline policies
 #
 # Usage:
 #   chmod +x teardown.sh
@@ -26,7 +26,8 @@ set -u
 
 REGION="${AWS_REGION:-us-east-1}"
 ASSUME_YES=false
-ROLE_NAME="RetailPricingAgentCoreRole"
+# Agent runtime execution role and AgentCore Gateway service role (scripts/create_agentcore_role.py)
+ROLE_NAMES=("RetailPricingAgentCoreRole" "RetailPricingGatewayRole")
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -81,7 +82,7 @@ echo "  This will PERMANENTLY DELETE the Retail Dynamic Pricing deployment:"
 echo "    - CloudFormation stack 'RetailDynamicPricing' (DynamoDB, Cognito,"
 echo "      API Gateway, Lambdas, CloudFront, S3, MCP servers)"
 echo "    - AgentCore runtimes, gateway (+targets), and memory"
-echo "    - ECR repositories (retail-pricing/*) and IAM role $ROLE_NAME"
+echo "    - ECR repositories (retail-pricing/*) and IAM roles ${ROLE_NAMES[*]}"
 echo ""
 
 if [ "$ASSUME_YES" != true ]; then
@@ -178,22 +179,23 @@ else
     print_info "No retail-pricing/* repositories found (already gone)"
 fi
 
-# --- Step 5: IAM role (inline policies first, then the role) ---
-print_step "Step 5: Deleting IAM role ($ROLE_NAME)"
-if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
-    for p in $(aws iam list-role-policies --role-name "$ROLE_NAME" --query "PolicyNames[]" --output text 2>/dev/null); do
-        aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$p" >/dev/null 2>&1 \
-            && print_info "Deleted inline policy $p"
-    done
-    for a in $(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query "AttachedPolicies[].PolicyArn" --output text 2>/dev/null); do
-        aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$a" >/dev/null 2>&1 \
-            && print_info "Detached managed policy $a"
-    done
-    aws iam delete-role --role-name "$ROLE_NAME" >/dev/null 2>&1 && print_success "IAM role deleted"
-else
-    print_info "IAM role $ROLE_NAME not found (already gone)"
-fi
-
+# --- Step 5: IAM roles (inline policies first, then the role) ---
+print_step "Step 5: Deleting IAM roles (${ROLE_NAMES[*]})"
+for ROLE_NAME in "${ROLE_NAMES[@]}"; do
+    if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+        for p in $(aws iam list-role-policies --role-name "$ROLE_NAME" --query "PolicyNames[]" --output text 2>/dev/null); do
+            aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "$p" >/dev/null 2>&1 \
+                && print_info "Deleted inline policy $p"
+        done
+        for a in $(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query "AttachedPolicies[].PolicyArn" --output text 2>/dev/null); do
+            aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$a" >/dev/null 2>&1 \
+                && print_info "Detached managed policy $a"
+        done
+        aws iam delete-role --role-name "$ROLE_NAME" >/dev/null 2>&1 && print_success "IAM role $ROLE_NAME deleted"
+    else
+        print_info "IAM role $ROLE_NAME not found (already gone)"
+    fi
+done
 # --- Summary ---
 print_step "Teardown complete"
 echo "  Local deployment artifacts you may also want to remove:"

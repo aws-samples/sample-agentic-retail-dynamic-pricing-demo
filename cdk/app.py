@@ -4,8 +4,10 @@
 import sys
 from pathlib import Path
 
-# Add the cdk directory to the Python path so stacks module is importable
+# Add the cdk directory to the Python path so stacks module is importable, and
+# the repo root for shared/ (shared/cycle_timeouts.py).
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(1, str(Path(__file__).parent.parent))
 
 import aws_cdk as cdk
 from cdk_nag import AwsSolutionsChecks, NagSuppressions
