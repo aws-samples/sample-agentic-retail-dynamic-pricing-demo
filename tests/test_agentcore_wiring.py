@@ -653,6 +653,7 @@ class TestVerifyAgentWiring:
             "verify_api_gateway": (True, 19),
             "verify_s3_buckets": [("Dashboard bucket", True)],
             "verify_agent_arns": (True, 6),
+            "verify_cycle_timeouts": (True, "timeouts match"),
         }
         for name, value in ok_checks.items():
             monkeypatch.setattr(verify_deployment, name, lambda *a, _v=value, **k: _v)
@@ -674,6 +675,7 @@ class TestVerifyAgentWiring:
             "verify_api_gateway": (True, 19),
             "verify_s3_buckets": [("Dashboard bucket", True)],
             "verify_agent_arns": (True, 6),
+            "verify_cycle_timeouts": (True, "timeouts match"),
         }
         for name, value in ok_checks.items():
             monkeypatch.setattr(verify_deployment, name, lambda *a, _v=value, **k: _v)

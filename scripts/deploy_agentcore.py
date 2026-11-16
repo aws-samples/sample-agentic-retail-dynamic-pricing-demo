@@ -45,6 +45,9 @@ from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for shared/
+from shared import cycle_timeouts  # noqa: E402
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -867,11 +870,23 @@ def main() -> None:
         logger.error("Aborting before any image is built: agents must not be deployed unwired.")
         sys.exit(1)
 
+    # Agent read timeouts for the orchestrator (SPECIALIST_TIMEOUT_SECONDS /
+    # SYNTHESIS_TIMEOUT_SECONDS). CDK derives the Lambda's timeouts from the same
+    # values, so both deploys must see the same ones (deploy.sh exports them).
+    try:
+        timeouts = cycle_timeouts.resolve()
+    except cycle_timeouts.InvalidTimeouts as e:
+        logger.error("Invalid pricing-cycle timeouts: %s", e)
+        logger.error("Aborting before any image is built.")
+        sys.exit(1)
+    logger.info("Pricing-cycle timeouts: %s", timeouts.describe())
+
     base_environment = {
         "AGENTCORE_GATEWAY_ENDPOINT": gateway_endpoint,
         "AGENTCORE_MEMORY_ID": memory_id,
         **load_model_environment(),
         **resolve_guardrail_environment(session, region),
+        **timeouts.agent_environment(),
     }
     logger.info("Agent runtime wiring:")
     logger.info("  AGENTCORE_GATEWAY_ENDPOINT = %s", gateway_endpoint)
